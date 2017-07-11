@@ -38,6 +38,7 @@ extern(C) void crashSignalHandle(int sig) nothrow @nogc @system{
 struct SafeExecutor
 {
 	alias PluginFunction=void function();
+	alias Queue=LowLockQueue!(PluginExecHandle*);
 
 	struct PluginExecHandle{
 		PluginFunction fn;
@@ -49,7 +50,7 @@ struct SafeExecutor
 	enum pluginsThreadsNum=10;
 	bool exit=false;
 	Thread[pluginsThreadsNum] threads;
-	LowLockQueue!(PluginExecHandle*) queue;
+	Queue queue;
 
 	Semaphore semaphore;
 
@@ -64,25 +65,30 @@ struct SafeExecutor
 	}
 
 	void initialize(){
-		queue=new LowLockQueue!(PluginExecHandle*)();
-		semaphore = new Semaphore(0);
+		initializeCrashSignalCatching();
+		queue=Mallocator.instance.make!Queue();
+		semaphore = Mallocator.instance.make!Semaphore(0);
 		foreach(ref th;threads){
-			th=new Thread(&threadMain);
+			th=Mallocator.instance.make!Thread(&threadMain);
 			th.start();
 		}
 	}
 
-	void dispose(){
+	void end(){
 		exit=true;
 		foreach(ref th;threads){
 			th.join();
+			Mallocator.instance.dispose(th);
 		}
+		Mallocator.instance.dispose(queue);
+		Mallocator.instance.dispose(semaphore);
 	}
 
 	void renewThread(Thread thread){
 		foreach(ref th;threads){
 			if(th==thread){
 				if(!th.isRunning()){
+					Mallocator.instance.dispose(th);
 					th=Mallocator.instance.make!Thread(&threadMain);
 					th.start();
 				}

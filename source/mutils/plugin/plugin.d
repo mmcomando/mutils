@@ -16,9 +16,9 @@ struct PluginManager{
 	}else{
 		enum compiler="ldc";
 	}
-
+	
 	Vector!string includes;
-
+	
 	alias PluginFunction=void function();
 	static struct PluginData{
 		string path;
@@ -28,22 +28,21 @@ struct PluginManager{
 		PluginFunction run;
 		PluginFunction dispose;
 	}
-
+	
 	PluginData[string] plugins;
 	SafeExecutor queue;
-
+	
 	void initialize(){
-		queue.initializeCrashSignalCatching();
 		queue.initialize();
 	}
-
-	void dispose(){
-		queue.dispose();
+	
+	void end(){
+		queue.end();
 		foreach(ref plugin;plugins.byValue){
 			unloadPlugin(&plugin);
 		}
 	}
-
+	
 	bool runPlugin(string pluginPath){
 		auto plugin=loadPlugin(pluginPath);
 		if(plugin is null){
@@ -51,11 +50,16 @@ struct PluginManager{
 		}
 		return runPlugin(plugin);
 	}
-
+	
 	PluginData* loadPlugin(string pluginPath){
 		PluginData* plugin;
 		plugin = pluginPath in plugins;
-		SysTime lastChange=timeLastModified(pluginPath);
+		SysTime lastChange;
+		try{
+			lastChange=timeLastModified(pluginPath);
+		}catch(Exception e){
+			return null;
+		}
 		if(plugin !is null){
 			if(plugin.lastChange!=lastChange){
 				unloadPlugin(plugin);
@@ -77,10 +81,10 @@ struct PluginManager{
 			if(!ok)return null;
 			plugins[pluginPath]=pluginData;
 			plugin = pluginPath in plugins;//TODO double lookup
-
+			
 		}
 		return plugin;
-
+		
 	}
 	
 	bool compilePlugin(PluginData* plugin){
@@ -113,7 +117,7 @@ struct PluginManager{
 		plugin.initialize=cast(void function())GetSymbol(plugin.lib, "plugin_initialize");
 		plugin.run=		  cast(void function())GetSymbol(plugin.lib, "plugin_run");
 		plugin.dispose=   cast(void function())GetSymbol(plugin.lib, "plugin_dispose");
-
+		
 		if(plugin.run is null){
 			writeln("Error loading plugin main function.");
 			unloadPlugin(plugin);
@@ -123,7 +127,7 @@ struct PluginManager{
 			plugin.initialize();
 		}
 		return true;
-
+		
 	}
 	
 	static void unloadPlugin(PluginData* plugin){
@@ -137,15 +141,15 @@ struct PluginManager{
 		plugin.run=null;
 		plugin.dispose=null;
 	}
-
-
+	
+	
 	bool runPlugin(PluginData* plugin){
 		if(plugin.run is null){
 			return false;
 		}
 		return queue.execute(plugin.run);
 	}
-
+	
 }
 
 unittest{
@@ -164,6 +168,6 @@ unittest{
 	}else{
 		pluginManager.runPlugin(plugin);
 	}
-	pluginManager.dispose();
+	pluginManager.end();
 	
 }
