@@ -1,7 +1,7 @@
 ﻿/**
 Module  contains multithreated allcoators. Few of them with similar interface.
  */
-module mutils.job_manager.shared_allocator;
+module mutils.container_shared.shared_allocator;
 
 import std.stdio;
 import std.conv:emplace;
@@ -10,7 +10,7 @@ import std.experimental.allocator.mallocator;
 
 import mutils.job_manager.shared_utils;
 import mutils.job_manager.utils;
-import mutils.job_manager.vector;
+import mutils.container.vector;
 
 
 class MyMallocator{
@@ -41,7 +41,7 @@ class MyGcAllcoator{
 }
 
 import core.atomic;
-import  std.random:uniform;
+import std.random:uniform;
 
 
 
@@ -90,7 +90,7 @@ class BucketAllocator(uint bucketSize){
 	
 	
 	this(){
-		bucketArrays=mallocator.make!(BucketArraysType);
+		//bucketArrays=mallocator.make!(BucketArraysType);
 		bucketArrays.extend(128);
 	}
 	~this(){

@@ -26,7 +26,7 @@ public:
 
 	void removeAll(){
 		if(array !is null){
-			freeData(array);
+			freeData(cast(void[])array);
 		}
 		array=T[].init;
 		used=0;
@@ -35,12 +35,15 @@ public:
 	bool empty(){
 		return (used==0);
 	}
+
 	size_t length(){
 		return used;
 	}	
+
 	void reset(){
 		used=0;
 	}
+
 	void reserve(size_t numElements){
 		if(numElements>array.length){
 			extend(numElements);
@@ -58,7 +61,6 @@ public:
 	@nogc void freeData(void[] data){
 		//0xFFFFFF probably invalid value for pointers and other types
 		memset(cast(void*)data.ptr,0xFFFFFFFF,data.length);//very important :) makes bugs show up xD 
-		//mallocator.dispose(data);
 		free(data.ptr);
 	}
 
@@ -98,10 +100,12 @@ public:
 		}
 		used+=t.length;
 	}
+
 	void remove(size_t elemNum){
 		array[elemNum]=array[used-1];
 		used--;
 	}
+
 	void removeElement(T elem){
 		foreach(i,ref el;array[0..used]){
 			if(el==elem){
@@ -115,20 +119,30 @@ public:
 		assert(elemNum<used);
 		return array[elemNum];
 	}
+
 	auto opSlice(){
 		return array[0..used];
 	}
+
+	T[] opSlice(size_t x, size_t y){
+		assert(y<used);
+		return array[x..y];
+	}
+
 	size_t opDollar(){
 		return used;
 	}
+
 	void opOpAssign(string op)(T obj){
 		static assert(op=="~");
 		add(obj);
 	}
+
 	void opOpAssign(string op)(T[] obj){
 		static assert(op=="~");
 		add(obj);
 	}
+
 	void opIndexAssign(T obj,size_t elemNum){
 		assert(elemNum<used);
 		array[elemNum]=obj;

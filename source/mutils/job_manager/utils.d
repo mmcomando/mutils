@@ -44,7 +44,7 @@ version(linux){
 	}
 }else{
 	string functionName(void* addr){
-		return "?? Use Linux";
+		return "???";
 	}
 }
 

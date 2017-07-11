@@ -153,7 +153,7 @@ struct PluginManager{
 }
 
 unittest{
-	import mutils.plugin.plugin;
+	/*import mutils.plugin.plugin;
 	immutable string include="./source";
 	import core.thread;	
 	
@@ -168,6 +168,6 @@ unittest{
 	}else{
 		pluginManager.runPlugin(plugin);
 	}
-	pluginManager.end();
+	pluginManager.end();*/
 	
 }

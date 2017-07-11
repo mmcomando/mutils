@@ -13,7 +13,7 @@ import std.stdio;
 import std.typecons;
 
 import mutils.plugin.safe_executor;
-import mutils.job_manager.shared_queue;
+import mutils.container_shared.shared_queue;
 
 version(Posix){
 	extern(C) void pthread_exit(void *value_ptr)  nothrow @nogc @system;

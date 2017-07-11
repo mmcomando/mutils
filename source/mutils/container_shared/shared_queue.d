@@ -1,13 +1,13 @@
 ﻿/**
 Module with queue
  */
-module mutils.job_manager.shared_queue;
+module mutils.container_shared.shared_queue;
 
 import core.atomic;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 
-import mutils.job_manager.shared_allocator;
+import mutils.container_shared.shared_allocator;
 //algorithm from  http://collaboration.cmc.ec.gc.ca/science/rpn/biblio/ddj/Website/articles/DDJ/2008/0811/081001hs01/081001hs01.html
 //By Herb Sutter
 
