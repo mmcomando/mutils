@@ -1,0 +1,12 @@
+dplugin
+dub.userprefs
+dub.selections.json
+.dub
+docs.json
+__dummy.html
+perf.data
+perf.data.old
+*.o
+*.so
+*.obj
+/data/saves/*
