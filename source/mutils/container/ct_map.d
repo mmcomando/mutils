@@ -16,8 +16,16 @@ struct CTMap(ElementsPar...){
 	alias Elements=ElementsPar;
 
 	struct KeyValue(alias KeyPar, alias ValPar){
-		enum key=KeyPar; 
-		enum value=ValPar; 
+		alias key=KeyPar; 
+		alias value=ValPar; 
+	}
+	struct KeyValue(alias KeyPar, ValPar){
+		alias key=KeyPar; 
+		alias value=ValPar; 
+	}
+	struct KeyValue(KeyPar, alias ValPar){
+		alias key=KeyPar; 
+		alias value=ValPar; 
 	}
 
 	template getValues(){
@@ -102,9 +110,9 @@ struct CTMap(ElementsPar...){
 		return getImpl();
 	}
 
-	static if(valuesHaveSameType && keysHaveSameType){
+	//static if(valuesHaveSameType && keysHaveSameType){
 		alias byKeyValue=toKeyValue!(Elements);
-	}
+	//}
 	
 	private template toKeyValue(Arr...){
 		static if(Arr.length>2){
