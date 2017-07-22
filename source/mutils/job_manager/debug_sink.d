@@ -25,17 +25,17 @@ class DebugSink{
 	alias DataVector=Vector!T;
 	static DataVector vector;
 
-	alias DataDataVector=LockedVector!DataVector;
+	alias DataDataVector=LockedVector!(DataVector*);
 	__gshared DataDataVector allData;
 
 
 	static this(){
 		//vector=Mallocator.instance.make!DataVector;
-		allData.add(vector);
+		allData.add(&vector);
 	}
 
 	static ~this(){
-		allData.removeElement(vector);
+		allData.removeElement(&vector);
 		//Mallocator.instance.dispose(vector);
 	}
 	
@@ -53,7 +53,7 @@ class DebugSink{
 	}
 
 	static void reset(){
-		foreach(arr;allData){
+		foreach(ref arr;allData){
 			arr.reset();
 		}
 	}
@@ -66,7 +66,7 @@ class DebugSink{
 		import std.algorithm;
 		import std.array;
 		auto all=DebugSink.getAll()[];
-		auto oneRange=all.map!((a) => a[]).joiner;
+		auto oneRange=all.map!((a) => (*a)[]).joiner;
 		int[] allocated=oneRange.array;
 		allocated.sort();
 		assertM(allocated.length,expectedNum);

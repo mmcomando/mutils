@@ -142,6 +142,10 @@ class JobManager{
 		}
 	}
 
+	size_t threadsNum(){
+		return threadPool.length;
+	}
+
 	
 	void addFiber(FiberData fiberData){
 		assert(waitingFibers.length==threadPool.length);

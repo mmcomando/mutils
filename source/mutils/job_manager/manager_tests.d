@@ -1,5 +1,5 @@
 ﻿/**
-Multithreated test may take some space so they are there.
+ Multithreated test may take some space so they are there.
  */
 module mutils.job_manager.manager_tests;
 
@@ -19,13 +19,34 @@ import mutils.job_manager.manager;
 import mutils.job_manager.shared_utils;
 import mutils.job_manager.utils;
 
+
+/// One Job and one Fiber.yield
+void simpleYield(){
+	auto fiberData=getFiberData();
+	foreach(i;0..1){
+		jobManager.addThisFiberAndYield(fiberData);
+	}
+}
+
+
+void activeSleep(uint u_seconds){
+	StopWatch sw;
+	sw.start();
+	while(sw.peek().usecs<u_seconds){}//for 10us will iterate ~120 tiems
+	sw.stop();
+	
+}
+
+void veryDummy(){
+	//foreach(i;0..10)writeln("asdasd");
+}
+
 void makeTestJobsFrom(void function() fn,uint num){
 	makeTestJobsFrom(fn.toDelegate,num);
 }
 
 void makeTestJobsFrom(JobDelegate deleg,uint num){
 	UniversalJobGroup!JobDelegate group=UniversalJobGroup!JobDelegate(num);
-	mixin(getStackMemory("group"));
 	foreach(int i;0..num){
 		group.add(deleg);
 	}
@@ -53,27 +74,25 @@ int randomRecursionJobs(int deepLevel){
 	
 	alias ddd=typeof(&randomRecursionJobs);
 	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(randNum);
-	mixin(getStackMemory("group"));
 	foreach(int i;0..randNum){
 		group.add(&randomRecursionJobs,deepLevel-1);
 	}
-	
 	auto jobsRun=group.wait();
 	return sum(jobsRun)+randNum;
 }
-/// One Job and one Fiber.yield
-shared int myCounter;
-void simpleYield(){
-	auto fiberData=getFiberData();
-	foreach(i;0..1){
-		//DebugSink.add(atomicOp!"+="(myCounter,1));
-		jobManager.addThisFiberAndYield(fiberData);
-	}
+
+//returns how many jobs it have spawned
+void testRandomRecursionJobs(){
+	jobManager.debugHelper.resetCounters();
+	int jobsRun=callAndWait!(typeof(&randomRecursionJobs))(&randomRecursionJobs,5);
+	assert(jobManager.debugHelper.jobsAdded==jobsRun+1);
+	assert(jobManager.debugHelper.jobsDone==jobsRun+1);
+	assert(jobManager.debugHelper.fibersAdded==jobsRun+2);
+	assert(jobManager.debugHelper.fibersDone==jobsRun+2);
 }
 
+
 void testPerformance(){	
-	myCounter=0;
-	//DebugSink.reset();	
 	uint iterations=1000;
 	uint packetSize=100;
 	StopWatch sw;
@@ -81,7 +100,6 @@ void testPerformance(){
 	jobManager.debugHelper.resetCounters();
 	alias ddd=typeof(&simpleYield);
 	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(packetSize);
-	mixin(getStackMemory("group"));
 	foreach(int i;0..packetSize){
 		group.add(&simpleYield);
 	}
@@ -89,8 +107,7 @@ void testPerformance(){
 	foreach(i;0..iterations){
 		group.wait();
 	}
-	
-	//DebugSink.verifyUnique(iterations*packetSize);
+
 	
 	assertM(jobManager.debugHelper.jobsAdded,iterations*packetSize);
 	assertM(jobManager.debugHelper.jobsDone ,iterations*packetSize);
@@ -100,16 +117,33 @@ void testPerformance(){
 	writefln( "Benchmark: %s*%s : %s[ms], %s[it/ms]",iterations,packetSize,sw.peek().msecs,iterations*packetSize/sw.peek().msecs);
 }
 
-void activeSleep(uint u_seconds){
-	StopWatch sw;
-	sw.start();
-	while(sw.peek().usecs<u_seconds){}//for 10us will iterate ~120 tiems
-	sw.stop();
-	
+void testUnique(){	
+	shared int myCounter;
+	void localYield(){
+		auto fiberData=getFiberData();
+		DebugSink.add(atomicOp!"+="(myCounter,1));
+		jobManager.addThisFiberAndYield(fiberData);
+	}
+	jobManager.debugHelper.resetCounters();
+	DebugSink.reset();	
+	uint packetSize=1000;
+
+	alias ddd=typeof(&localYield);
+	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(packetSize);
+	foreach(int i;0..packetSize){
+		group.add(&localYield);
+	}
+	group.wait();
+
+	assertM(jobManager.debugHelper.jobsAdded,packetSize);
+	assertM(jobManager.debugHelper.jobsDone ,packetSize);
+	assertM(jobManager.debugHelper.fibersAdded,packetSize+1);
+	assertM(jobManager.debugHelper.fibersDone ,packetSize+1);	
+	DebugSink.verifyUnique(packetSize);
 }
 
+
 void testPerformanceSleep(){	
-	import std.parallelism;
 	uint partsNum=1000;
 	uint iterations=60;
 	uint u_secs=13;
@@ -117,7 +151,6 @@ void testPerformanceSleep(){
 	
 	alias ddd=typeof(&activeSleep);
 	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(partsNum);
-	mixin(getStackMemory("group"));
 	foreach(int i;0..partsNum){
 		group.add(&activeSleep,u_secs);
 	}
@@ -172,7 +205,6 @@ void testPerformanceMatrix(){
 	
 	alias ddd=typeof(&mulMat);
 	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(partsNum);
-	mixin(getStackMemory("group"));
 	foreach(int i;0..partsNum){
 		group.add(&mulMat,matricesA[i*step..(i+1)*step],matricesB[i*step..(i+1)*step],matricesC[i*step..(i+1)*step]);
 	}
@@ -199,29 +231,40 @@ void testForeach(){
 	assert(sum==200);
 }
 
-void veryDummy(){
-	//foreach(i;0..10)writeln("asdasd");
+void testGroupStart(){
+	if(jobManager.threadsNum==1){
+		writeln("Can not have background job while there is only one thread in threadPool.");
+		return;
+	}
+	uint partsNum=100;
+	
+	alias ddd=typeof(&activeSleep);
+	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(partsNum);
+	foreach(int i;0..partsNum){
+		group.add(&activeSleep,10);
+	}
+	group.start();
+	activeSleep(10);
+	assert(group.counter.count>0 && !group.counter.countedToZero());
+	activeSleep(1000);
+	assert(group.areJobsDone);
+
 }
 
 void test(uint threadsNum=16){
 	
 	static void startTest(){
-		//callAndNothing!(typeof((&veryDummy).toDelegate))((&veryDummy).toDelegate);
-		testForeach();
-
-		alias UnDel=void delegate();
-		makeTestJobsFrom(&testFiberLockingToThread,100);
-		callAndWait!(UnDel)((&testPerformance).toDelegate);
-		callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
-		callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
-		{
+		foreach(i;0..1){
+			alias UnDel=void delegate();
+			testForeach();
+			makeTestJobsFrom(&testFiberLockingToThread,100);
+			callAndWait!(UnDel)((&testUnique).toDelegate);
+			callAndWait!(UnDel)((&testPerformance).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			callAndWait!(UnDel)((&testGroupStart).toDelegate);
+			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 			//int[] pp=	new int[1000];//Make some garbage so GC would trigger
-			jobManager.debugHelper.resetCounters();
-			int jobsRun=callAndWait!(typeof(&randomRecursionJobs))(&randomRecursionJobs,5);
-			assert(jobManager.debugHelper.jobsAdded==jobsRun+1);
-			assert(jobManager.debugHelper.jobsDone==jobsRun+1);
-			assert(jobManager.debugHelper.fibersAdded==jobsRun+2);
-			assert(jobManager.debugHelper.fibersDone==jobsRun+2);
 		}
 
 	}
@@ -239,5 +282,5 @@ void testScalability(){
 
 
 unittest{
-	testScalability();
+	test();
 }

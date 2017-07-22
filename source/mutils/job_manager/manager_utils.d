@@ -11,12 +11,14 @@ import core.atomic;
 import core.stdc.string : memset,memcpy;
 import core.thread : Fiber;
 
+import std.algorithm : map;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.format : format;
 import std.traits : Parameters;
 
 import mutils.job_manager.manager;
+import mutils.job_manager.utils;
 
 uint jobManagerThreadNum;//thread local var
 alias JobDelegate=void delegate();
@@ -33,18 +35,26 @@ FiberData getFiberData(){
 }
 
 struct Counter{
-	align (64)shared uint count;
+	enum uint invalidCoun=10000;
+
+	align (64)shared int count;
 	align (64)FiberData waitingFiber;
+
+
 	this(uint count){
 		this.count=count;
 	}
+
+	bool countedToZero(){
+		return atomicLoad(count)==invalidCoun;
+	}
+
 	void decrement(){
-		assert(atomicLoad(count)<9000);
-		assert(waitingFiber.fiber !is null);
+		assert(atomicLoad(count)<invalidCoun-1000);
 		
 		atomicOp!"-="(count, 1);
-		bool ok=cas(&count,0,10000);
-		if(ok){
+		bool ok=cas(&count,0,invalidCoun);
+		if(ok && waitingFiber.fiber !is null){
 			jobManager.addFiber(waitingFiber);
 			//waitingFiber.fiber=null;//makes deadlock maybe atomicStore would help or it shows some bug??
 			//atomicStore(waitingFiber.fiber,null);//has to be shared ignore for now
@@ -85,39 +95,77 @@ struct UniversalJobGroup(Delegate){
 	uint jobsAdded;
 	UnJob[] unJobs;
 	JobDelegate*[] dels;
-	
+
+	@disable this();
+	@disable this(this);
+
 	this(uint jobsNum){
 		this.jobsNum=jobsNum;
+		mallocatorAllocate();
 	}
+
+	~this(){
+		mallocatorDeallocate();
+	}
+
 	void add(Delegate del,Parameters!(Delegate) args){
 		assert(unJobs.length>0 && jobsAdded<jobsNum);
 		unJobs[jobsAdded].initialize(del,args);
 		jobsAdded++;
 	}
-	//returns range so you can allocate it as you want
-	//but remember: that data is stack allocated
+
+	deprecated("Use callAndWait")
 	auto wait(){
+		static if(UnJob.UnDelegate.hasReturn){
+			return callAndWait();
+		}else{
+			callAndWait();
+		}
+	}
+
+	//Returns data like getReturnData
+	auto callAndWait(){
+		setUpJobs();
+		counter.waitingFiber=getFiberData();
+		jobManager.addJobsAndYield(dels);
+		static if(UnJob.UnDelegate.hasReturn){
+			return getReturnData();
+		}		
+	}
+	
+	bool areJobsDone(){
+		return counter.countedToZero();	
+	}
+
+	///Returns range so you can allocate it as you want
+	///But remember: returned data lives as long as this object
+	auto getReturnData()(){
+		static assert(UnJob.UnDelegate.hasReturn);
+		assert(areJobsDone);
+		return unJobs.map!(a => a.unDel.result);
+	}
+
+	auto start(){
+		setUpJobs();
+		jobManager.addJobs(dels);		
+	}
+
+private:
+	auto setUpJobs(){
 		assert(jobsAdded==jobsNum);
 		counter.count=jobsNum;
-		counter.waitingFiber=getFiberData();
 		foreach(i,ref unJob;unJobs){
 			unJob.counter=&counter;
 			unJob.runDel=&unJob.runWithCounter;
 			dels[i]=&unJob.runDel;
-		}
-		jobManager.addJobsAndYield(dels);
-		import std.algorithm:map;
-		static if(UnJob.UnDelegate.hasReturn){
-			return unJobs.map!(a => a.unDel.result);
-		}
-		
+		}		
 	}
-	//used by getStackMemory
 
 	void mallocatorAllocate(){
 		unJobs=Mallocator.instance.makeArray!(UnJob)(jobsNum);
 		dels=Mallocator.instance.makeArray!(JobDelegate*)(jobsNum);
 	}
+
 	void mallocatorDeallocate(){
 		memset(unJobs.ptr,0,UnJob.sizeof*jobsNum);
 		memset(dels.ptr,0,(JobDelegate*).sizeof*jobsNum);
@@ -126,46 +174,8 @@ struct UniversalJobGroup(Delegate){
 	}
 }
 
-//Like getStackMemoryAlloca bt without Alloca
-//I dont see performance difference beetwen alloca and malloc
-//Use thi sbecause it certainly dont have any aligment problems
-string getStackMemory(string varName){	
-	string code=format("	
-	%s.mallocatorAllocate();
-    scope(exit){
-	    %s.mallocatorDeallocate();
-	}
-",varName,varName);
-	return code;
-}
-
-///allocates memory for UniversalJobGroup
-///has to be a mixin because the code has to be executed in calling scope (alloca)
-string getStackMemoryAlloca(string varName){
-	string code=format(		"
-import core.stdc.stdlib:alloca;
-	bool ___useStack%s=%s.jobsNum<200;
-	
-    //TODO aligment?
-    //if stack not used alloca 0  :]
-    %s.unJobs=(cast(%s.UnJob*)    alloca(%s.UnJob.sizeof      *%s.jobsNum*___useStack%s))[0..%s.jobsNum*___useStack%s];
-	%s.dels  =(cast(JobDelegate**)alloca((JobDelegate*).sizeof*%s.jobsNum*___useStack%s))[0..%s.jobsNum*___useStack%s];
-
-
-    if(!___useStack%s){
-		%s.mallocatorAllocate();    
-    }
-    scope(exit){if(!___useStack%s){
-       %s.mallocatorDeallocate();
-	}}
-		",varName,varName,varName,varName,
-		varName,varName,varName,varName,
-		varName,varName,varName,varName,
-		varName,varName,varName,varName,
-		varName,varName);
-	return code;
-	
-	
+deprecated("Now UniversalJobGroup allcoates memory by itself. Delete call to this function.") string getStackMemory(string varName){	
+	return "";
 }
 
 
@@ -188,13 +198,11 @@ auto callAndWait(Delegate)(Delegate del,Parameters!(Delegate) args){
 }
 
 auto callAndNothing(Delegate)(Delegate del,Parameters!(Delegate) args){
+	static assert(!unJob.unDel.hasReturn);
 	UniversalJob!(Delegate)* unJob=Mallocator.instance.make!(UniversalJob!(Delegate));
 	unJob.initialize(del,args);
 	unJob.runDel=&unJob.runAndDeleteMyself;
 	jobManager.addJob(&unJob.runDel);
-	static if(unJob.unDel.hasReturn){
-		return unJob.unDel.result;
-	}
 }
 
 auto multithreated(T)(T[] slice){
@@ -241,7 +249,6 @@ auto multithreated(T)(T[] slice){
 				
 				alias ddd=void delegate();
 				UniversalJobGroup!ddd group=UniversalJobGroup!ddd(partsNum);
-				mixin(getStackMemory("group"));
 				foreach(int i;0..partsNum-1){
 					helpers[i].del=dg;
 					helpers[i].arr=array[i*step..(i+1)*step];
