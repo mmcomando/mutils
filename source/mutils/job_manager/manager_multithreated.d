@@ -7,7 +7,7 @@ module mutils.job_manager.manager_multithreated;
 
 import core.atomic;
 import core.cpuid : threadsPerCPU;
-import core.thread : Thread,ThreadID,sleep,Fiber;
+import core.thread : Thread,ThreadID,Fiber;
 
 import std.conv : to;
 import std.datetime;

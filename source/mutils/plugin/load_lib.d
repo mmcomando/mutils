@@ -2,11 +2,12 @@
 
 alias void* SharedLibHandle;
 
+import core.stdc.string;
+
+char[256] charBuffer;
+
 version(Posix) {
 	import core.sys.posix.dlfcn;
-	import core.stdc.string;
-
-	char[256] charBuffer;
 	SharedLibHandle LoadSharedLib(string libName)  nothrow @nogc
 	{
 		assert(libName.length<charBuffer.length);
@@ -40,29 +41,34 @@ version(Posix) {
 	
 } else version(Windows){
 	import core.sys.windows.windows;
-	
-	private {
-		SharedLibHandle LoadSharedLib(char* libName)
-		{
-			return LoadLibraryA(libName);
-		}
-		
-		void UnloadSharedLib(SharedLibHandle hlib)
-		{
-			FreeLibrary(hlib);
-		}
-		
-		void* GetSymbol(SharedLibHandle hlib, string symbolName)
-		{
-			return GetProcAddress(hlib, symbolName.toStringz());
-		}
-		
-		string GetErrorStr()
-		{
-			import std.windows.syserror;
-			return sysErrorString(GetLastError());
-		}
+
+	SharedLibHandle LoadSharedLib(string libName)
+	{
+		assert(libName.length<charBuffer.length);
+		charBuffer[libName.length]='\0';
+		charBuffer[0..libName.length]=libName[0..libName.length];
+		return LoadLibraryA(charBuffer.ptr);
 	}
+	
+	void UnloadSharedLib(SharedLibHandle hlib)
+	{
+		FreeLibrary(hlib);
+	}
+	
+	void* GetSymbol(SharedLibHandle hlib, string symbolName)
+	{
+		assert(symbolName.length<charBuffer.length);
+		charBuffer[symbolName.length]='\0';
+		charBuffer[0..symbolName.length]=symbolName[0..symbolName.length];
+		return GetProcAddress(hlib, charBuffer.ptr );
+	}
+	
+	string GetErrorStr()
+	{
+		import std.windows.syserror;
+		return sysErrorString(GetLastError());
+	}
+
 }else{
 	static assert(false, "Platform not supported");
 }

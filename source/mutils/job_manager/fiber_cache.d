@@ -16,7 +16,7 @@ import mutils.job_manager.shared_utils;
 //only one warning about GC
 Fiber newFiber(){
 	static void dummy(){}
-	Fiber fiber = new Fiber(&dummy,PAGESIZE * 32LU);
+	Fiber fiber = new Fiber(&dummy,PAGESIZE * 32u);
 	GC.addRoot(cast(void*)fiber);	
 	fiber.call();
 	return fiber;
@@ -263,10 +263,6 @@ unittest{
 //test get + extend
 unittest{
 	alias T=Fiber;
-	version(DigitalMars){
-		import etc.linux.memoryerror;
-		registerMemoryErrorHandler();
-	}
 	FiberVectorCache vec=new FiberVectorCache(10);
 	T var;
 	foreach(i;0..10){
@@ -277,10 +273,6 @@ unittest{
 void dummyCall(){}
 //test multithreaded
 void testCV(){
-	version(DigitalMars){
-		import etc.linux.memoryerror;
-		registerMemoryErrorHandler();
-	}
 	shared uint sum;
 	FiberVectorCache vec=mallocator.make!FiberVectorCache(1);
 	scope(exit)mallocator.dispose(vec);

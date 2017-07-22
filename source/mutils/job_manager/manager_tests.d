@@ -6,7 +6,7 @@ module mutils.job_manager.manager_tests;
 import core.atomic;
 import core.memory;
 import core.simd;
-import core.thread : Thread,ThreadID,sleep,Fiber;
+import core.thread : Thread,ThreadID,Fiber;
 
 import std.algorithm : sum;
 import std.datetime;
@@ -246,7 +246,7 @@ void testGroupStart(){
 	group.start();
 	activeSleep(10);
 	assert(group.counter.count>0 && !group.counter.countedToZero());
-	activeSleep(1000);
+	activeSleep(10000);
 	assert(group.areJobsDone);
 
 }

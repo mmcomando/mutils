@@ -22,7 +22,7 @@ version(Posix){
 	}
 }else version(Windows){
 	extern(Windows) void ExitThread(uint dwExitCode)  nothrow @nogc @system;
-	void thisThreadExit(){
+	void thisThreadExit() nothrow @nogc @system{
 		ExitThread(0);
 	}
 }else{
