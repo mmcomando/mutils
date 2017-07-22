@@ -50,7 +50,7 @@ void makeTestJobsFrom(JobDelegate deleg,uint num){
 	foreach(int i;0..num){
 		group.add(deleg);
 	}
-	group.wait();
+	group.callAndWait();
 }
 
 void testFiberLockingToThread(){
@@ -77,7 +77,7 @@ int randomRecursionJobs(int deepLevel){
 	foreach(int i;0..randNum){
 		group.add(&randomRecursionJobs,deepLevel-1);
 	}
-	auto jobsRun=group.wait();
+	auto jobsRun=group.callAndWait();
 	return sum(jobsRun)+randNum;
 }
 
@@ -105,7 +105,7 @@ void testPerformance(){
 	}
 	//int[] pp=	new int[100];
 	foreach(i;0..iterations){
-		group.wait();
+		group.callAndWait();
 	}
 
 	
@@ -133,7 +133,7 @@ void testUnique(){
 	foreach(int i;0..packetSize){
 		group.add(&localYield);
 	}
-	group.wait();
+	group.callAndWait();
 
 	assertM(jobManager.debugHelper.jobsAdded,packetSize);
 	assertM(jobManager.debugHelper.jobsDone ,packetSize);
@@ -157,7 +157,7 @@ void testPerformanceSleep(){
 	StopWatch sw;
 	sw.start();
 	foreach(i;0..iterations){
-		group.wait();
+		group.callAndWait();
 	}
 	
 	
@@ -209,7 +209,7 @@ void testPerformanceMatrix(){
 		group.add(&mulMat,matricesA[i*step..(i+1)*step],matricesB[i*step..(i+1)*step],matricesC[i*step..(i+1)*step]);
 	}
 	foreach(i;0..iterations){
-		group.wait();
+		group.callAndWait();
 	}
 	
 	

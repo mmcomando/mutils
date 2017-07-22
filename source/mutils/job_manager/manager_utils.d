@@ -260,7 +260,7 @@ auto multithreated(T)(T[] slice){
 				static if(hasI)helpers[partsNum-1].iStart=(partsNum-1)*step;
 				group.add(&helpers[partsNum-1].call);
 				
-				group.wait();
+				group.callAndWait();
 			}
 			return 0;
 			
