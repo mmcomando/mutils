@@ -85,7 +85,6 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 	} 
 	
 	//serializeStripLeft!(load)(con);
-	
 	static if (__traits(compiles,var.customSerialize!(load)(ser,con))) {
 		var.customSerialize!(load)(ser, con);
 	} else static if (isBasicType!T) {
@@ -160,9 +159,9 @@ void serializeSpaces(Load load,  ContainerOrSlice)(ref ContainerOrSlice con,uint
 void serializeConstString(Load load,string str,  ContainerOrSlice)(ref ContainerOrSlice con){
 	static if(load==Load.yes){
 		/*	writeln("-----");
-			 writeln(con);
-			 writeln("-");
-			 writeln(str);*/
+		 writeln(con);
+		 writeln("-");
+		 writeln(str);*/
 		check!("Expected: "~str)(con[0..str.length]==str);
 		con=con[str.length..$];
 	}else{

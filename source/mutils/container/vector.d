@@ -101,6 +101,7 @@ public:
 		used+=t.length;
 	}
 
+
 	void remove(size_t elemNum){
 		array[elemNum]=array[used-1];
 		used--;

@@ -4,84 +4,22 @@ import std.stdio;
 import mutils.container.ct_map;
 import std.traits;
 import std.algorithm:canFind;
+import std.meta;
 
 
-struct Lexer(Token, Map)
-{
 
-	struct TokenData{
-		string str;
-		uint line;
-		uint column;
-		Token type;
-
-		bool isChar(char ch){
-			return type==Token.character && str[0]==ch;
-		}
-
-		bool isString(string ss){
-			return str==ss;
-		}
-	}
-
-	uint line;
-	uint column;
-
-	void serialize(bool load, Container)(ref TokenData token, ref Container con){
-		auto sliceCopy=con[];
-		static if(load==true){
-			foreach(i,keyValue;Map.byKeyValue){
-				//pragma(msg,keyValue);
-				static if(__traits(isTemplate,keyValue.value)){
-					alias func=keyValue.value;
-					func!(load)(token,con);
-					if(token.type!=Token.notoken)goto check_line;
-				}else static if(is(typeof(keyValue.value)==string)){
-					if(con.length>=keyValue.value.length && con[0..keyValue.value.length]==keyValue.value){
-						token.type=keyValue.key;
-						con=con[keyValue.value.length..$];
-						goto check_line;
-					}
-				}else{
-					static assert(false, "Value type not supported");
-				}
-			}
-			con=null;
-			return;
-
-		check_line:
-			token.line=line;
-			token.column=column;
-			foreach(char ch;sliceCopy[0..sliceCopy.length-con.length]){
-				if(ch=='\n'){
-					line++;
-					column=0;
-				}else{
-					column++;
-				}
-			}
-			return;
+void updateLineAndCol(ref uint line,ref uint column, char[] oldSlice, char[] newSLice){
+	foreach(char ch;oldSlice[0..oldSlice.length-newSLice.length]){
+		if(ch=='\n'){
+			line++;
+			column=0;
 		}else{
-			foreach(i,keyValue;Map.byKeyValue){
-				//pragma(msg,keyValue);
-				static if(__traits(isTemplate,keyValue.value)){
-					alias func=keyValue.value;
-					func!(load)(token,con);
-					if(sliceCopy.length!=con.length)return;
-				}else static if(is(typeof(keyValue.value)==string)){
-					if(token.type==keyValue.key){
-						con~=keyValue.value;
-						return;
-					}
-				}else{
-					static assert(false, "Value type not supported");
-				}
-			}
+			column++;
 		}
 	}
 }
 
-void whiteTokens(bool load, TokenData, Container)(ref TokenData token, ref Container con){
+void serializeWhiteTokens(bool load, Container)(ref TokenData token, ref Container con){
 	static if(load==true){
 		size_t whiteNum=0;
 		foreach(ch;con){
@@ -94,26 +32,30 @@ void whiteTokens(bool load, TokenData, Container)(ref TokenData token, ref Conta
 		if(whiteNum>0){
 			token.str=con[0..whiteNum];
 			con=con[whiteNum..$];
-			token.type=TokenData.type.white;
+			token.type=StandardTokens.white;
 			return;
 			
 		}
-		token.type=TokenData.type.notoken;
+		token.type=StandardTokens.notoken;
 	}else{
-		if(token.type==TokenData.type.white){
+		if(token.type==StandardTokens.white){
 			con~=token.str;
 		}			
 	}
 }
 
-void variableName(bool load, TokenData, Container)(ref TokenData token, ref Container con){
+bool isIdentifierFirstChar(char ch){
+	return (ch>='a' && ch<='z') || (ch>='A' && ch<='Z') || ch=='_';
+}
+
+void serializeIdentifier(bool load, Container)(ref TokenData token, ref Container con){
 	static if(load==true){
 		size_t charactersNum=0;
 		char fch=con[0];
-		if((fch>='a' && fch<='z') || (fch>='A' && fch<='Z') || fch=='_'){
+		if(isIdentifierFirstChar(con[0])){
 			charactersNum++;
 		}else{
-			token.type=TokenData.type.notoken;
+			token.type=StandardTokens.notoken;
 			return;
 		}
 		foreach(ch;con[1..$]){
@@ -126,19 +68,20 @@ void variableName(bool load, TokenData, Container)(ref TokenData token, ref Cont
 		if(charactersNum>0){
 			token.str=con[0..charactersNum];
 			con=con[charactersNum..$];
-			token.type=TokenData.type.variableName;
+			token.type=StandardTokens.identifier;
 			return;
 			
 		}
-		token.type=TokenData.type.notoken;
+		token.type=StandardTokens.notoken;
 	}else{
-		if(token.type==TokenData.type.white){
+		if(token.type==StandardTokens.white){
 			con~=token.str;
 		}			
 	}
 }
 
-void stringToken(bool load, TokenData, Container)(ref TokenData token, ref Container con){
+void serializeStringToken(bool load, Container)(ref TokenData token, ref Container con){
+	import std.string;
 	static if(load==true){
 		char fch=con[0];
 		if(fch=='"'){
@@ -146,141 +89,351 @@ void stringToken(bool load, TokenData, Container)(ref TokenData token, ref Conta
 			if(end==-1){
 				end=con.length;
 			}else{
-
+				end+=2;
 			}
+			token.str=con[0..end];
+			con=con[end..$];
+
 		}
-		token.type=TokenData.type.notoken;
+		token.type=StandardTokens.string_;
 	}else{
-		if(token.type==TokenData.type.white){
+		if(token.type==StandardTokens.string_){
 			con~=token.str;
 		}			
 	}
 }
 
-
-void characterTokens(bool load, TokenData, Container)(ref TokenData token, ref Container con){
-	enum char[] tokens=['[',']','{','}','(',')','.',','];
-	
-	static if(load==true){
-		if(tokens.canFind(con[0])){
-			token.str=[con[0]];
-			con=con[1..$];
-			token.type=TokenData.type.character;
-			return;
-		}
-		token.type=TokenData.type.notoken;
-	}else{
-		if(token.type==TokenData.type.character){
-			con~=token.str[0];
-		}			
+long stringToLong(char[] str){
+	long num;
+	long mul=1;
+	foreach_reverse(ch;str){
+		long numCh=ch-'0';
+		num+=numCh*mul;
+		mul*=10;
 	}
+	return num;
 }
 
 unittest{
-	enum Token{
-		notoken,
-		white,
-		character,
-		body_=128,
-		something=129,
-	}
-
-
-
-
-
-
-
-	alias tokenMap=CTMap!(
-		Token.notoken,characterTokens,
-		Token.notoken,whiteTokens,
-		Token.body_,"body",
-		Token.something,"something",
-		);
-	alias MyLexer=Lexer!(Token,tokenMap);
-	MyLexer lexer;
-	MyLexer.TokenData token;
-
-	string code="body   something body {}[]()";
-	lexer.serialize!(true)(token,code);
-	writeln(token);
-	lexer.serialize!(true)(token,code);
-	writeln(token);
-	while(code.length>0 && token.type!=Token.notoken){
-		token=MyLexer.TokenData.init;
-		lexer.serialize!(true)(token,code);
-		writeln(token);
-	}
-	lexer.serialize!(false)(token,code);
-	writeln(code);
+	assert(stringToLong(cast(char[])"123")==123);
+	assert(stringToLong(cast(char[])"0")==0);
 }
 
+void serializeNumberToken(bool load, Container)(ref TokenData token, ref Container con){
+	static if(load==true){
+		bool minus=false;
+		char[] firstPart;
+		char[] secondPart;
+		if(con[0]=='-'){
+			minus=true;
+			con=con[1..$];
+		}
+		foreach(i,ch;con){
+			if(ch>='0' && ch<='9'){
+				firstPart=con[0..i+1];
+			}else{
+				break;
+			}
+		}
+		con=con[firstPart.length..$];
+		if(con[0]=='.'){
+			con=con[1..$];
+			foreach(i,ch;con){
+				if(ch>='0' && ch<='9'){
+					secondPart=con[0..i+1];
+				}else{
+					break;
+				}
+			}
+			con=con[secondPart.length..$];
+			if(con[0]=='f'){
+				con=con[1..$];
+			}
+			double num=stringToLong(firstPart)+cast(double)stringToLong(secondPart)/(10^^secondPart.length);
+			token.double_=num;
+			token.type=StandardTokens.double_;
+		}else{
+			long num=stringToLong(firstPart);
+			token.long_=num;
+			token.type=StandardTokens.long_;
+		}
+	}else{
+		if(token.type==StandardTokens.double_){
+			con~=cast(char[])"1111.11111f";
+		}else if(token.type==StandardTokens.long_){
+			con~=cast(char[])"111111111";
+		}else{
+			assert(0);
+		}
+	}
+}
+
+
+alias whiteTokens=AliasSeq!('\n','\t',' ');
 
 
 
 import mutils.container.vector;
 
+
+enum StandardTokens{
+	notoken=0,
+	white=1,
+	character=2,
+	identifier=3,
+	string_=4,
+	double_=5,
+	long_=6,
+}
+
+struct TokenData{
+	union{
+		char[] str;
+		char ch;
+		long long_;
+		double double_;
+	}
+	uint line;
+	uint column;
+	uint type;
+
+	char getChar(){
+		assert(type==StandardTokens.character);
+		return ch;
+	}
+
+	char[] getUnescapedString(){
+		assert(type==StandardTokens.string_);
+		return str[1..$-1];
+	}
+
+	char[] getEscapedString(){
+		return '"'~str~'"';
+	}
+
+	bool isChar(char ch){
+		return type==StandardTokens.character && this.ch==ch;
+	}
+
+	bool isString(string ss){
+		return str==ss;
+	}
+
+
+
+
+	void opAssign(T)(T el)
+		if(isIntegral!T || isFloatingPoint!T || is(T==char[]) || is(T==char))
+	{
+		static if(isIntegral!T){
+			type=StandardTokens.long_;
+			this.long_=el;
+		}else static if(isFloatingPoint!T){
+			type=StandardTokens.double_;
+			this.double_=el;
+		}else static if( is(T==char[]) ){
+			type=StandardTokens.string_;
+			this.str=el;
+		}else static if( is(T==char) ){
+			type=StandardTokens.character;
+			this.ch=el;
+		}else {
+			static assert(0);
+		}
+	}
+	auto get(T)()
+		if(isIntegral!T || isFloatingPoint!T || is(T==char[]) || is(T==char))
+	{
+		static if(isIntegral!T){
+			assert(type==StandardTokens.long_);
+			return cast(T)long_;
+		}else static if(isFloatingPoint!T){
+			assert(type==StandardTokens.double_);
+			return cast(T)double_;
+		}else static if( is(T==char[]) ){
+			assert(type==StandardTokens.string_);
+			return cast(T)str;
+		}else static if( is(T==char) ){
+			assert(type==StandardTokens.character);
+			return cast(T)ch;
+		}else {
+			static assert(0);
+		}
+	}
+
+
+	string toString(){
+		import std.format;
+		switch(type){
+			case StandardTokens.character:
+				return format("TK(%5s, '%s', %s, %s)",cast(StandardTokens)type,ch,line,column);
+			case StandardTokens.string_:
+			case StandardTokens.identifier:
+			case StandardTokens.white:
+				return format("TK(%5s, \"%s\", %s, %s)",cast(StandardTokens)type,str,line,column);
+			case StandardTokens.double_:
+				return format("TK(%5s, %s, %s, %s)",cast(StandardTokens)type,double_,line,column);
+			case StandardTokens.long_:
+				return format("TK(%5s, %s, %s, %s)",cast(StandardTokens)type,long_,line,column);
+			default:
+				return format("TK(%5s, ???, %s, %s)",cast(StandardTokens)type,line,column);
+
+
+		}
+	}
+}
+
 struct JSONLexer{
 	enum Token{
-		notoken,
-		white,
-		character,
-		variableName,
+		notoken=StandardTokens.notoken,
+		white=StandardTokens.white,
+		character=StandardTokens.character,
+		identifier=StandardTokens.identifier,
+		string_=StandardTokens.string_,
+		double_=StandardTokens.double_,
+		long_=StandardTokens.long_,
 	}
 
-	alias tokenMap=CTMap!(
-		Token.notoken,characterTokens,
-		Token.notoken,whiteTokens,
-		Token.variableName,variableName,
-		);
+	
 
-
-	alias MyLexer=Lexer!(Token,tokenMap);
-	alias TokenDataVector=Vector!(MyLexer.TokenData);
-	MyLexer lexer;
-
-	string code;
-	MyLexer.TokenData lastToken;
-
+	
+	bool skipUnnecessaryWhiteTokens=true;
+	Vector!char code;
+	char[] slice;
+	TokenData lastToken;
+	uint line;
+	uint column;
+	alias TokenDataVector=Vector!(TokenData);
+	alias characterTokens=AliasSeq!('[',']','{','}','(',')',',',':');
+	
 	@disable this();
-
-	this(string code){
-		this.code=code;
+	
+	this(char[] code, bool skipWhite){
+		this.code~=code;
+		slice=this.code[];
+		skipUnnecessaryWhiteTokens=skipWhite;
 	}
 
-	bool hasNextToken(){
-		return code.length>0;
+
+	TokenData checkNextToken(){
+		auto sliceCopy=slice;
+		auto token=getNextToken();
+		slice=sliceCopy;
+		return token;
 	}
 
-	auto getNextToken(){
-		if(hasNextToken){
-			lexer.serialize!(true)(lastToken,code);
+	TokenData getNextToken(){
+		char[] sliceCopy=slice[];
+		TokenData token;
+		if(slice.length==0){
+			return token;
 		}
-		return lastToken;
+		switch(slice[0]){
+			//------- character tokens ------------------------
+			foreach(ch;characterTokens){
+				case ch:
+			}
+			token=slice[0];
+			slice=slice[1..$];
+			goto end;
+
+			
+			//--------- white tokens --------------------------
+			foreach(ch;whiteTokens){
+				case ch:
+			}
+			serializeWhiteTokens!(true)(token,slice);
+			goto end;
+
+			//------- escaped strings -------------------------
+			case '"':
+				serializeStringToken!(true)(token,slice);
+				goto end;
+
+				//------- something else -------------------------
+			default:
+				break;
+		}
+		if(isIdentifierFirstChar(slice[0])){
+			serializeIdentifier!(true)(token,slice);
+		}else if((slice[0]>='0' && slice[0]<='9') || slice[0]=='-'){
+			serializeNumberToken!(true)(token,slice);
+		}else{
+			slice=null;
+		}
+		
+	end:
+		//------- add line information -------------------------
+		token.line=line;
+		token.column=column;
+		updateLineAndCol(line,column,sliceCopy,slice);
+		if(token.type==Token.white){
+			return getNextToken();
+		}
+		//writeln(slice);
+		return token;
+	}
+
+	void saveToken(TokenData token){
+		final switch(cast(Token)token.type){
+			case Token.long_:
+			case Token.double_:
+				serializeNumberToken!(false)(token,code);
+				break;
+			case Token.character:
+				code~=token.ch;
+				break;
+			case Token.white:
+			case Token.identifier:
+				code~=token.str;
+				break;
+			case Token.string_:
+				code~=token.getEscapedString();
+				break;
+
+			case Token.notoken:
+				assert(0);
+		}
+
+	}
+
+	
+	void serialize(bool load, Container)(ref TokenData token, ref Container con){
+		static if(load==true){
+			token=getNextToken();
+		}else{
+			saveToken(token);
+		}
+
 	}
 
 	void printAllTokens(){
-		MyLexer.TokenData token;
-		while(code.length>0 && token.type!=Token.notoken){
-			token=MyLexer.TokenData.init;
-			lexer.serialize!(true)(token,code);
+		TokenData token;
+		while(token.type!=Token.notoken){
+			token=getNextToken();
 			writeln(token);
 		}
 	}
-
+	
 	TokenDataVector tokenizeAll(){
 		TokenDataVector tokens;
-		while(hasNextToken()){
+		do{
 			tokens~=getNextToken();
-		}
+		}while(tokens[$-1].type!=Token.notoken);
+
 		return tokens;
 	}
-
+	
 
 }
 
 unittest{
-	string code="{[asdf]}";
-	JSONLexer json=JSONLexer(code);
-	writeln(json.tokenizeAll()[]);
+	//writeln("--------");
+	char[] code=cast(char[])`{ [ ala: "asdasd", ccc:123.3f]}"`;
+	JSONLexer json=JSONLexer(code,true);
+	//writeln(json.tokenizeAll()[]);
+	TokenData token;
+	token.type=StandardTokens.identifier;
+	token.str=cast(char[])"asd";
+	json.saveToken(token);
 }
