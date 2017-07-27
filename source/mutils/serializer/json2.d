@@ -92,13 +92,14 @@ package:
 	void serializeStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(is(T == struct));
 
-
+		
 		serializeCharToken!(load)('{' ,con);
 		static if(load==Load.yes){
 			loadClassOrStruct!(load)(var,con);	
 		}else{
 			saveClassOrStruct!(load)(var,con);
 		}
+
 		serializeCharToken!(load)('}' ,con);
 		
 	}
@@ -112,8 +113,15 @@ package:
 	
 	void serializeStaticArray(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(isStaticArray!T);
+		serializeCharToken!(load)('[',con);
 		foreach (i, ref a; var) {
+			serializeImpl!(load)(a,con);
+			if(i!=var.length-1){
+				serializeCharToken!(load)(',',con);
+			}
 		}
+
+		serializeCharToken!(load)(']',con);
 		
 	}
 
@@ -132,7 +140,29 @@ package:
 				token.type=StandardTokens.string_;
 				con ~= token;
 			}
-		}else{		
+		}else{	
+			serializeCharToken!(load)('[',con);
+			static if(load==Load.yes){
+				ElementType[] arrData=Mallocator.instance.makeArray!(ElementType)(1);
+				while(!con[0].isChar(']')){
+					serializeImpl!(load)(arrData[$-1],con);
+					if(con[0].isChar(',')){
+						serializeCharToken!(load)(',',con);
+						Mallocator.instance.expandArray(arrData,1);
+					}else{
+						break;
+					}
+				}
+				var=cast(T)arrData;
+			}else{
+				foreach(i,ref d;var){
+					serializeImpl!(load)(d,con);
+					if(i!=var.length-1){
+						serializeCharToken!(load)(',',con);
+					}
+				}
+			}
+			serializeCharToken!(load)(']',con);
 		}
 	}
 
@@ -144,13 +174,12 @@ package:
 		}else{
 			alias ElementType=Unqual!(ForeachType!(T));
 			uint dataLength=cast(uint)(var.length);
-			serializeStripLeft!(load)(con);
-			serializeConstString!(load,"[")(con);
+			serializeCharToken!(load)('[',con);
 			static if(load==Load.yes){
 				static if(hasMember!(T,"initialize")){
 					var.initialize();
 				}
-				while(con[0]!=']'){
+				while(!con[0].isChar(']')){
 					foreach(i;0..dataLength){
 						ElementType element;
 						serializeImpl!(load)(element,con);
@@ -160,10 +189,8 @@ package:
 					ElementType element;
 					serializeImpl!(load)(element,con);
 					var~=element;
-					serializeStripLeft!(load)(con);
-					if(con[0]==','){
-						serializeConstString!(load,",")(con);
-						serializeStripLeft!(load)(con);
+					if(con[0].isChar(',')){
+						serializeCharToken!(load)(',',con);
 					}else{
 						break;
 					}
@@ -173,14 +200,12 @@ package:
 				foreach(i,ref d;var){
 					serializeImpl!(load)(d,con);
 					if(i!=var.length-1){
-						serializeConstString!(load,",")(con);
-						serializeConstStringOptional!(load," ")(con);
+						serializeCharToken!(load)(',',con);
 					}
 				}
 			}	
-			
-			serializeStripLeft!(load)(con);
-			serializeConstString!(load,"]")(con);
+
+			serializeCharToken!(load)(']',con);
 		}
 	}
 
@@ -231,9 +256,10 @@ package:
 				}
 				
 			}
+			if(!loaded){
+				ignoreToMatchingComma!(load)(con);
+			}
 
-
-			
 			if(con[0].isChar(',')){
 				con=con[1..$];
 			}else{
@@ -287,12 +313,60 @@ package:
 
 	void serializeCharToken(Load load, ContainerOrSlice)(char ch,ref ContainerOrSlice con){
 		static if (load == Load.yes) {
+			writelnTokens(con);
 			assert(con[0].type==StandardTokens.character && con[0].isChar(ch));
 			con=con[1..$];
 		} else {
 			TokenData token;
 			token=ch;
 			con ~= token;
+		}
+	}
+
+	void ignoreBraces(Load load, ContainerOrSlice)(ref ContainerOrSlice con, char braceStart, char braceEnd){
+		static assert(load==Load.yes );
+		assert(con[0].isChar(braceStart));
+		con=con[1..$];
+		int nestageLevel=1;
+		while(con.length>0){
+			TokenData token=con[0];
+			con=con[1..$];
+			if(token.type!=StandardTokens.character){
+				continue;
+			}
+			if(token.isChar(braceStart)){
+				nestageLevel++;
+			}else if(token.isChar(braceEnd)){
+				nestageLevel--;
+				if(nestageLevel==0){
+					break;
+				}
+			}
+		}
+	}
+
+	void ignoreToMatchingComma(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
+		static assert(load==Load.yes );
+		int nestageLevel=0;
+		//writelnTokens(con);
+		//scope(exit)writelnTokens(con);
+		while(con.length>0){
+			TokenData token=con[0];
+			if(token.type!=StandardTokens.character){
+				con=con[1..$];
+				continue;
+			}
+			if(token.isChar('[') || token.isChar('{')){
+				nestageLevel++;
+			}else if(token.isChar(']') || token.isChar('}')){
+				nestageLevel--;
+			}
+
+			if(nestageLevel==0 && token.isChar(',')){
+				break;
+			}else{
+				con=con[1..$];
+			}
 		}
 	}
 
@@ -341,6 +415,7 @@ unittest{
 	string str=`
 	
 {
+"wwwww":{"w":[1,2,3]},
     "b"   :145    ,  "a":  1,   "c"               :   
 
 
@@ -370,11 +445,11 @@ unittest{
 
 	assert(tokens.length==13);
 }
+
+
+
+
 /*
-
- 
-
- 
 
  
  // test formating
@@ -388,7 +463,7 @@ unittest{
  TestStructB bbb;
  }
  TestStruct test;
- Vector!char container;
+ //Vector!char container;
  string str=`
  
  {
@@ -399,15 +474,18 @@ unittest{
  "www":{}
 
  `;
- 
+
+ JSONLexer lex=JSONLexer(cast(char[])str,true);
+ auto tokens=lex.tokenizeAll();	
  //load
  __gshared static JSONSerializer serializer= new JSONSerializer();
- serializer.serialize!(Load.yes)(test,cast(char[])str);
+ serializer.serialize!(Load.yes)(test,tokens[]);
  
  assert(test.a==0);
  assert(test.b==145);
  }
 
+ 
  // test basic types
  unittest{
  static struct TestStructA{
@@ -447,42 +525,53 @@ unittest{
  assert(test.aa.c==22);
  assert(test.aa.b=="xxxxx");
  }
+ */
+// test arrays
+unittest{
+	static struct TestStructB{
+		@("malloc") char[] a=cast(char[])"ala";
+	}
+	static struct TestStruct{
+		int[3] a;
+		@("malloc") int[] b;
+		Vector!int c;
+		Vector!TestStructB d;
+		float e;
+	}
+	TestStruct test;
+	test.a=[1,2,3];
+	test.b=[11,22,33];
+	test.c~=[1,2,3,4,5,6,7];
+	test.d~=[TestStructB(cast(char[])"asddd"),TestStructB(cast(char[])"asd12dd"),TestStructB(cast(char[])"asddaszdd")];
+	test.e=32.52f;
+	//Vector!char container;
+	Vector!TokenData tokens;
 
- // test arrays
- unittest{
- static struct TestStructB{
- @("malloc") string a="ala";
- }
- static struct TestStruct{
- int[3] a;
- @("malloc") int[] b;
- Vector!int c;
- Vector!TestStructB d;
- float e;
- }
- TestStruct test;
- test.a=[1,2,3];
- test.b=[11,22,33];
- test.c~=[1,2,3,4,5,6,7];
- test.d~=[TestStructB("asddd"),TestStructB("asd12dd"),TestStructB("asddaszdd")];
- test.e=32.52f;
- Vector!char container;
- 
- //save
- __gshared static JSONSerializer serializer= new JSONSerializer();
- serializer.serialize!(Load.no)(test,container);
- 
- //reset var
- test=TestStruct.init;
- 
- //load
- serializer.serialize!(Load.yes)(test,container[]);
- //writeln(test);
- assert(test.a==[1,2,3]);
- assert(test.b==[11,22,33]);
- assert(test.c[]==[1,2,3,4,5,6,7]);
- }
+	
+	//save
+	__gshared static JSONSerializer serializer= new JSONSerializer();
+	serializer.serialize!(Load.no)(test,tokens);
+	//tokensToString(tokens[]);
+	JSONLexer lex=JSONLexer([],true);
+	foreach(tk;tokens[]){
+		lex.saveToken(tk);
+	}
+	lex.slice=lex.code[];
+	tokens=lex.tokenizeAll();
+	
+	//reset var
+	test=TestStruct.init;
+	
+	//load
+	serializer.serialize!(Load.yes)(test,tokens[]);
+	//writeln(test);
+	assert(test.a==[1,2,3]);
+	assert(test.b==[11,22,33]);
+	assert(test.c[]==[1,2,3,4,5,6,7]);
+}
 
+
+/*
  // test class
  unittest{
  static class TestClass{
