@@ -8,7 +8,7 @@ import std.meta;
 
 
 
-void updateLineAndCol(ref uint line,ref uint column, char[] oldSlice, char[] newSLice){
+void updateLineAndCol(ref uint line,ref uint column, string oldSlice, string newSLice){
 	foreach(char ch;oldSlice[0..oldSlice.length-newSLice.length]){
 		if(ch=='\n'){
 			line++;
@@ -103,7 +103,79 @@ void serializeStringToken(bool load, Container)(ref TokenData token, ref Contain
 	}
 }
 
-long stringToLong(char[] str){
+///Return string is valid only to next call to doubleToString(), returns string representing double with fixed precision
+string doubleToString(double num){
+	static char[32] numStr;
+	double rightPart=num%1;
+	double leftPart=num-rightPart;
+	if(rightPart<0){
+		rightPart*=-1;
+	}
+	string arr1=longToStringImpl(numStr[], cast(long)leftPart);
+	numStr[arr1.length]='.';
+	enum int precison=6;
+	char[] tmpArr=numStr[arr1.length+1..$];
+	string arr2=longToStringImpl(tmpArr, cast(long)(rightPart*10^^precison));
+	size_t diff=precison-arr2.length;
+	if(diff>0){
+		foreach_reverse(i,ch;tmpArr){
+			if(i==0){
+				break;
+			}
+			tmpArr[i]=tmpArr[i-1];
+		}
+	}
+	foreach(ref ch;numStr[arr1.length+1..arr1.length+1+diff]){
+		ch='0';
+	}
+	return cast(string)numStr[0..arr1.length+1+diff+arr2.length];
+}
+
+unittest{
+	assert(doubleToString(-11.1)=="-11.099999");//floating are less predictable
+}
+
+///Return string is valid only to next call to longToString()
+string longToString(long num){
+	static char[20] numStr;//long.max may have max 20 chars
+	return longToStringImpl(numStr[], num);
+}
+
+string longToStringImpl(char[] numStr, long num){
+	bool isNegative=num<0;
+	int i;
+	if(isNegative){
+		i=1;
+		numStr[0]='-';
+		num*=-1;
+	}
+	do{
+		int rest=num%10;
+		num/=10;
+		numStr[i]=cast(char)('0'+rest);
+		i++;
+	}while(num!=0);
+
+	char[] arr=numStr[isNegative..i];
+	int length=cast(int)arr.length;
+	int half=length/2;
+	foreach(int el;0..half){
+		char tmp=arr.ptr[length-1-el];//ptr - no bounds checking
+		arr.ptr[length-1-el]=arr.ptr[el];
+		arr.ptr[el]=tmp;
+	}
+	return cast(string)numStr[0..i];
+}
+
+unittest{
+	assert(longToString(1)=="1");
+	assert(longToString(-1)=="-1");
+	assert(longToString(10000)=="10000");
+	assert(longToString(12345)=="12345");
+	assert(longToString(-12345)=="-12345");
+}
+
+long stringToLong(string str){
 	long num;
 	long mul=1;
 	foreach_reverse(ch;str){
@@ -115,15 +187,15 @@ long stringToLong(char[] str){
 }
 
 unittest{
-	assert(stringToLong(cast(char[])"123")==123);
-	assert(stringToLong(cast(char[])"0")==0);
+	assert(stringToLong(cast(string)"123")==123);
+	assert(stringToLong(cast(string)"0")==0);
 }
 
 void serializeNumberToken(bool load, Container)(ref TokenData token, ref Container con){
 	static if(load==true){
 		bool minus=false;
-		char[] firstPart;
-		char[] secondPart;
+		string firstPart;
+		string secondPart;
 		if(con[0]=='-'){
 			minus=true;
 			con=con[1..$];
@@ -159,9 +231,9 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 		}
 	}else{
 		if(token.type==StandardTokens.double_){
-			con~=cast(char[])"1111.11111f";
+			con~=cast(char[])doubleToString(token.double_);
 		}else if(token.type==StandardTokens.long_){
-			con~=cast(char[])"111111111";
+			con~=cast(char[])longToString(token.long_);
 		}else{
 			assert(0);
 		}
@@ -188,7 +260,7 @@ enum StandardTokens{
 
 struct TokenData{
 	union{
-		char[] str;
+		string str;
 		char ch;
 		long long_;
 		double double_;
@@ -202,12 +274,12 @@ struct TokenData{
 		return ch;
 	}
 
-	char[] getUnescapedString(){
+	string getUnescapedString(){
 		assert(type==StandardTokens.string_);
 		return str[1..$-1];
 	}
 
-	char[] getEscapedString(){
+	string getEscapedString(){
 		return '"'~str~'"';
 	}
 
@@ -223,18 +295,19 @@ struct TokenData{
 
 
 	void opAssign(T)(T el)
-		if(isIntegral!T || isFloatingPoint!T || is(T==char[]) || is(T==char))
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(Unqual!T==char))
 	{
-		static if(isIntegral!T){
+		alias TP=Unqual!T;
+		static if(isIntegral!TP){
 			type=StandardTokens.long_;
 			this.long_=el;
-		}else static if(isFloatingPoint!T){
+		}else static if(isFloatingPoint!TP){
 			type=StandardTokens.double_;
 			this.double_=el;
-		}else static if( is(T==char[]) ){
+		}else static if( is(TP==string) ){
 			type=StandardTokens.string_;
 			this.str=el;
-		}else static if( is(T==char) ){
+		}else static if( is(TP==char) ){
 			type=StandardTokens.character;
 			this.ch=el;
 		}else {
@@ -242,7 +315,7 @@ struct TokenData{
 		}
 	}
 	auto get(T)()
-		if(isIntegral!T || isFloatingPoint!T || is(T==char[]) || is(T==char))
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char))
 	{
 		static if(isIntegral!T){
 			assert(type==StandardTokens.long_);
@@ -250,7 +323,7 @@ struct TokenData{
 		}else static if(isFloatingPoint!T){
 			assert(type==StandardTokens.double_);
 			return cast(T)double_;
-		}else static if( is(T==char[]) ){
+		}else static if( is(T==string) ){
 			assert(type==StandardTokens.string_);
 			return cast(T)str;
 		}else static if( is(T==char) ){
@@ -299,7 +372,7 @@ struct JSONLexer{
 	
 	bool skipUnnecessaryWhiteTokens=true;
 	Vector!char code;
-	char[] slice;
+	string slice;
 	TokenData lastToken;
 	uint line;
 	uint column;
@@ -308,9 +381,9 @@ struct JSONLexer{
 	
 	@disable this();
 	
-	this(char[] code, bool skipWhite){
-		this.code~=code;
-		slice=this.code[];
+	this(string code, bool skipWhite){
+		this.code~=cast(char[])code;
+		slice=cast(string)this.code[];
 		skipUnnecessaryWhiteTokens=skipWhite;
 	}
 
@@ -323,7 +396,7 @@ struct JSONLexer{
 	}
 
 	TokenData getNextToken(){
-		char[] sliceCopy=slice[];
+		string sliceCopy=slice[];
 		TokenData token;
 		if(slice.length==0){
 			return token;
@@ -385,10 +458,10 @@ struct JSONLexer{
 				break;
 			case Token.white:
 			case Token.identifier:
-				code~=token.str;
+				code~=cast(char[])token.str;
 				break;
 			case Token.string_:
-				code~=token.getEscapedString();
+				code~=cast(char[])token.getEscapedString();
 				break;
 
 			case Token.notoken:
@@ -429,11 +502,11 @@ struct JSONLexer{
 
 unittest{
 	//writeln("--------");
-	char[] code=cast(char[])`{ [ ala: "asdasd", ccc:123.3f]}"`;
+	string code=cast(string)`{ [ ala: "asdasd", ccc:123.3f]}"`;
 	JSONLexer json=JSONLexer(code,true);
 	//writeln(json.tokenizeAll()[]);
 	TokenData token;
 	token.type=StandardTokens.identifier;
-	token.str=cast(char[])"asd";
+	token.str=cast(string)"asd";
 	json.saveToken(token);
 }

@@ -37,7 +37,7 @@ class JSONSerializer{
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
 	 * T is the serialized variable
-	 * ContainerOrSlice is char[] when load==Load.yes 
+	 * ContainerOrSlice is string when load==Load.yes 
 	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save) 
 	 */
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
@@ -234,9 +234,9 @@ package:
 		static assert(load==Load.yes && (is(T==class) || is(T==struct)) );
 		
 		while(true){
-			char[] varNa;
+			string varNa;
 			serializeName!(load)(varNa,con);
-			//scope(exit)Mallocator.instance.dispose(cast(char[])varNa);
+			//scope(exit)Mallocator.instance.dispose(cast(string)varNa);
 			bool loaded=false;
 			foreach (i, ref a; var.tupleof) {
 				alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
@@ -279,7 +279,7 @@ package:
 			enum bool doSerialize=!hasNoserializeUda!(TP);
 			enum bool useMalloc=hasMallocUda!(TP);
 			string varNameTmp =__traits(identifier, var.tupleof[i]);
-			char[] varName=cast(char[])varNameTmp;
+			string varName=cast(string)varNameTmp;
 			serializeName!(load)(varName,con);
 			serializeImpl!(load,useMalloc)(a,con);
 			
@@ -296,7 +296,7 @@ package:
 	//-----------------------------------------
 
 	
-	void serializeName(Load load,  ContainerOrSlice)(ref char[] name,ref ContainerOrSlice con){
+	void serializeName(Load load,  ContainerOrSlice)(ref string name,ref ContainerOrSlice con){
 
 		static if (load == Load.yes) {
 			assert(con[0].type==StandardTokens.string_);
@@ -313,7 +313,7 @@ package:
 
 	void serializeCharToken(Load load, ContainerOrSlice)(char ch,ref ContainerOrSlice con){
 		static if (load == Load.yes) {
-			writelnTokens(con);
+			//writelnTokens(con);
 			assert(con[0].type==StandardTokens.character && con[0].isChar(ch));
 			con=con[1..$];
 		} else {
@@ -394,7 +394,7 @@ import mutils.serializer.lexer;
 unittest{
 	string str=` 12345 `;
 	int a;
-	JSONLexer lex=JSONLexer(cast(char[])str,true);
+	JSONLexer lex=JSONLexer(cast(string)str,true);
 	auto tokens=lex.tokenizeAll();
 
 	
@@ -425,10 +425,10 @@ unittest{
 	static struct TestStruct{
 		int a;
 		int b;
-		@("malloc") char[] c;
+		@("malloc") string c;
 	}
 	TestStruct test;
-	JSONLexer lex=JSONLexer(cast(char[])str,true);
+	JSONLexer lex=JSONLexer(cast(string)str,true);
 	auto tokens=lex.tokenizeAll();	
 	
 	//load
@@ -475,7 +475,7 @@ unittest{
 
  `;
 
- JSONLexer lex=JSONLexer(cast(char[])str,true);
+ JSONLexer lex=JSONLexer(cast(string)str,true);
  auto tokens=lex.tokenizeAll();	
  //load
  __gshared static JSONSerializer serializer= new JSONSerializer();
@@ -529,7 +529,7 @@ unittest{
 // test arrays
 unittest{
 	static struct TestStructB{
-		@("malloc") char[] a=cast(char[])"ala";
+		@("malloc") string a=cast(string)"ala";
 	}
 	static struct TestStruct{
 		int[3] a;
@@ -542,7 +542,7 @@ unittest{
 	test.a=[1,2,3];
 	test.b=[11,22,33];
 	test.c~=[1,2,3,4,5,6,7];
-	test.d~=[TestStructB(cast(char[])"asddd"),TestStructB(cast(char[])"asd12dd"),TestStructB(cast(char[])"asddaszdd")];
+	test.d~=[TestStructB(cast(string)"asddd"),TestStructB(cast(string)"asd12dd"),TestStructB(cast(string)"asddaszdd")];
 	test.e=32.52f;
 	//Vector!char container;
 	Vector!TokenData tokens;
@@ -556,7 +556,7 @@ unittest{
 	foreach(tk;tokens[]){
 		lex.saveToken(tk);
 	}
-	lex.slice=lex.code[];
+	lex.slice=cast(string)lex.code[];
 	tokens=lex.tokenizeAll();
 	
 	//reset var
@@ -564,7 +564,6 @@ unittest{
 	
 	//load
 	serializer.serialize!(Load.yes)(test,tokens[]);
-	//writeln(test);
 	assert(test.a==[1,2,3]);
 	assert(test.b==[11,22,33]);
 	assert(test.c[]==[1,2,3,4,5,6,7]);
