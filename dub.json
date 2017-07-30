@@ -6,7 +6,5 @@
 	"description": "Marvelous utilities for everything and nothing",
 	"copyright": "Copyright © 2017, Michał Masiukiewicz",
 	"license": "proprietary",
-	"dflags-posix-dmd ": ["-defaultlib=libphobos2.so"],
-	"dflags-posix-ldc": ["-defaultlib=/usr/lib/libphobos2-ldc.so.73,/usr/lib/libdruntime-ldc.so.73"],   
 	"dependencies": {}
 }

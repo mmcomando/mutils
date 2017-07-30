@@ -23,7 +23,7 @@ void serializeWhiteTokens(bool load, Container)(ref TokenData token, ref Contain
 	static if(load==true){
 		size_t whiteNum=0;
 		foreach(ch;con){
-			if (ch==' ' || ch=='\t' ||ch=='\n' ){
+			if (ch==' ' || ch=='\t' || ch=='\n'  || ch=='\r' ){
 				whiteNum++;
 			}else{
 				break;
@@ -88,11 +88,13 @@ void serializeStringToken(bool load, Container)(ref TokenData token, ref Contain
 			size_t end=con[1..$].indexOf('"');
 			if(end==-1){
 				end=con.length;
+				token.str=con[1..end];
+				con=con[end..$];
 			}else{
-				end+=2;
+				end+=1;
+				token.str=con[1..end];
+				con=con[end+1..$];
 			}
-			token.str=con[0..end];
-			con=con[end..$];
 
 		}
 		token.type=StandardTokens.string_;
@@ -241,7 +243,7 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 }
 
 
-alias whiteTokens=AliasSeq!('\n','\t',' ');
+alias whiteTokens=AliasSeq!('\n','\t','\r',' ');
 
 
 
@@ -276,11 +278,11 @@ struct TokenData{
 
 	string getUnescapedString(){
 		assert(type==StandardTokens.string_);
-		return str[1..$-1];
+		return str;
 	}
 
 	string getEscapedString(){
-		return '"'~str~'"';
+		return str;
 	}
 
 	bool isChar(char ch){
@@ -388,6 +390,13 @@ struct JSONLexer{
 	}
 
 
+	void clear(){
+		code.clear();
+		line=column=0;
+		slice=null;
+	}
+
+
 	TokenData checkNextToken(){
 		auto sliceCopy=slice;
 		auto token=getNextToken();
@@ -440,7 +449,7 @@ struct JSONLexer{
 		token.line=line;
 		token.column=column;
 		updateLineAndCol(line,column,sliceCopy,slice);
-		if(token.type==Token.white){
+		if(skipUnnecessaryWhiteTokens==true && token.type==Token.white){
 			return getNextToken();
 		}
 		//writeln(slice);
@@ -461,7 +470,9 @@ struct JSONLexer{
 				code~=cast(char[])token.str;
 				break;
 			case Token.string_:
+				code~='"';
 				code~=cast(char[])token.getEscapedString();
+				code~='"';
 				break;
 
 			case Token.notoken:
@@ -496,17 +507,40 @@ struct JSONLexer{
 
 		return tokens;
 	}
+
+	string tokensToString(TokenData[] tokens){
+		foreach(tk;tokens){
+			saveToken(tk);}
+		return cast(string)code[];
+	}
 	
 
 }
 
 unittest{
-	//writeln("--------");
-	string code=cast(string)`{ [ ala: "asdasd", ccc:123.3f]}"`;
+	string code=`{ [ ala: "asdasd", ccc:123.3f]}"`;
 	JSONLexer json=JSONLexer(code,true);
-	//writeln(json.tokenizeAll()[]);
 	TokenData token;
 	token.type=StandardTokens.identifier;
 	token.str=cast(string)"asd";
 	json.saveToken(token);
 }
+
+unittest{
+	void testOutputTheSame(string str){
+		string sliceCopy=str;
+		JSONLexer json=JSONLexer(str, false);
+		Vector!TokenData tokens=json.tokenizeAll();
+
+		JSONLexer json2=JSONLexer([], false);
+		//writeln(tokens[]);
+		//writeln(json2.tokensToString(tokens[0..$-1]),"|\n\n\n",sliceCopy,"|");
+		assert(json2.tokensToString(tokens[0..$-1])==sliceCopy);
+
+	}
+	testOutputTheSame("  12345 ");
+	testOutputTheSame(`{ [ ala :  "asdasd",
+	 ccc: 
+123]  }  `);
+}
+

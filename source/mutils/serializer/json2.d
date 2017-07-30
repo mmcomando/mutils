@@ -101,13 +101,28 @@ package:
 		}
 
 		serializeCharToken!(load)('}' ,con);
-		
+
 	}
 
 	
 	void serializeClass(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(0);
+		static assert(is(T==class));
 		
+		serializeCharToken!(load)('{' ,con);
+		level++;
+		static if(load==Load.yes){
+			var=Mallocator.instance.make!(T);
+			loadClassOrStruct!(load)(var,con);		
+		}else{
+			if(var is null){
+				//serializeConstString!(load,"{}")(con);
+			}else{
+				saveClassOrStruct!(load)(var,con);
+			}
+		}
+		level--;
+		serializeCharToken!(load)('}' ,con);
+
 	}
 
 	
@@ -132,7 +147,7 @@ package:
 		static if(is(ElementType==char)){
 			static if (load == Load.yes) {
 				assert(con[0].type==StandardTokens.string_);
-				var=con[0].getUnescapedString;
+				var=con[0].str;//.getUnescapedString;
 				con=con[1..$];
 			} else {
 				TokenData token;
@@ -278,7 +293,7 @@ package:
 			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
 			enum bool doSerialize=!hasNoserializeUda!(TP);
 			enum bool useMalloc=hasMallocUda!(TP);
-			string varNameTmp =__traits(identifier, var.tupleof[i]);
+			enum string varNameTmp =__traits(identifier, var.tupleof[i]);
 			string varName=cast(string)varNameTmp;
 			serializeName!(load)(varName,con);
 			serializeImpl!(load,useMalloc)(a,con);
@@ -485,47 +500,46 @@ unittest{
  assert(test.b==145);
  }
 
- 
- // test basic types
- unittest{
- static struct TestStructA{
- int a;
- @("malloc") string b;
- int c;
- }
- static struct TestStruct{
- int a;
- TestStructA aa;
- int b;
- @("malloc") string c;
- }
- TestStruct test;
- test.a=1;
- test.b=2;
- test.c="asdasdasda asd asda";
- test.aa.a=11;
- test.aa.c=22;
- test.aa.b="xxxxx";
- Vector!char container;
- 
- //save
- __gshared static JSONSerializer serializer= new JSONSerializer();
- serializer.serialize!(Load.no)(test,container);
- //writeln(container[]);
- 
- //reset var
- test=TestStruct.init;
- 
- //load
- serializer.serialize!(Load.yes)(test,container[]);
- assert(test.a==1);
- assert(test.b==2);
- assert(test.c=="asdasdasda asd asda");
- assert(test.aa.a==11);
- assert(test.aa.c==22);
- assert(test.aa.b=="xxxxx");
- }
  */
+// test basic types
+unittest{
+	static struct TestStructA{
+		int a;
+		@("malloc") string b;
+		int c;
+	}
+	static struct TestStruct{
+		int a;
+		TestStructA aa;
+		int b;
+		@("malloc") string c;
+	}
+	TestStruct test;
+	test.a=1;
+	test.b=2;
+	test.c="asdasdasda asd asda";
+	test.aa.a=11;
+	test.aa.c=22;
+	test.aa.b="xxxxx";
+	Vector!TokenData tokens;
+	
+	//save
+	__gshared static JSONSerializer serializer= new JSONSerializer();
+	serializer.serialize!(Load.no)(test,tokens);
+
+	//reset var
+	test=TestStruct.init;
+	
+	//load
+	serializer.serialize!(Load.yes)(test,tokens[]);
+	assert(test.a==1);
+	assert(test.b==2);
+	assert(test.c=="asdasdasda asd asda");
+	assert(test.aa.a==11);
+	assert(test.aa.c==22);
+	assert(test.aa.b=="xxxxx");
+}
+
 // test arrays
 unittest{
 	static struct TestStructB{
@@ -551,14 +565,7 @@ unittest{
 	//save
 	__gshared static JSONSerializer serializer= new JSONSerializer();
 	serializer.serialize!(Load.no)(test,tokens);
-	//tokensToString(tokens[]);
-	JSONLexer lex=JSONLexer([],true);
-	foreach(tk;tokens[]){
-		lex.saveToken(tk);
-	}
-	lex.slice=cast(string)lex.code[];
-	tokens=lex.tokenizeAll();
-	
+
 	//reset var
 	test=TestStruct.init;
 	
@@ -570,29 +577,27 @@ unittest{
 }
 
 
-/*
- // test class
- unittest{
- static class TestClass{
- int a;
- ubyte b;
- }
- __gshared static TestClass test=new TestClass;
- test.a=11;
- test.b='b';
- Vector!char container;
- 
- //save
- __gshared static JSONSerializer serializer= new JSONSerializer();
- serializer.serialize!(Load.no,true)(test,container);
- 
- //reset var
- test=null;
- 
- //load
- serializer.serialize!(Load.yes,true)(test,container[]);
- 
- assert(test.a==11);
- assert(test.b=='b');
- }
- */
+
+// test class
+unittest{
+	static class TestClass{
+		int a;
+		ubyte b;
+	}
+	__gshared static TestClass test=new TestClass;
+	test.a=11;
+	test.b='b';
+	Vector!TokenData tokens;
+	
+	//save
+	__gshared static JSONSerializer serializer= new JSONSerializer();
+	serializer.serialize!(Load.no,true)(test,tokens);
+	//reset var
+	test=null;
+	
+	//load
+	serializer.serialize!(Load.yes,true)(test,tokens[]);
+	
+	assert(test.a==11);
+	assert(test.b=='b');
+}
