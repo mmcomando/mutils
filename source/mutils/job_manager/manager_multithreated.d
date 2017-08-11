@@ -8,6 +8,7 @@ module mutils.job_manager.manager_multithreated;
 import core.atomic;
 import core.cpuid : threadsPerCPU;
 import core.thread : Thread,ThreadID,Fiber;
+import core.runtime;
 
 import std.conv : to;
 import std.datetime;
@@ -73,20 +74,23 @@ class JobManager{
 	private Thread[] threadPool;
 	bool exit;
 
+
 	private void initialize(uint threadsCount=0){
 		if(threadsCount==0)threadsCount=threadsPerCPU;
+		if(threadsCount==0)threadsCount=4;
 		waitingFibers=Mallocator.instance.makeArray!(FiberVector)(threadsCount);
 		foreach(ref f;waitingFibers)f=Mallocator.instance.make!FiberVector;
 		threadPool=Mallocator.instance.makeArray!(Thread)(threadsCount);
 		foreach(i;0..threadsCount){
 			Thread th=Mallocator.instance.make!Thread(&threadRunFunction);
-			th.name=i.to!string;
+			//th.name=i.to!string;
 			threadPool[i]=th;
 		}
 
 		waitingJobs=Mallocator.instance.make!JobVector();
 		fibersCache=Mallocator.instance.make!CacheVector();
 		DebugSink.initializeShared();
+		version(Android)rt_init();
 	}
 	void start(){
 		foreach(thread;threadPool){
@@ -142,6 +146,8 @@ class JobManager{
 		foreach(thread;threadPool){
 			thread.join;
 		}
+		version(Android)rt_close();
+
 	}
 
 	size_t threadsNum(){
@@ -230,8 +236,11 @@ class JobManager{
 			deallocateFiber(fiber);
 		}
 	}
+
+
 	void threadRunFunction(){
-		jobManagerThreadNum=Thread.getThis.name.to!uint;
+		shared static int threadNumGenerator=-1;
+		jobManagerThreadNum=atomicOp!"+="(threadNumGenerator,1);
 		initializeDebugData();
 		DebugSink.initialize();
 		initializeFiberCache();
