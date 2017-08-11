@@ -190,13 +190,13 @@ void testPerformanceMatrix(){
 	uint iterations=100;	
 	uint matricesNum=512;
 	assert(matricesNum%partsNum==0);
-	mat4[] matricesA=mallocator.makeArray!mat4(matricesNum);
-	mat4[] matricesB=mallocator.makeArray!mat4(matricesNum);
-	mat4[] matricesC=mallocator.makeArray!mat4(matricesNum);
+	mat4[] matricesA=Mallocator.instance.makeArray!mat4(matricesNum);
+	mat4[] matricesB=Mallocator.instance.makeArray!mat4(matricesNum);
+	mat4[] matricesC=Mallocator.instance.makeArray!mat4(matricesNum);
 	scope(exit){
-		mallocator.dispose(matricesA);
-		mallocator.dispose(matricesB);
-		mallocator.dispose(matricesC);
+		Mallocator.instance.dispose(matricesA);
+		Mallocator.instance.dispose(matricesB);
+		Mallocator.instance.dispose(matricesC);
 	}
 	StopWatch sw;
 	sw.start();
@@ -272,8 +272,8 @@ void test(uint threadsNum=16){
 }
 void testScalability(){
 	//foreach(i;3..4){
-	//	jobManager=mallocator.make!JobManager;
-	//	scope(exit)mallocator.dispose(jobManager);
+	//	jobManager=Mallocator.instance.make!JobManager;
+	//	scope(exit)Mallocator.instance.dispose(jobManager);
 	//	write(i+1," ");
 	test(4);
 	//if(i==0)base=result;
@@ -282,5 +282,5 @@ void testScalability(){
 
 
 unittest{
-	//test();
+	test();
 }

@@ -15,6 +15,7 @@ import std.functional : toDelegate;
 import std.random : uniform;
 import std.stdio : write,writeln,writefln;
 
+import mutils.job_manager.debug_data;
 import mutils.job_manager.debug_sink;
 import mutils.job_manager.fiber_cache;
 import mutils.job_manager.manager_utils;
@@ -74,17 +75,18 @@ class JobManager{
 
 	private void initialize(uint threadsCount=0){
 		if(threadsCount==0)threadsCount=threadsPerCPU;
-		waitingFibers=mallocator.makeArray!(FiberVector)(threadsCount);
-		foreach(ref f;waitingFibers)f=mallocator.make!FiberVector;
-		threadPool=mallocator.makeArray!(Thread)(threadsCount);
+		waitingFibers=Mallocator.instance.makeArray!(FiberVector)(threadsCount);
+		foreach(ref f;waitingFibers)f=Mallocator.instance.make!FiberVector;
+		threadPool=Mallocator.instance.makeArray!(Thread)(threadsCount);
 		foreach(i;0..threadsCount){
-			Thread th=mallocator.make!Thread(&threadRunFunction);
+			Thread th=Mallocator.instance.make!Thread(&threadRunFunction);
 			th.name=i.to!string;
 			threadPool[i]=th;
 		}
 
-		waitingJobs=mallocator.make!JobVector();
-		fibersCache=mallocator.make!CacheVector();
+		waitingJobs=Mallocator.instance.make!JobVector();
+		fibersCache=Mallocator.instance.make!CacheVector();
+		DebugSink.initializeShared();
 	}
 	void start(){
 		foreach(thread;threadPool){
@@ -230,10 +232,14 @@ class JobManager{
 	}
 	void threadRunFunction(){
 		jobManagerThreadNum=Thread.getThis.name.to!uint;
-		
+		initializeDebugData();
+		DebugSink.initialize();
+		initializeFiberCache();
 		while(!exit){
 			runNextJob();
 		}
+		deinitializeDebugData();
+		DebugSink.deinitialize();
 	}
 	
 }

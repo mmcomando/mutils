@@ -82,7 +82,7 @@ public:
 		return array[];
 	}
 
-	//allocated by mallocator
+	//allocated by Mallocator.instance
 	Vector!T vectorCopy(){
 		synchronized( this ){
 			Vector!T vec;//=Mallocator.instance.make!(Vector!T)(array.length);

@@ -29,22 +29,22 @@ class DebugSink{
 	__gshared DataDataVector allData;
 
 
-	static this(){
+	static void initialize(){
 		//vector=Mallocator.instance.make!DataVector;
 		allData.add(&vector);
 	}
 
-	static ~this(){
+	static void deinitialize(){
 		allData.removeElement(&vector);
 		//Mallocator.instance.dispose(vector);
 	}
 	
 	
-	shared static this(){
+	static void initializeShared(){
 		allData=Mallocator.instance.make!DataDataVector;
 	}
 
-	shared static ~this(){
+	static void deinitializeShared(){
 		Mallocator.instance.dispose(allData);
 	}
 

@@ -147,7 +147,7 @@ unittest{
 	//save
 	__gshared static JSONSerializer serializer= new JSONSerializer();
 	serializer.serialize!(Load.no)(test,container);
-	writeln(container[]);
+	//writeln(container[]);
 	
 	//reset var
 	test=TestStruct.init;

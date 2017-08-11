@@ -90,7 +90,7 @@ class BucketAllocator(uint bucketSize){
 	
 	
 	this(){
-		//bucketArrays=mallocator.make!(BucketArraysType);
+		//bucketArrays=Mallocator.instance.make!(BucketArraysType);
 		bucketArrays.extend(128);
 	}
 	~this(){
@@ -98,7 +98,7 @@ class BucketAllocator(uint bucketSize){
 	void[] oldData;
 	void extend(){
 		//shared BucketsArray* arr=new shared BucketsArray;
-		shared BucketsArray* arr=cast(shared BucketsArray*)mallocator.make!(BucketsArray);
+		shared BucketsArray* arr=cast(shared BucketsArray*)Mallocator.instance.make!(BucketsArray);
 		(*arr).initialize();
 		if(!bucketArrays.canAddWithoutRealloc){
 			if(oldData !is null){
@@ -180,8 +180,8 @@ class BucketAllocator(uint bucketSize){
 
 
 void ttt(){
-	BucketAllocator!(64) allocator=mallocator.make!(BucketAllocator!64);
-	scope(exit)mallocator.dispose(allocator);
+	BucketAllocator!(64) allocator=Mallocator.instance.make!(BucketAllocator!64);
+	scope(exit)Mallocator.instance.dispose(allocator);
 	foreach(k;0..123){
 		void[][] memories;
 		assert(allocator.bucketArrays[0].freeSlots==allocator.bucketsNum);
@@ -201,15 +201,15 @@ void ttt(){
 }
 import std.datetime;
 void testAL(){
-	BucketAllocator!(64) allocator=mallocator.make!(BucketAllocator!(64));
-	scope(exit)mallocator.dispose(allocator);
+	BucketAllocator!(64) allocator=Mallocator.instance.make!(BucketAllocator!(64));
+	scope(exit)Mallocator.instance.dispose(allocator);
 	shared ulong sum;
 	void test(){
 		foreach(k;0..1000){
 			int*[] memories;
 			uint rand=uniform(130,140);
-			memories=mallocator.makeArray!(int*)(rand);
-			scope(exit)mallocator.dispose(memories);
+			memories=Mallocator.instance.makeArray!(int*)(rand);
+			scope(exit)Mallocator.instance.dispose(memories);
 			foreach(i;0..rand){
 				memories[i]=allocator.make!int();
 			}

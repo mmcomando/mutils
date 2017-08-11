@@ -22,12 +22,12 @@ ExecutionVector threadLocalExecutions;
 __gshared VectorOfExecutionVectors globalVectorOfExecutionVectors;
 
 //local data initialization
-static this(){
+void initializeDebugData(){
 	//threadLocalWatch.start();
 	//threadLocalExecutions=Mallocator.instance.make!ExecutionVector;
 	globalVectorOfExecutionVectors.add(threadLocalExecutions);
 }
-static ~this(){
+void deinitializeDebugData(){
 	globalVectorOfExecutionVectors.removeElement(threadLocalExecutions);
 	//Mallocator.instance.dispose(threadLocalExecutions);
 }

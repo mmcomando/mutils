@@ -198,7 +198,7 @@ class FiberOneCache{
 	void removeData(Fiber obj,uint,uint){
 		if(lastFreeFiber !is null){
 			GC.removeRoot(cast(void*)lastFreeFiber);
-			mallocator.dispose(lastFreeFiber);
+			Mallocator.instance.dispose(lastFreeFiber);
 		}
 		lastFreeFiber=obj;
 	}
@@ -207,7 +207,8 @@ class FiberOneCache{
 import mutils.container.vector;
 static Vector!Fiber array;
 static uint used=0;
-static this(){
+
+void initializeFiberCache(){
 	array.reserve(16);
 }
 
@@ -274,8 +275,8 @@ void dummyCall(){}
 //test multithreaded
 void testCV(){
 	shared uint sum;
-	FiberVectorCache vec=mallocator.make!FiberVectorCache(1);
-	scope(exit)mallocator.dispose(vec);
+	FiberVectorCache vec=Mallocator.instance.make!FiberVectorCache(1);
+	scope(exit)Mallocator.instance.dispose(vec);
 	immutable uint firstLoop=10000;
 	immutable uint secondLoop=8;
 	void testGet(){
