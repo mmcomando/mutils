@@ -26,13 +26,22 @@ class JSONSerializer{
 	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save) 
 	 */
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
+		import mutils.serializer.lexer;
+		import mutils.serializer.json2 : JSONSerializerToken,tokensToString,tokensToCharVectorPreatyPrint;
 		try{
 			static if(load==Load.yes){
-				auto sss=NoGcSlice!(ContainerOrSlice)(con);
-				serializeImpl!(load,useMalloc)(var, sss);
-				con=sss[0..$];
+
+				JSONLexer lex=JSONLexer(cast(string)con,true);
+				auto tokens=lex.tokenizeAll();				
+				//load
+				__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
+				serializer.serialize!(Load.yes, useMalloc)(var,tokens[]);		
+				tokens.clear();
 			}else{
-				serializeImpl!(load,useMalloc)(var, con);
+				__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
+				JSONLexer.TokenDataVector tokens;
+				serializer.serialize!(Load.no, useMalloc)(var,tokens);
+				tokensToCharVectorPreatyPrint(tokens[],con);
 			}
 		}catch(Exception e){}
 	}
@@ -44,336 +53,6 @@ class JSONSerializer{
 	}
 
 
-	
-
-	
-	
-package:
-
-	void serializeImpl(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(
-			(load==Load.yes && is(ForeachType!(ContainerOrSlice)==char)) ||
-			(load==Load.no  && !isDynamicArray!ContainerOrSlice)
-			);
-		static assert(load!=Load.skip,"Skip not supported");
-		
-		serializeStripLeft!(load)(con);
-		commonSerialize!(load,useMalloc)(this,var,con);
-	}
-	//-----------------------------------------
-	//--- Basic serializing methods
-	//-----------------------------------------
-	void serializeBasicVar(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(isBasicType!T);
-		static if (is(T==char)) {
-			ser.serializeChar!(load)(var, con);
-		}else{
-			static if (load == Load.yes) {
-				var = con.parse!T;//TODO parse thorows GC exception
-			} else {
-				string str=var.to!string;
-				con ~= cast(char[])str[];
-			}
-		}
-	}
-
-	void serializeStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(is(T == struct));
-
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"{")(con);
-		serializeConstStringOptional!(load,"\n")(con);
-		level++;
-		static if(load==Load.yes){
-			loadClassOrStruct!(load)(var,con);	
-		}else{
-			saveClassOrStruct!(load)(var,con);
-		}
-		level--;
-		serializeConstStringOptional!(load,"\n")(con);
-		serializeSpaces!(load)(con, level);
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"}")(con);
-		
-	}
-
-	
-	void serializeClass(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(is(T==class));
-		
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"{")(con);
-		serializeConstStringOptional!(load,"\n")(con);
-		level++;
-		static if(load==Load.yes){
-			var=Mallocator.instance.make!(T);
-			loadClassOrStruct!(load)(var,con);		
-		}else{
-			if(var is null){
-				//serializeConstString!(load,"{}")(con);
-			}else{
-				saveClassOrStruct!(load)(var,con);
-			}
-		}
-		level--;
-		serializeConstStringOptional!(load,"\n")(con);
-		serializeSpaces!(load)(con, level);
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"}")(con);
-		
-	}
-
-	
-	void serializeStaticArray(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(isStaticArray!T);
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"[")(con);
-		foreach (i, ref a; var) {
-			serializeImpl!(load)(a,con);
-			if(i!=var.length-1){
-				serializeStripLeft!(load)(con);
-				serializeConstString!(load,",")(con);
-				serializeConstStringOptional!(load," ")(con);
-			}
-		}
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"]")(con);
-		
-	}
-
-	
-	void serializeDynamicArray(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(isDynamicArray!T);
-		alias ElementType=Unqual!(ForeachType!(T));
-		static if(is(ElementType==char)){
-			serializeEscapedString!(load)(var, con);
-			return;
-		}else{		
-			serializeStripLeft!(load)(con);
-			serializeConstString!(load,"[")(con);
-			static if(load==Load.yes){
-				ElementType[] arrData=Mallocator.instance.makeArray!(ElementType)(1);
-				serializeStripLeft!(load)(con);
-				while(con[0]!=']'){
-					serializeImpl!(load)(arrData[$-1],con);
-					serializeStripLeft!(load)(con);
-					if(con[0]==','){
-						serializeConstString!(load,",")(con);
-						serializeStripLeft!(load)(con);
-						Mallocator.instance.expandArray(arrData,1);
-					}else{
-						break;
-					}
-				}
-				var=cast(T)arrData;
-			}else{
-				foreach(i,ref d;var){
-					serializeImpl!(load)(d,con);
-					if(i!=var.length-1){
-						serializeConstString!(load,",")(con);
-						serializeConstStringOptional!(load," ")(con);
-					}
-				}
-			}
-
-			serializeStripLeft!(load)(con);
-			serializeConstString!(load,"]")(con);
-		}
-	}
-
-
-	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(isCustomVector!T);
-		static if(is(Unqual!(ForeachType!(T))==char)){
-			serializeCustomVectorString!(load)(var, con);
-		}else{
-			alias ElementType=Unqual!(ForeachType!(T));
-			uint dataLength=cast(uint)(var.length);
-			serializeStripLeft!(load)(con);
-			serializeConstString!(load,"[")(con);
-			static if(load==Load.yes){
-				static if(hasMember!(T,"initialize")){
-					var.initialize();
-				}
-				while(con[0]!=']'){
-					foreach(i;0..dataLength){
-						ElementType element;
-						serializeImpl!(load)(element,con);
-						var~=element;
-					}
-					
-					ElementType element;
-					serializeImpl!(load)(element,con);
-					var~=element;
-					serializeStripLeft!(load)(con);
-					if(con[0]==','){
-						serializeConstString!(load,",")(con);
-						serializeStripLeft!(load)(con);
-					}else{
-						break;
-					}
-				}
-				
-			}else{
-				foreach(i,ref d;var){
-					serializeImpl!(load)(d,con);
-					if(i!=var.length-1){
-						serializeConstString!(load,",")(con);
-						serializeConstStringOptional!(load," ")(con);
-					}
-				}
-			}	
-			
-			serializeStripLeft!(load)(con);
-			serializeConstString!(load,"]")(con);
-		}
-	}
-
-	
-	void serializePointer(Load load,bool useMalloc, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		commonSerializePointer!(load,useMalloc)(this,var,con);		
-	}
-	//-----------------------------------------
-	//--- Helper methods for basic methods
-	//-----------------------------------------
-	
-	void serializeChar(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(is(T==char));
-		serializeConstString!(load,"'")(con);
-		static if (load == Load.yes) {
-			var = con[0];
-			con=con[1..$];
-		} else {
-			con ~= var;
-		}	
-		serializeConstString!(load,"'")(con);
-	}
-	
-	
-	void loadClassOrStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(load==Load.yes && (is(T==class) || is(T==struct)) );
-		
-		while(true){
-			string varNa;
-			serializeName!(load)(varNa,con);
-			scope(exit)Mallocator.instance.dispose(cast(char[])varNa);
-			bool loaded=false;
-			foreach (i, ref a; var.tupleof) {
-				alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
-				enum bool doSerialize=!hasNoserializeUda!(TP);
-				enum bool useMalloc=hasMallocUda!(TP);
-				enum string varName =__traits(identifier, var.tupleof[i]);
-				static if(doSerialize){
-					if(varName==varNa){
-						try{
-							auto tmpCon=con;
-							scope(failure)con=tmpCon;//revert slice
-							serializeImpl!(load,useMalloc)(a,con);
-							loaded=true;
-							break;
-						}catch(Exception e){}
-					}
-				}
-				
-			}
-			
-			if(loaded==false){
-				serializeStripLeft!(load)(con);
-				if(con[0]=='{'){
-					serializeConstString!(load,"{")(con);
-					serializeIgnoreToMatchingBrace!(load)(con);
-				}else{
-					serializeIgnoreToCommaOrBrace!(load)(con);
-				}
-			}			
-			
-			serializeStripLeft!(load)(con);
-			if(con.length && con[0]==','){
-				serializeConstString!(load,",")(con);
-			}else{
-				break;
-			}
-			
-			
-		}
-	}
-	
-	
-	void saveClassOrStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(load==Load.no && (is(T==class) || is(T==struct)) );
-		foreach (i, ref a; var.tupleof) {
-			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
-			enum bool doSerialize=!hasNoserializeUda!(TP);
-			enum bool useMalloc=hasMallocUda!(TP);
-			string varName =__traits(identifier, var.tupleof[i]);
-			serializeName!(load)(varName,con);
-			serializeImpl!(load,useMalloc)(a,con);
-			
-			if(i!=var.tupleof.length-1){
-				serializeStripLeft!(load)(con);
-				serializeConstString!(load,",")(con);
-				serializeConstStringOptional!(load,"\n")(con);
-			}
-		}
-	}
-
-	void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		alias ElementType=Unqual!(ForeachType!(T));
-		static assert(isCustomVector!T);
-		static assert(is(ElementType==char));
-
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,"\"")(con);
-		static if(load==Load.yes){
-			auto index=con[0..$].indexOf('"');
-			assert(index!=-1);
-			var~=con[0..index];
-			con=con[index..$];
-		}else{
-			con~=var[];
-		}
-		serializeConstString!(load,"\"")(con);
-	}
-	
-	//-----------------------------------------
-	//--- Helper methods for json format
-	//-----------------------------------------
-
-
-	void serializeName(Load load,  ContainerOrSlice)(ref string name,ref ContainerOrSlice con){		
-		serializeSpaces!(load)(con, level);
-		serializeStripLeft!(load)(con);
-		serializeEscapedString!(load)(name, con);
-		serializeStripLeft!(load)(con);
-		serializeConstString!(load,":" )(con);
-	}
-
-
-	void serializeIgnoreToCommaOrBrace(Load load,  ContainerOrSlice)(ref ContainerOrSlice con){
-		static if(load==Load.yes){
-			int arrBrace;
-			foreach(i,ch;con){
-				arrBrace+= ch=='[';
-				arrBrace-= ch==']';
-				if( (arrBrace<=0 && ch==',') || ch=='}'){
-					con=con[i..$];
-					return;
-				}
-			}
-			assert(0);
-		} 
-	}
-
-
-
-
-
-	
-
-	//-----------------------------------------
-	//--- Local variables
-	//-----------------------------------------
-	int level;
 }
 
 
@@ -468,7 +147,7 @@ unittest{
 	//save
 	__gshared static JSONSerializer serializer= new JSONSerializer();
 	serializer.serialize!(Load.no)(test,container);
-	//writeln(container[]);
+	writeln(container[]);
 	
 	//reset var
 	test=TestStruct.init;
@@ -532,13 +211,12 @@ unittest{
 	//save
 	__gshared static JSONSerializer serializer= new JSONSerializer();
 	serializer.serialize!(Load.no,true)(test,container);
-	
+
 	//reset var
 	test=null;
-	
+
 	//load
 	serializer.serialize!(Load.yes,true)(test,container[]);
-	
 	assert(test.a==11);
 	assert(test.b=='b');
 }

@@ -19,12 +19,43 @@ void writelnTokens(TokenData[] tokens){
 	}
 }
 
-void tokensToString(TokenData[] tokens){
+string tokensToString(TokenData[] tokens){
 	JSONLexer lex=JSONLexer([' '],true);
 	foreach(tk;tokens){
 		lex.saveToken(tk);
 	}
-	writeln(lex.code[]);
+	//writeln(lex.code[]);
+	return cast(string)lex.code[];
+}
+
+void tokensToCharVectorPreatyPrint(Vec)(TokenData[] tokens, ref Vec vec){
+	__gshared static string spaces="                                                   ";
+	int level=0;
+	void addSpaces(){
+		vec~=cast(char[])spaces[0..level*4];
+	}                                                                       
+
+	foreach(tk;tokens){
+		if(tk.isChar('{')){
+			JSONLexer.toChars(tk,vec);
+			level++;
+			vec~='\n';
+			addSpaces();
+		}else if(tk.isChar('}')){
+			level--;
+			vec~='\n';
+			addSpaces();
+			JSONLexer.toChars(tk,vec);
+		}else if(tk.isChar(',')){
+			JSONLexer.toChars(tk,vec);
+			vec~='\n';
+			addSpaces();
+		}else{
+			JSONLexer.toChars(tk,vec);
+
+		}
+
+	}
 }
 
 
@@ -32,7 +63,7 @@ void tokensToString(TokenData[] tokens){
  * Serializer to save data in json format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
-class JSONSerializer{
+class JSONSerializerToken{
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
@@ -85,7 +116,7 @@ package:
 			ser.serializeChar!(load)(var, con);
 		}else{
 			static if (load == Load.yes) {
-				enforce(con[0].isType!T,"Wrong token type");
+				check!("Wrong token type")(con[0].isType!T);
 				var = con[0].get!T();
 				con=con[1..$];
 			} else {
@@ -116,18 +147,14 @@ package:
 		static assert(is(T==class));
 		
 		serializeCharToken!(load)('{' ,con);
-		level++;
 		static if(load==Load.yes){
 			var=Mallocator.instance.make!(T);
 			loadClassOrStruct!(load)(var,con);		
 		}else{
-			if(var is null){
-				//serializeConstString!(load,"{}")(con);
-			}else{
+			if(var !is null){
 				saveClassOrStruct!(load)(var,con);
 			}
 		}
-		level--;
 		serializeCharToken!(load)('}' ,con);
 
 	}
@@ -142,7 +169,6 @@ package:
 				serializeCharToken!(load)(',',con);
 			}
 		}
-
 		serializeCharToken!(load)(']',con);
 		
 	}
@@ -163,51 +189,34 @@ package:
 				con ~= token;
 			}
 		}else{	
-			serializeCharToken!(load)('[',con);
 			static if(load==Load.yes){
-				ElementType[] arrData=Mallocator.instance.makeArray!(ElementType)(1);
-				while(!con[0].isChar(']')){
-					serializeImpl!(load)(arrData[$-1],con);
-					if(con[0].isChar(',')){
-						serializeCharToken!(load)(',',con);
-						Mallocator.instance.expandArray(arrData,1);
-					}else{
-						break;
-					}
-				}
-				var=cast(T)arrData;
-			}else{
-				foreach(i,ref d;var){
-					serializeImpl!(load)(d,con);
-					if(i!=var.length-1){
-						serializeCharToken!(load)(',',con);
-					}
-				}
+				import mutils.container.vector_allocator;
+				VectorAllocator!(ElementType, Mallocator) arrData;				
+				serializeCustomVector!(load)(arrData, con);
+				var=cast(T)arrData[];
+			}else{			
+				serializeCustomVector!(load)(var, con);				
 			}
-			serializeCharToken!(load)(']',con);
 		}
 	}
 
 	
+	
+	
 	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(isCustomVector!T);
 		static if(is(Unqual!(ForeachType!(T))==char)){
 			serializeCustomVectorString!(load)(var, con);
 		}else{
 			alias ElementType=Unqual!(ForeachType!(T));
 			uint dataLength=cast(uint)(var.length);
 			serializeCharToken!(load)('[',con);
+
 			static if(load==Load.yes){
 				static if(hasMember!(T,"initialize")){
 					var.initialize();
 				}
+
 				while(!con[0].isChar(']')){
-					foreach(i;0..dataLength){
-						ElementType element;
-						serializeImpl!(load)(element,con);
-						var~=element;
-					}
-					
 					ElementType element;
 					serializeImpl!(load)(element,con);
 					var~=element;
@@ -225,9 +234,11 @@ package:
 						serializeCharToken!(load)(',',con);
 					}
 				}
-			}	
 
+			}
 			serializeCharToken!(load)(']',con);
+
+			
 		}
 	}
 
@@ -398,11 +409,6 @@ package:
 
 	
 	
-
-	//-----------------------------------------
-	//--- Local variables
-	//-----------------------------------------
-	int level;
 }
 
 
@@ -421,7 +427,7 @@ unittest{
 
 	
 	//load
-	__gshared static JSONSerializer serializer= new JSONSerializer();
+	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 	serializer.serialize!(Load.yes)(a,tokens[]);
 	assert(a==12345);
 
@@ -454,7 +460,7 @@ unittest{
 	auto tokens=lex.tokenizeAll();	
 	
 	//load
-	__gshared static JSONSerializer serializer= new JSONSerializer();
+	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 	auto ttt=tokens[];
 	serializer.serialize!(Load.yes)(test,ttt);
 	assert(test.a==1);
@@ -500,7 +506,7 @@ unittest{
 	JSONLexer lex=JSONLexer(cast(string)str,true);
 	auto tokens=lex.tokenizeAll();	
 	//load
-	__gshared static JSONSerializer serializer= new JSONSerializer();
+	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 	serializer.serialize!(Load.yes)(test,tokens[]);
 	
 	assert(test.a==0);
@@ -531,7 +537,7 @@ unittest{
 	Vector!TokenData tokens;
 	
 	//save
-	__gshared static JSONSerializer serializer= new JSONSerializer();
+	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 	serializer.serialize!(Load.no)(test,tokens);
 
 	//reset var
@@ -570,7 +576,7 @@ unittest{
 
 	
 	//save
-	__gshared static JSONSerializer serializer= new JSONSerializer();
+	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 	serializer.serialize!(Load.no)(test,tokens);
 
 	//reset var
@@ -597,7 +603,7 @@ unittest{
 	Vector!TokenData tokens;
 	
 	//save
-	__gshared static JSONSerializer serializer= new JSONSerializer();
+	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 	serializer.serialize!(Load.no,true)(test,tokens);
 	//reset var
 	test=null;

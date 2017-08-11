@@ -474,22 +474,27 @@ struct JSONLexer{
 	}
 
 	void saveToken(TokenData token){
+		toChars(token, code);
+	}
+
+	static void toChars(Vec)(TokenData token, ref Vec vec){
+
 		final switch(cast(Token)token.type){
 			case Token.long_:
 			case Token.double_:
-				serializeNumberToken!(false)(token,code);
+				serializeNumberToken!(false)(token,vec);
 				break;
 			case Token.character:
-				code~=token.ch;
+				vec~=token.ch;
 				break;
 			case Token.white:
 			case Token.identifier:
-				code~=cast(char[])token.str;
+				vec~=cast(char[])token.str;
 				break;
 			case Token.string_:
-				code~='"';
-				code~=cast(char[])token.getEscapedString();
-				code~='"';
+				vec~='"';
+				vec~=cast(char[])token.getEscapedString();
+				vec~='"';
 				break;
 
 			case Token.notoken:
