@@ -42,7 +42,13 @@ class JSONSerializer{
 	 */
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		try{
-			serializeImpl!(load,useMalloc)(var, con);
+			static if(load==Load.yes){
+				auto sss=NoGcSlice!(ContainerOrSlice)(con);
+				serializeImpl!(load,useMalloc)(var, sss);
+				con=sss[0..$];
+			}else{
+				serializeImpl!(load,useMalloc)(var, con);
+			}
 		}catch(Exception e){}
 	}
 
@@ -79,6 +85,7 @@ package:
 			ser.serializeChar!(load)(var, con);
 		}else{
 			static if (load == Load.yes) {
+				enforce(con[0].isType!T,"Wrong token type");
 				var = con[0].get!T();
 				con=con[1..$];
 			} else {
@@ -147,7 +154,7 @@ package:
 		static if(is(ElementType==char)){
 			static if (load == Load.yes) {
 				assert(con[0].type==StandardTokens.string_);
-				var=con[0].str;//.getUnescapedString;
+				var=con[0].str;
 				con=con[1..$];
 			} else {
 				TokenData token;
@@ -329,7 +336,7 @@ package:
 	void serializeCharToken(Load load, ContainerOrSlice)(char ch,ref ContainerOrSlice con){
 		static if (load == Load.yes) {
 			//writelnTokens(con);
-			assert(con[0].type==StandardTokens.character && con[0].isChar(ch));
+			check(con[0].type==StandardTokens.character && con[0].isChar(ch));
 			con=con[1..$];
 		} else {
 			TokenData token;
@@ -464,22 +471,22 @@ unittest{
 
 
 
-/*
 
- 
- // test formating
- unittest{
- static struct TestStructB{
- int a;
- }
- static struct TestStruct{
- int a;
- int b;
- TestStructB bbb;
- }
- TestStruct test;
- //Vector!char container;
- string str=`
+
+
+// test formating
+unittest{
+	static struct TestStructB{
+		int a;
+	}
+	static struct TestStruct{
+		int a;
+		int b;
+		TestStructB bbb;
+	}
+	TestStruct test;
+	//Vector!char container;
+	string str=`
  
  {
  "b"   :145,
@@ -490,17 +497,17 @@ unittest{
 
  `;
 
- JSONLexer lex=JSONLexer(cast(string)str,true);
- auto tokens=lex.tokenizeAll();	
- //load
- __gshared static JSONSerializer serializer= new JSONSerializer();
- serializer.serialize!(Load.yes)(test,tokens[]);
- 
- assert(test.a==0);
- assert(test.b==145);
- }
+	JSONLexer lex=JSONLexer(cast(string)str,true);
+	auto tokens=lex.tokenizeAll();	
+	//load
+	__gshared static JSONSerializer serializer= new JSONSerializer();
+	serializer.serialize!(Load.yes)(test,tokens[]);
+	
+	assert(test.a==0);
+	assert(test.b==145);
+}
 
- */
+
 // test basic types
 unittest{
 	static struct TestStructA{

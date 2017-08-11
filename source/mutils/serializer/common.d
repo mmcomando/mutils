@@ -116,6 +116,22 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 	}
 }
 
+/// Struct to let BoundsChecking Without GC
+struct NoGcSlice(T){
+	shared static immutable Exception e=new Exception("BoundsChecking NoGcException");
+	T slice;
+	alias slice this;
+	T opSlice(X,Y)(X start, Y end){
+		if(start>=slice.length || end>slice.length){
+			//assert(0);
+			throw e;
+		}
+		return slice[start..end];
+	}
+	size_t opDollar() { return slice.length; }
+}
+
+
 void commonSerializePointer(Load load,bool useMalloc, Serializer, T, ContainerOrSlice)(Serializer ser, ref T var,ref ContainerOrSlice con){
 	static assert(isPointer!T);
 	alias PointTo=typeof(*var);

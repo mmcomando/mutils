@@ -11,20 +11,7 @@ import std.traits;
 
 public import mutils.serializer.common;
 
-/// Struct to let BoundsChecking Without GC
-private struct NoGcSlice(T){
-	shared static immutable Exception e=new Exception("BoundsChecking NoGcException");
-	T slice;
-	alias slice this;
-	T opSlice(X,Y)(X start, Y end){
-		if(start>=slice.length || end>slice.length){
-			//assert(0);
-			throw e;
-		}
-		return slice[start..end];
-	}
-	size_t opDollar() { return slice.length; }
-}
+
 
 /**
  * Serializer to save data in json format

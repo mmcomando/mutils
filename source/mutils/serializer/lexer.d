@@ -316,6 +316,23 @@ struct TokenData{
 			static assert(0);
 		}
 	}
+
+	bool isType(T)()
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char))
+	{
+		static if(isIntegral!T){
+			return type==StandardTokens.long_;
+		}else static if(isFloatingPoint!T){
+			return type==StandardTokens.double_;
+		}else static if( is(T==string) ){
+			return type==StandardTokens.string_;
+		}else static if( is(T==char) ){
+			return type==StandardTokens.character;
+		}else{
+			static assert(0);
+		}
+	}
+
 	auto get(T)()
 		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char))
 	{
@@ -522,7 +539,7 @@ unittest{
 	JSONLexer json=JSONLexer(code,true);
 	TokenData token;
 	token.type=StandardTokens.identifier;
-	token.str=cast(string)"asd";
+	token.str="asd";
 	json.saveToken(token);
 }
 
