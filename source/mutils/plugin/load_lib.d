@@ -32,7 +32,7 @@ version(Posix) {
 	string GetErrorStr() nothrow @nogc
 	{
 		
-		char* err = dlerror();
+		char* err = cast(char*)dlerror();
 		if(err is null)
 			return null;
 		

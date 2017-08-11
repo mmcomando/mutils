@@ -60,8 +60,11 @@ struct SafeExecutor
 			return;
 		}
 		initialized=true;
-		signal(SIGABRT,&crashSignalHandle);
-		signal(SIGSEGV,&crashSignalHandle);
+		//There is no signal function before android api 21
+		version(Android){}else{
+			signal(SIGABRT,&crashSignalHandle);
+			signal(SIGSEGV,&crashSignalHandle);
+		}
 	}
 
 	void initialize(){
