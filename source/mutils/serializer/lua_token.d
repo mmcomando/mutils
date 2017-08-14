@@ -1,74 +1,225 @@
-﻿module mutils.serializer.json2;
+﻿module mutils.serializer.lua_token;
 
-import std.algorithm : stripLeft;
-import std.conv;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.meta;
-import std.stdio : writeln;
-import std.string : indexOf;
 import std.traits;
+import std.conv;
+import std.algorithm:stripLeft;
+import std.string:indexOf;
+import std.stdio : writeln;
 
 public import mutils.serializer.common;
+public import mutils.serializer.lexer;
 
 
-void writelnTokens(TokenData[] tokens){
-	writeln("--------");
-	foreach(tk;tokens){
-		writeln(tk);
+struct LuaLexer{
+	enum Token{
+		notoken=StandardTokens.notoken,
+		white=StandardTokens.white,
+		character=StandardTokens.character,
+		identifier=StandardTokens.identifier,
+		string_=StandardTokens.string_,
+		double_=StandardTokens.double_,
+		long_=StandardTokens.long_,
+		comment_multiline=StandardTokens.comment_multiline,
+		comment_line=StandardTokens.comment_line,
 	}
-}
 
-string tokensToString(TokenData[] tokens){
-	JSONLexer lex=JSONLexer([' '],true);
-	foreach(tk;tokens){
-		lex.saveToken(tk);
+	alias TokenDataVector=Vector!(TokenData);
+	alias characterTokens=AliasSeq!('[',']','{','}','(',')',',','=');
+	
+	
+	
+	Vector!char code;
+	bool skipUnnecessaryWhiteTokens=true;
+	string slice;
+	TokenData lastToken;
+	uint line;
+	uint column;
+	
+	@disable this();
+	
+	this(string code, bool skipWhite){
+		this.code~=cast(char[])code;
+		slice=cast(string)this.code[];
+		skipUnnecessaryWhiteTokens=skipWhite;
 	}
-	//writeln(lex.code[]);
-	return cast(string)lex.code[];
-}
-
-void tokensToCharVectorPreatyPrint(Vec)(TokenData[] tokens, ref Vec vec){
-	__gshared static string spaces="                                                   ";
-	int level=0;
-	void addSpaces(){
-		vec~=cast(char[])spaces[0..level*4];
-	}                                                                       
-
-	foreach(tk;tokens){
-		if(tk.isChar('{')){
-			JSONLexer.toChars(tk,vec);
-			level++;
-			vec~='\n';
-			addSpaces();
-		}else if(tk.isChar('}')){
-			level--;
-			vec~='\n';
-			addSpaces();
-			JSONLexer.toChars(tk,vec);
-		}else if(tk.isChar(',')){
-			JSONLexer.toChars(tk,vec);
-			vec~='\n';
-			addSpaces();
-		}else{
-			JSONLexer.toChars(tk,vec);
-
+	
+	
+	void clear(){
+		code.clear();
+		line=column=0;
+		slice=null;
+	}
+	
+	
+	TokenData checkNextToken(){
+		auto sliceCopy=slice;
+		auto token=getNextToken();
+		slice=sliceCopy;
+		return token;
+	}
+	
+	TokenData getNextToken(){
+		string sliceCopy=slice[];
+		TokenData token;
+		if(slice.length==0){
+			return token;
 		}
+		switch(slice[0]){
+			//------- character tokens ------------------------
+			foreach(ch;characterTokens){
+				case ch:
+			}
+			token=slice[0];
+			slice=slice[1..$];
+			goto end;
+			
+			
+			//--------- white tokens --------------------------
+			foreach(ch;whiteTokens){
+				case ch:
+			}
+			serializeWhiteTokens!(true)(token,slice);
+			goto end;
 
+			//------- escaped strings -------------------------
+			case '"':
+				serializeStringToken!(true)(token,slice);
+				goto end;
+
+				//------- comment -------------------------
+			case '/':
+				check(slice.length>1);
+				if(slice[1]=='*'){
+					serializeCommentMultiline!(true)(token,slice);
+				}else if(slice[1]=='/'){
+					serializeCommentLine!(true)(token,slice);
+				}else{
+					check(false);
+				}
+				goto end;
+				
+				//------- something else -------------------------
+			default:
+				break;
+		}
+		if(isIdentifierFirstChar(slice[0])){
+			serializeIdentifier!(true)(token,slice);
+		}else if((slice[0]>='0' && slice[0]<='9') || slice[0]=='-'){
+			serializeNumberToken!(true)(token,slice);
+		}else{
+			slice=null;
+		}
+		
+	end:
+		//------- add line information -------------------------
+		token.line=line;
+		token.column=column;
+		updateLineAndCol(line,column,sliceCopy,slice);
+		if(skipUnnecessaryWhiteTokens==true && token.type==Token.white){
+			return getNextToken();
+		}
+		//writeln(slice);
+		return token;
 	}
+	
+	void saveToken(TokenData token){
+		toChars(token, code);
+	}
+	
+	static void toChars(Vec)(TokenData token, ref Vec vec){
+		
+		final switch(cast(Token)token.type){
+			case Token.long_:
+			case Token.double_:
+				serializeNumberToken!(false)(token,vec);
+				break;
+			case Token.comment_multiline:
+				serializeCommentMultiline!(false)(token,vec);
+				break;
+			case Token.comment_line:
+				serializeCommentLine!(false)(token,vec);
+				break;
+			case Token.character:
+				vec~=token.ch;
+				break;
+			case Token.white:
+			case Token.identifier:
+				vec~=cast(char[])token.str;
+				break;
+			case Token.string_:
+				vec~='"';
+				vec~=cast(char[])token.getEscapedString();
+				vec~='"';
+				break;
+				
+			case Token.notoken:
+				assert(0);
+		}
+		
+	}
+	
+	
+	void serialize(bool load, Container)(ref TokenData token, ref Container con){
+		static if(load==true){
+			token=getNextToken();
+		}else{
+			saveToken(token);
+		}
+		
+	}
+	
+	void printAllTokens(){
+		TokenData token;
+		while(token.type!=Token.notoken){
+			token=getNextToken();
+			writeln(token);
+		}
+	}
+	
+	TokenDataVector tokenizeAll(){
+		TokenDataVector tokens;
+		do{
+			tokens~=getNextToken();
+		}while(tokens[$-1].type!=Token.notoken);
+		
+		return tokens;
+	}
+	
+	string tokensToString(TokenData[] tokens){
+		foreach(tk;tokens){
+			saveToken(tk);}
+		return cast(string)code[];
+	}
+	
+	
 }
+
+unittest{
+	string code=`{ [ ala= "asdasd",
+// hkasdf sdfasdfs sdf  &8 9 (( 7 ^ 	
+ ccc=123.3f  /* somethingsdfsd 75#^ */  ]}"`;
+	LuaLexer lua=LuaLexer(code,true);
+	auto tokens=lua.tokenizeAll();
+	writelnTokens(tokens[]);
+}
+
+
+
 
 
 /**
- * Serializer to save data in json format
+ * Serializer to save data in lua format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
-class JSONSerializerToken{
+class LuaSerializerToken{
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
 	 * T is the serialized variable
-	 * ContainerOrSlice is string when load==Load.yes 
+	 * ContainerOrSlice is char[] when load==Load.yes 
 	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save) 
 	 */
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
@@ -82,31 +233,30 @@ class JSONSerializerToken{
 			}
 		}catch(Exception e){}
 	}
-
+	
 	//support for rvalues during load
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ContainerOrSlice con){
 		static assert(load==Load.yes);
 		serialize!(load,useMalloc)(var,con);		
 	}
-
 	
 	
-
 	
+	
+	__gshared static LuaSerializerToken instance = new LuaSerializerToken;
 	
 package:
-
+	
 	void serializeImpl(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(
 			(load==Load.yes && is(ForeachType!(ContainerOrSlice)==TokenData)) ||
 			(load==Load.no  && is(ForeachType!(ContainerOrSlice)==TokenData))
 			);
 		static assert(load!=Load.skip,"Skip not supported");
-		static if(load==Load.yes){
-			//writelnTokens(con);
-		}
+		
 		commonSerialize!(load,useMalloc)(this,var,con);
 	}
+
 	//-----------------------------------------
 	//--- Basic serializing methods
 	//-----------------------------------------
@@ -126,10 +276,10 @@ package:
 			}
 		}
 	}
-
+	
 	void serializeStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(is(T == struct));
-
+		
 		
 		serializeCharToken!(load)('{' ,con);
 		static if(load==Load.yes){
@@ -137,11 +287,11 @@ package:
 		}else{
 			saveClassOrStruct!(load)(var,con);
 		}
-
+		
 		serializeCharToken!(load)('}' ,con);
-
+		
 	}
-
+	
 	
 	void serializeClass(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(is(T==class));
@@ -156,9 +306,9 @@ package:
 			}
 		}
 		serializeCharToken!(load)('}' ,con);
-
+		
 	}
-
+	
 	
 	void serializeStaticArray(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(isStaticArray!T);
@@ -172,7 +322,7 @@ package:
 		serializeCharToken!(load)(']',con);
 		
 	}
-
+	
 	
 	void serializeDynamicArray(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(isDynamicArray!T);
@@ -199,7 +349,7 @@ package:
 			}
 		}
 	}
-
+	
 	
 	
 	
@@ -210,12 +360,12 @@ package:
 			alias ElementType=Unqual!(ForeachType!(T));
 			uint dataLength=cast(uint)(var.length);
 			serializeCharToken!(load)('[',con);
-
+			
 			static if(load==Load.yes){
 				static if(hasMember!(T,"initialize")){
 					var.initialize();
 				}
-
+				
 				while(!con[0].isChar(']')){
 					ElementType element;
 					serializeImpl!(load)(element,con);
@@ -234,33 +384,20 @@ package:
 						serializeCharToken!(load)(',',con);
 					}
 				}
-
+				
 			}
-			serializeCharToken!(load)(']',con);
-
-			
+			serializeCharToken!(load)(']',con);			
 		}
 	}
-
+	
 	
 	void serializePointer(Load load,bool useMalloc, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		commonSerializePointer!(load,useMalloc)(this,var,con);		
 	}
+	
 	//-----------------------------------------
 	//--- Helper methods for basic methods
 	//-----------------------------------------
-	
-	void serializeChar(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(is(T==char));
-		serializeConstString!(load,"'")(con);
-		static if (load == Load.yes) {
-			var = con[0];
-			con=con[1..$];
-		} else {
-			con ~= var;
-		}	
-		serializeConstString!(load,"'")(con);
-	}
 	
 	
 	void loadClassOrStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
@@ -292,13 +429,13 @@ package:
 			if(!loaded){
 				ignoreToMatchingComma!(load)(con);
 			}
-
+			
 			if(con[0].isChar(',')){
 				con=con[1..$];
 			}else{
 				break;
 			}
-
+			
 			
 			
 		}
@@ -324,83 +461,19 @@ package:
 
 	
 	
-	//-----------------------------------------
-	//--- Helper methods for json format
-	//-----------------------------------------
-
-	
 	void serializeName(Load load,  ContainerOrSlice)(ref string name,ref ContainerOrSlice con){
-
+		
 		static if (load == Load.yes) {
-			assert(con[0].type==StandardTokens.string_);
-			name=con[0].getUnescapedString;
+			assert(con[0].type==StandardTokens.identifier);
+			name=con[0].str;
 			con=con[1..$];
 		} else {
 			TokenData token;
 			token=name;
-			token.type=StandardTokens.string_;
+			token.type=StandardTokens.identifier;
 			con ~= token;
 		}
-		serializeCharToken!(load)(':' ,con);
-	}
-
-	void serializeCharToken(Load load, ContainerOrSlice)(char ch,ref ContainerOrSlice con){
-		static if (load == Load.yes) {
-			//writelnTokens(con);
-			check(con[0].type==StandardTokens.character && con[0].isChar(ch));
-			con=con[1..$];
-		} else {
-			TokenData token;
-			token=ch;
-			con ~= token;
-		}
-	}
-
-	void ignoreBraces(Load load, ContainerOrSlice)(ref ContainerOrSlice con, char braceStart, char braceEnd){
-		static assert(load==Load.yes );
-		assert(con[0].isChar(braceStart));
-		con=con[1..$];
-		int nestageLevel=1;
-		while(con.length>0){
-			TokenData token=con[0];
-			con=con[1..$];
-			if(token.type!=StandardTokens.character){
-				continue;
-			}
-			if(token.isChar(braceStart)){
-				nestageLevel++;
-			}else if(token.isChar(braceEnd)){
-				nestageLevel--;
-				if(nestageLevel==0){
-					break;
-				}
-			}
-		}
-	}
-
-	void ignoreToMatchingComma(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
-		static assert(load==Load.yes );
-		int nestageLevel=0;
-		//writelnTokens(con);
-		//scope(exit)writelnTokens(con);
-		while(con.length>0){
-			TokenData token=con[0];
-			if(token.type!=StandardTokens.character){
-				con=con[1..$];
-				continue;
-			}
-			if(token.isChar('[') || token.isChar('{')){
-				nestageLevel++;
-			}else if(token.isChar(']') || token.isChar('}')){
-				nestageLevel--;
-			}
-
-			if(nestageLevel==0 && token.isChar(',')){
-				break;
-			}else{
-				con=con[1..$];
-			}
-		}
+		serializeCharToken!(load)('=' ,con);
 	}
 
 	
@@ -408,8 +481,17 @@ package:
 	
 
 	
+
 	
+
+	
+
+	
+	
+
 }
+
+
 
 
 
@@ -417,200 +499,46 @@ package:
 //--- Tests
 //-----------------------------------------
 import mutils.container.vector;
-import mutils.serializer.lexer;
 // test formating
+// test customVector of char serialization
 unittest{
-	string str=` 12345 `;
-	int a;
-	JSONLexer lex=JSONLexer(cast(string)str,true);
-	auto tokens=lex.tokenizeAll();
-
-	
-	//load
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	serializer.serialize!(Load.yes)(a,tokens[]);
-	assert(a==12345);
-
-	tokens.clear();
-	serializer.serialize!(Load.no)(a,tokens);
-	assert(tokens[0].type==StandardTokens.long_);
-	assert(tokens[0].long_==12345);
-
-	
-}
-
-unittest{
-	string str=`
-	
-{
-"wwwww":{"w":[1,2,3]},
-    "b"   :145    ,  "a":  1,   "c"               :   
-
-
-"asdasdas asdasdas asdasd asd"
-}
-`;
 	static struct TestStruct{
-		int a;
-		int b;
-		@("malloc") string c;
+		struct Project
+		{
+			Vector!char path;
+			int ccc;
+		}
+		
+		Vector!Project projects;
 	}
 	TestStruct test;
-	JSONLexer lex=JSONLexer(cast(string)str,true);
-	auto tokens=lex.tokenizeAll();	
-	
-	//load
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	auto ttt=tokens[];
-	serializer.serialize!(Load.yes)(test,ttt);
-	assert(test.a==1);
-	assert(test.b==145);
-	assert(test.c=="asdasdas asdasdas asdasd asd");
+	TestStruct.Project p1;
+	TestStruct.Project p2;
 
-	tokens.clear();
-
-	serializer.serialize!(Load.no)(test,tokens);
-
-	assert(tokens.length==13);
-}
-
-
-
-
-
-
-
-// test formating
-unittest{
-	static struct TestStructB{
-		int a;
-	}
-	static struct TestStruct{
-		int a;
-		int b;
-		TestStructB bbb;
-	}
-	TestStruct test;
-	//Vector!char container;
-	string str=`
- 
- {
- "b"   :145,
- "a":{},
- "xxxxx":{},
- "bbb":13,
- "www":{}
-
- `;
-
-	JSONLexer lex=JSONLexer(cast(string)str,true);
-	auto tokens=lex.tokenizeAll();	
-	//load
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	serializer.serialize!(Load.yes)(test,tokens[]);
-	
-	assert(test.a==0);
-	assert(test.b==145);
-}
-
-
-// test basic types
-unittest{
-	static struct TestStructA{
-		int a;
-		@("malloc") string b;
-		int c;
-	}
-	static struct TestStruct{
-		int a;
-		TestStructA aa;
-		int b;
-		@("malloc") string c;
-	}
-	TestStruct test;
-	test.a=1;
-	test.b=2;
-	test.c="asdasdasda asd asda";
-	test.aa.a=11;
-	test.aa.c=22;
-	test.aa.b="xxxxx";
+	p1.path~=['a', 'a', 'a', ' ', 'a', 'a', 'a'];
+	p1.ccc=100;
+	p2.path~=['d', 'd', 'd'];
+	p2.ccc=200;
+	test.projects~=p1;
+	test.projects~=p2;
 	Vector!TokenData tokens;
 	
 	//save
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
+	__gshared static LuaSerializerToken serializer= new LuaSerializerToken();
 	serializer.serialize!(Load.no)(test,tokens);
+	Vector!char vv;
+	tokensToCharVectorPreatyPrint(tokens[], vv);
 
+	writeln(vv[]);
+	
 	//reset var
 	test=TestStruct.init;
 	
 	//load
 	serializer.serialize!(Load.yes)(test,tokens[]);
-	assert(test.a==1);
-	assert(test.b==2);
-	assert(test.c=="asdasdasda asd asda");
-	assert(test.aa.a==11);
-	assert(test.aa.c==22);
-	assert(test.aa.b=="xxxxx");
-}
-
-// test arrays
-unittest{
-	static struct TestStructB{
-		@("malloc") string a=cast(string)"ala";
-	}
-	static struct TestStruct{
-		int[3] a;
-		@("malloc") int[] b;
-		Vector!int c;
-		Vector!TestStructB d;
-		float e;
-	}
-	TestStruct test;
-	test.a=[1,2,3];
-	test.b=[11,22,33];
-	test.c~=[1,2,3,4,5,6,7];
-	test.d~=[TestStructB(cast(string)"asddd"),TestStructB(cast(string)"asd12dd"),TestStructB(cast(string)"asddaszdd")];
-	test.e=32.52f;
-	//Vector!char container;
-	Vector!TokenData tokens;
-
-	
-	//save
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	serializer.serialize!(Load.no)(test,tokens);
-
-	//reset var
-	test=TestStruct.init;
-	
-	//load
-	serializer.serialize!(Load.yes)(test,tokens[]);
-	assert(test.a==[1,2,3]);
-	assert(test.b==[11,22,33]);
-	assert(test.c[]==[1,2,3,4,5,6,7]);
-}
-
-
-
-// test class
-unittest{
-	static class TestClass{
-		int a;
-		ubyte b;
-	}
-	__gshared static TestClass test=new TestClass;
-	test.a=11;
-	test.b='b';
-	Vector!TokenData tokens;
-	
-	//save
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	serializer.serialize!(Load.no,true)(test,tokens);
-	//reset var
-	test=null;
-	
-	//load
-	serializer.serialize!(Load.yes,true)(test,tokens[]);
-	
-	assert(test.a==11);
-	assert(test.b=='b');
+	assert(test.projects.length==2);
+	assert(test.projects[0].ccc==100);
+	assert(test.projects[0].path[]==cast(char[])"aaa aaa");
+	assert(test.projects[1].ccc==200);
+	assert(test.projects[1].path[]==cast(char[])"ddd");
 }

@@ -10,6 +10,7 @@ import std.string : indexOf;
 import std.traits;
 
 public import mutils.serializer.common;
+import mutils.serializer.json_token : JSONSerializerToken,tokensToString,tokensToCharVectorPreatyPrint;
 
 
 
@@ -27,7 +28,6 @@ class JSONSerializer{
 	 */
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		import mutils.serializer.lexer;
-		import mutils.serializer.json2 : JSONSerializerToken,tokensToString,tokensToCharVectorPreatyPrint;
 		try{
 			static if(load==Load.yes){
 
@@ -52,6 +52,7 @@ class JSONSerializer{
 		serialize!(load,useMalloc)(var,con);		
 	}
 
+	__gshared static JSONSerializer instance= new JSONSerializer();
 
 }
 

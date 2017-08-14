@@ -33,13 +33,59 @@ void serializeWhiteTokens(bool load, Container)(ref TokenData token, ref Contain
 			token.str=con[0..whiteNum];
 			con=con[whiteNum..$];
 			token.type=StandardTokens.white;
-			return;
-			
+			return;			
 		}
 		token.type=StandardTokens.notoken;
 	}else{
 		if(token.type==StandardTokens.white){
-			con~=token.str;
+			con~=cast(char[])token.str;
+		}			
+	}
+}
+
+void serializeCommentMultiline(bool load, Container)(ref TokenData token, ref Container con){
+	static if(load==true){
+		assert(con[0..2]==['/','*']);
+		con=con[2..$];
+		foreach(i, ch;con){
+			if (ch=='*' && i!=con.length-1 && con[i+1]=='/'){
+				token.str=con[0..i-1];
+				con=con[i+2..$];
+				token.type=StandardTokens.comment_multiline;
+				return;
+			}
+		}
+		token.str=con;
+		con=null;
+		token.type=StandardTokens.comment_multiline;
+	}else{
+		if(token.type==StandardTokens.comment_multiline){
+			con~=cast(char[])"/*";
+			con~=cast(char[])token.str;
+			con~=cast(char[])"*/";
+		}			
+	}
+}
+
+void serializeCommentLine(bool load, Container)(ref TokenData token, ref Container con){
+	static if(load==true){
+		assert(con[0..2]==['/','/']);
+		con=con[2..$];
+		foreach(i, ch;con){
+			if (ch=='\n'){
+				token.str=con[0..i-1];
+				con=con[i..$];
+				token.type=StandardTokens.comment_line;
+				return;
+			}
+		}
+		token.str=con;
+		con=null;
+		token.type=StandardTokens.comment_line;
+	}else{
+		if(token.type==StandardTokens.comment_line){
+			con~=cast(char[])"//";
+			con~=cast(char[])token.str;
 		}			
 	}
 }
@@ -258,6 +304,8 @@ enum StandardTokens{
 	string_=4,
 	double_=5,
 	long_=6,
+	comment_multiline=7,
+	comment_line=8,
 }
 
 struct TokenData{
@@ -362,6 +410,8 @@ struct TokenData{
 			case StandardTokens.string_:
 			case StandardTokens.identifier:
 			case StandardTokens.white:
+			case StandardTokens.comment_line:
+			case StandardTokens.comment_multiline:
 				return format("TK(%5s, \"%s\", %s, %s)",cast(StandardTokens)type,str,line,column);
 			case StandardTokens.double_:
 				return format("TK(%5s, %s, %s, %s)",cast(StandardTokens)type,double_,line,column);

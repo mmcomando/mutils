@@ -7,6 +7,8 @@ import std.stdio;
 import std.string : indexOf;
 import std.traits;
 
+import mutils.serializer.lexer;
+
 /// Runtime check, throws nogc exception on error
 static void check(string str="Parsing Error")(bool ok){
 	enum hardCheck=false;// if true assert on error else throw Exception
@@ -154,129 +156,131 @@ void commonSerializePointer(Load load,bool useMalloc, Serializer, T, ContainerOr
 	
 }
 
+
+void writelnTokens(TokenData[] tokens){
+	writeln("--------");
+	foreach(tk;tokens){
+		writeln(tk);
+	}
+}
+
+string tokensToString(TokenData[] tokens){
+	JSONLexer lex=JSONLexer([' '],true);
+	foreach(tk;tokens){
+		lex.saveToken(tk);
+	}
+	//writeln(lex.code[]);
+	return cast(string)lex.code[];
+}
+
+void tokensToCharVectorPreatyPrint(Vec)(TokenData[] tokens, ref Vec vec){
+	__gshared static string spaces="                                                   ";
+	int level=0;
+	void addSpaces(){
+		vec~=cast(char[])spaces[0..level*4];
+	}                                                                       
+	
+	foreach(tk;tokens){
+		if(tk.isChar('{')){
+			JSONLexer.toChars(tk,vec);
+			level++;
+			vec~='\n';
+			addSpaces();
+		}else if(tk.isChar('}')){
+			level--;
+			vec~='\n';
+			addSpaces();
+			JSONLexer.toChars(tk,vec);
+		}else if(tk.isChar(',')){
+			JSONLexer.toChars(tk,vec);
+			vec~='\n';
+			addSpaces();
+		}else{
+			JSONLexer.toChars(tk,vec);
+			
+		}
+		
+	}
+}
+
+
+
 //-----------------------------------------
-//--- Helper methods for string formats
+//--- Helper methods for string format
 //-----------------------------------------
 
-void serializeSpaces(Load load,  ContainerOrSlice)(ref ContainerOrSlice con,uint level){
-	enum spacesNum=4;
+
+void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
+	alias ElementType=Unqual!(ForeachType!(T));
+	static assert(isCustomVector!T);
+	static assert(is(ElementType==char));
+	
 	static if(load==Load.yes){
+		var~=cast(char[])con[0].getUnescapedString;
+		con=con[1..$];
 	}else{
-		foreach(i;0..level){
-			foreach(j;0..spacesNum){
-				con~=' ';
+		TokenData token;
+		token=cast(string)var[];
+		token.type=StandardTokens.string_;
+		con ~= token;
+	}
+}
+
+void serializeCharToken(Load load, ContainerOrSlice)(char ch,ref ContainerOrSlice con){
+	static if (load == Load.yes) {
+		//writelnTokens(con);
+		check(con[0].type==StandardTokens.character && con[0].isChar(ch));
+		con=con[1..$];
+	} else {
+		TokenData token;
+		token=ch;
+		con ~= token;
+	}
+}
+
+void ignoreBraces(Load load, ContainerOrSlice)(ref ContainerOrSlice con, char braceStart, char braceEnd){
+	static assert(load==Load.yes );
+	assert(con[0].isChar(braceStart));
+	con=con[1..$];
+	int nestageLevel=1;
+	while(con.length>0){
+		TokenData token=con[0];
+		con=con[1..$];
+		if(token.type!=StandardTokens.character){
+			continue;
+		}
+		if(token.isChar(braceStart)){
+			nestageLevel++;
+		}else if(token.isChar(braceEnd)){
+			nestageLevel--;
+			if(nestageLevel==0){
+				break;
 			}
 		}
 	}
 }
 
-
-
-void serializeConstString(Load load,string str,  ContainerOrSlice)(ref ContainerOrSlice con){
-	static if(load==Load.yes){
-		/*	writeln("-----");
-		 writeln(con);
-		 writeln("-");
-		 writeln(str);*/
-		check!("Expected: "~str)(con[0..str.length]==str);
-		con=con[str.length..$];
-	}else{
-		con~=cast(char[])str;
-	}
-}
-void serializeConstStringOptional(Load load,string str,  ContainerOrSlice)(ref ContainerOrSlice con){
-	static if(load==Load.yes){
-		if(con.length>=str.length && con[0..str.length]==str){
-			con=con[str.length..$];
+void ignoreToMatchingComma(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
+	static assert(load==Load.yes );
+	int nestageLevel=0;
+	//writelnTokens(con);
+	//scope(exit)writelnTokens(con);
+	while(con.length>0){
+		TokenData token=con[0];
+		if(token.type!=StandardTokens.character){
+			con=con[1..$];
+			continue;
 		}
-	}else{
-		con~=cast(char[])str;
-	}
-}
-void serializeStripLeft(Load load,  ContainerOrSlice)(ref ContainerOrSlice con){
-	static if(load==Load.yes){
-		con=con.stripLeft!( a => a == ' ' || a=='\t' || a=='\n' || a=='\r'  );
-	} 
-}
-void serializeIgnoreToMatchingBrace(Load load,  ContainerOrSlice)(ref ContainerOrSlice con){
-	static if(load==Load.yes){
-		int braceDeep;
-		foreach(i,ch;con){
-			braceDeep+= ch=='{';
-			braceDeep-= ch=='}';
-			if(braceDeep<0){
-				con=con[i+1..$];
-				return;
-			}
+		if(token.isChar('[') || token.isChar('{')){
+			nestageLevel++;
+		}else if(token.isChar(']') || token.isChar('}')){
+			nestageLevel--;
 		}
-		assert(0);
-	} 
-}
-
-/// save string with escape char
-void serializeEscapedString(Load load,  ContainerOrSlice)(ref string str,ref ContainerOrSlice con){
-	static if(load==Load.yes){
-		loadEscapedString!(load)(str, con);
-	}else{
-		saveEscapedString!(load)(str, con);
-	}
-}
-void loadEscapedString(Load load,  ContainerOrSlice)(ref string str,ref ContainerOrSlice con){
-	static assert(load==Load.yes);
-	check(con[0]=='"');
-	size_t end;
-	size_t charsNum;
-	size_t wasEscape;
-	foreach(i,char ch;con[1..$]){
-		if(!wasEscape && ch=='"'){
-			end=i+1;
+		
+		if(nestageLevel==0 && token.isChar(',')){
 			break;
+		}else{
+			con=con[1..$];
 		}
-		if(!wasEscape){
-			charsNum++;
-		}
-		wasEscape=ch=='\\' && !wasEscape;
-		
 	}
-	
-	char[] decoded=Mallocator.instance.makeArray!(char)(charsNum);
-	size_t charNum;
-	wasEscape=false;
-	foreach(i,char ch;con[1..end]){
-		decoded[charNum]=ch;
-		
-		wasEscape=ch=='\\' && !wasEscape;
-		if(!wasEscape){
-			charNum++;
-		}
-		
-	}
-	str=cast(string)decoded;
-	con=con[end+1..$];
-}
-void saveEscapedString(Load load,  ContainerOrSlice)(ref string str,ref ContainerOrSlice con){
-	static assert(load==Load.no);
-	
-	con~='"';
-	foreach(char ch;str){
-		if(ch=='\\' || ch=='"'){
-			con~='\\';
-		}
-		con~=ch;
-	}
-	con~='"';
-}
-
-
-
-unittest{
-	//JSONSerializer json=new JSONSerializer;
-	string innn=`"\\\\--\"|\"\""`;
-	string innnSlice=innn;
-	//string in=`\\--"|""`;
-	string outt;
-	loadEscapedString!(Load.yes)(outt,innnSlice);
-	string encoded;
-	saveEscapedString!(Load.no)(outt,encoded);
-	assert(innn==encoded);
 }
