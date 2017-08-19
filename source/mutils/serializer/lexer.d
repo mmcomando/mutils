@@ -49,7 +49,7 @@ void serializeCommentMultiline(bool load, Container)(ref TokenData token, ref Co
 		con=con[2..$];
 		foreach(i, ch;con){
 			if (ch=='*' && i!=con.length-1 && con[i+1]=='/'){
-				token.str=con[0..i-1];
+				token.str=con[0..i];
 				con=con[i+2..$];
 				token.type=StandardTokens.comment_multiline;
 				return;
@@ -65,6 +65,13 @@ void serializeCommentMultiline(bool load, Container)(ref TokenData token, ref Co
 			con~=cast(char[])"*/";
 		}			
 	}
+}
+
+unittest{
+	string str="/*  aaa bbb ccc */";
+	TokenData tk;
+	serializeCommentMultiline!(true)(tk, str);
+	assert(tk.str=="  aaa bbb ccc ");
 }
 
 void serializeCommentLine(bool load, Container)(ref TokenData token, ref Container con){
@@ -317,7 +324,7 @@ struct TokenData{
 	}
 	uint line;
 	uint column;
-	uint type;
+	uint type=StandardTokens.notoken;
 
 	char getChar(){
 		assert(type==StandardTokens.character);
@@ -336,9 +343,20 @@ struct TokenData{
 	bool isChar(char ch){
 		return type==StandardTokens.character && this.ch==ch;
 	}
-
+	
 	bool isString(string ss){
-		return str==ss;
+		return (
+			type==StandardTokens.comment_line ||
+			type==StandardTokens.comment_multiline ||
+			type==StandardTokens.identifier ||
+			type==StandardTokens.string_ ||
+			type==StandardTokens.white 
+			) && 
+			str==ss;
+	}
+
+	bool isComment(){
+		return type==StandardTokens.comment_line || type==StandardTokens.comment_multiline;
 	}
 
 
@@ -425,194 +443,33 @@ struct TokenData{
 	}
 }
 
-struct JSONLexer{
-	enum Token{
-		notoken=StandardTokens.notoken,
-		white=StandardTokens.white,
-		character=StandardTokens.character,
-		identifier=StandardTokens.identifier,
-		string_=StandardTokens.string_,
-		double_=StandardTokens.double_,
-		long_=StandardTokens.long_,
-	}
-
-	
-
-	
-	bool skipUnnecessaryWhiteTokens=true;
-	Vector!char code;
-	string slice;
-	TokenData lastToken;
-	uint line;
-	uint column;
-	alias TokenDataVector=Vector!(TokenData);
-	alias characterTokens=AliasSeq!('[',']','{','}','(',')',',',':');
-	
-	@disable this();
-	
-	this(string code, bool skipWhite){
-		this.code~=cast(char[])code;
-		slice=cast(string)this.code[];
-		skipUnnecessaryWhiteTokens=skipWhite;
-	}
+alias TokenDataVector=Vector!(TokenData);
 
 
-	void clear(){
-		code.clear();
-		line=column=0;
-		slice=null;
-	}
-
-
-	TokenData checkNextToken(){
-		auto sliceCopy=slice;
-		auto token=getNextToken();
-		slice=sliceCopy;
-		return token;
-	}
-
-	TokenData getNextToken(){
-		string sliceCopy=slice[];
-		TokenData token;
-		if(slice.length==0){
-			return token;
-		}
-		switch(slice[0]){
-			//------- character tokens ------------------------
-			foreach(ch;characterTokens){
-				case ch:
-			}
-			token=slice[0];
-			slice=slice[1..$];
-			goto end;
-
-			
-			//--------- white tokens --------------------------
-			foreach(ch;whiteTokens){
-				case ch:
-			}
-			serializeWhiteTokens!(true)(token,slice);
-			goto end;
-
-			//------- escaped strings -------------------------
-			case '"':
-				serializeStringToken!(true)(token,slice);
-				goto end;
-
-				//------- something else -------------------------
-			default:
-				break;
-		}
-		if(isIdentifierFirstChar(slice[0])){
-			serializeIdentifier!(true)(token,slice);
-		}else if((slice[0]>='0' && slice[0]<='9') || slice[0]=='-'){
-			serializeNumberToken!(true)(token,slice);
-		}else{
-			slice=null;
-		}
-		
-	end:
-		//------- add line information -------------------------
-		token.line=line;
-		token.column=column;
-		updateLineAndCol(line,column,sliceCopy,slice);
-		if(skipUnnecessaryWhiteTokens==true && token.type==Token.white){
-			return getNextToken();
-		}
-		//writeln(slice);
-		return token;
-	}
-
-	void saveToken(TokenData token){
-		toChars(token, code);
-	}
-
-	static void toChars(Vec)(TokenData token, ref Vec vec){
-
-		final switch(cast(Token)token.type){
-			case Token.long_:
-			case Token.double_:
-				serializeNumberToken!(false)(token,vec);
-				break;
-			case Token.character:
-				vec~=token.ch;
-				break;
-			case Token.white:
-			case Token.identifier:
-				vec~=cast(char[])token.str;
-				break;
-			case Token.string_:
-				vec~='"';
-				vec~=cast(char[])token.getEscapedString();
-				vec~='"';
-				break;
-
-			case Token.notoken:
-				assert(0);
-		}
-
-	}
-
-	
-	void serialize(bool load, Container)(ref TokenData token, ref Container con){
-		static if(load==true){
-			token=getNextToken();
-		}else{
-			saveToken(token);
-		}
-
-	}
-
-	void printAllTokens(){
-		TokenData token;
-		while(token.type!=Token.notoken){
-			token=getNextToken();
-			writeln(token);
-		}
-	}
-	
-	TokenDataVector tokenizeAll(){
-		TokenDataVector tokens;
-		do{
-			tokens~=getNextToken();
-		}while(tokens[$-1].type!=Token.notoken);
-
-		return tokens;
-	}
-
-	string tokensToString(TokenData[] tokens){
-		foreach(tk;tokens){
-			saveToken(tk);}
-		return cast(string)code[];
-	}
-	
-
-}
-
-unittest{
-	string code=`{ [ ala: "asdasd", ccc:123.3f]}"`;
-	JSONLexer json=JSONLexer(code,true);
+void printAllTokens(Lexer)(ref Lexer lex){
 	TokenData token;
-	token.type=StandardTokens.identifier;
-	token.str="asd";
-	json.saveToken(token);
-}
-
-unittest{
-	void testOutputTheSame(string str){
-		string sliceCopy=str;
-		JSONLexer json=JSONLexer(str, false);
-		Vector!TokenData tokens=json.tokenizeAll();
-
-		JSONLexer json2=JSONLexer([], false);
-		//writeln(tokens[]);
-		//writeln(json2.tokensToString(tokens[0..$-1]),"|\n\n\n",sliceCopy,"|");
-		assert(json2.tokensToString(tokens[0..$-1])==sliceCopy);
-
+	while(token.type!=Token.notoken){
+		token=lex.getNextToken();
+		writeln(token);
 	}
-	testOutputTheSame("  12345 ");
-	testOutputTheSame(`{ [ ala :  "asdasd",
-	 ccc: 
-123]  }  `);
 }
 
+
+
+TokenDataVector tokenizeAll(Lexer)(ref Lexer lex){
+	TokenDataVector tokens;
+	do{
+		tokens~=lex.getNextToken();
+	}while(tokens[$-1].type!=StandardTokens.notoken);
+	
+	return tokens;
+}
+
+
+
+string tokensToString(Lexer)(ref Lexer lex,TokenData[] tokens){
+	string code;
+	foreach(tk;tokens)
+		lex.toChars(tk, code);
+	return code;
+}

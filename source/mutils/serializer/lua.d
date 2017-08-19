@@ -30,7 +30,7 @@ class LuaSerializer{
 		try{
 			static if(load==Load.yes){
 				
-				LuaLexer lex=LuaLexer(cast(string)con,true);
+				LuaLexer lex=LuaLexer(cast(string)con, true, true);
 				auto tokens=lex.tokenizeAll();				
 				//load
 				__gshared static LuaSerializerToken serializer= new LuaSerializerToken();
@@ -38,9 +38,9 @@ class LuaSerializer{
 				tokens.clear();
 			}else{
 				__gshared static LuaSerializerToken serializer= new LuaSerializerToken();
-				LuaLexer.TokenDataVector tokens;
+				TokenDataVector tokens;
 				serializer.serialize!(Load.no, useMalloc)(var,tokens);
-				tokensToCharVectorPreatyPrint(tokens[],con);
+				tokensToCharVectorPreatyPrint!(LuaLexer)(tokens[],con);
 			}
 		}catch(Exception e){}
 	}

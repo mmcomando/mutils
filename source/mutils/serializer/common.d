@@ -164,16 +164,8 @@ void writelnTokens(TokenData[] tokens){
 	}
 }
 
-string tokensToString(TokenData[] tokens){
-	JSONLexer lex=JSONLexer([' '],true);
-	foreach(tk;tokens){
-		lex.saveToken(tk);
-	}
-	//writeln(lex.code[]);
-	return cast(string)lex.code[];
-}
 
-void tokensToCharVectorPreatyPrint(Vec)(TokenData[] tokens, ref Vec vec){
+void tokensToCharVectorPreatyPrint(Lexer,Vec)(TokenData[] tokens, ref Vec vec){
 	__gshared static string spaces="                                                   ";
 	int level=0;
 	void addSpaces(){
@@ -182,7 +174,7 @@ void tokensToCharVectorPreatyPrint(Vec)(TokenData[] tokens, ref Vec vec){
 	
 	foreach(tk;tokens){
 		if(tk.isChar('{')){
-			JSONLexer.toChars(tk,vec);
+			Lexer.toChars(tk,vec);
 			level++;
 			vec~='\n';
 			addSpaces();
@@ -190,14 +182,13 @@ void tokensToCharVectorPreatyPrint(Vec)(TokenData[] tokens, ref Vec vec){
 			level--;
 			vec~='\n';
 			addSpaces();
-			JSONLexer.toChars(tk,vec);
+			Lexer.toChars(tk,vec);
 		}else if(tk.isChar(',')){
-			JSONLexer.toChars(tk,vec);
+			Lexer.toChars(tk,vec);
 			vec~='\n';
 			addSpaces();
 		}else{
-			JSONLexer.toChars(tk,vec);
-			
+			Lexer.toChars(tk,vec);			
 		}
 		
 	}

@@ -10,7 +10,7 @@ import std.string : indexOf;
 import std.traits;
 
 public import mutils.serializer.common;
-import mutils.serializer.json_token : JSONSerializerToken,tokensToString,tokensToCharVectorPreatyPrint;
+import mutils.serializer.json_token : JSONSerializerToken,JSONLexer,tokensToCharVectorPreatyPrint;
 
 
 
@@ -31,7 +31,7 @@ class JSONSerializer{
 		try{
 			static if(load==Load.yes){
 
-				JSONLexer lex=JSONLexer(cast(string)con,true);
+				JSONLexer lex=JSONLexer(cast(string)con, true, true);
 				auto tokens=lex.tokenizeAll();				
 				//load
 				__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
@@ -39,9 +39,9 @@ class JSONSerializer{
 				tokens.clear();
 			}else{
 				__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-				JSONLexer.TokenDataVector tokens;
+				TokenDataVector tokens;
 				serializer.serialize!(Load.no, useMalloc)(var,tokens);
-				tokensToCharVectorPreatyPrint(tokens[],con);
+				tokensToCharVectorPreatyPrint!(JSONLexer)(tokens[],con);
 			}
 		}catch(Exception e){}
 	}
