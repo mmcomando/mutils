@@ -7,7 +7,7 @@ import std.stdio : writeln;
 import std.traits;
 
 import mutils.serializer.common;
-import mutils.serializer.lexer;
+import mutils.serializer.lexer_utils;
 /**
  * Serializer to save data in json|lua tokens format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))

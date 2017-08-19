@@ -7,7 +7,7 @@ import std.stdio;
 import std.string : indexOf;
 import std.traits;
 
-import mutils.serializer.lexer;
+import mutils.serializer.lexer_utils;
 
 /// Runtime check, throws nogc exception on error
 static void check(string str="Parsing Error")(bool ok){

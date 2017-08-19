@@ -1,4 +1,4 @@
-﻿module mutils.serializer.lexer;
+﻿module mutils.serializer.lexer_utils;
 
 import std.stdio;
 import mutils.container.ct_map;
