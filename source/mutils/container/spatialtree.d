@@ -1,60 +1,47 @@
 module mutils.container.spatialtree;
 
-import std.traits:ForeachType;
 import std.stdio;
-import mutils.container.vector:DataContainer=Vector;
+import std.traits : ForeachType,hasMember;
 
 import mutils.container.buckets_chain;
+import mutils.container.vector : DataContainer = Vector;
 
-struct Vector(Type, int dimension){
-	Type[dimension] vector;
-
-	this()(Type x, Type y){
-		vector[0]=x;
-		vector[1]=y;
-	}
-	this()(Type x, Type y, Type z){
-		vector[0]=x;
-		vector[1]=y;
-		vector[2]=z;
-	}
-
-	alias vector this;
+template QuadTree(T, bool loose=false){
+	alias QuadTree=SpatialTree!(2,T,loose);
 }
 
-alias vec2=Vector!(float,2);
-alias vec3=Vector!(float,3);
-
-
-enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
-
-
+/***
+ * Implementation of QuadTree and OcTree, with loose bounds and without
+ * Loose octree requires from type T to have member pos and radius, it can be function or variable.
+ * */
 struct SpatialTree(ubyte dimension, T, bool loose=false){
-	alias vec=Vector!(float,dimension);
+	static assert(dimension==2 || dimension==3, "Only QuadTrees and OcTrees are supported (dimension value: 2 or 3).");
+	static assert(!loose || hasMember!(T, "pos") || hasMember!(T, "radius"), "Loose SpatialTree has to have members: pos and radius.");
+	
 	alias Point=float[dimension];
-	alias DimType=ForeachType!Point;//dimension type
 	alias isLoose=loose;
 	alias QuadContainer=BucketsListChain!(Node[2^^Point.length], 128, false);
-
+	
 	float size=100;
 	QuadContainer quadContainer;
-	enum maxLevel=100;
+	enum maxLevel=8;
 	
-	static struct PointData{
-		T userData;
-		static if(loose){
-			Point pos;
-			DimType radius;
-		}
+	/* Example T
+	struct SpatialTreeData{
+		float[2] pos;
+		float radius;
+		MyData1 data1;
+		MyData* data2;
 	}
+	 */
 	
 	static struct Node{
 		static if(loose){
-			DataContainer!PointData dataContainer;
+			DataContainer!T dataContainer;
 			Node* child;
 		}else{
 			union{
-				DataContainer!PointData dataContainer;// Used only at lowest level
+				DataContainer!T dataContainer;// Used only at lowest level
 				Node* child;
 			}
 		}
@@ -74,62 +61,114 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 	/////////////////////////
 	///// Add functions /////
 	/////////////////////////
-	static if(loose){
-		void add(vec posGlobal, float diameter, T data){
-			Point pos=0;
-			foreach(i,el;posGlobal.vector){
-				if(el>size/2 || el<-size/2){
-					root.dataContainer.add(PointData(data, pos, size/2));
-					return;
-				}
-				pos[i]=el;
+	
+	void remove(Point posRemove, T data){
+		int levelFrom=0;
+		
+		bool removeFormQuad(Point pos, Node* node, float halfSize, int level){	
+			
+			if(hasElements(level) && level>=levelFrom){
+				bool ok=node.dataContainer.tryRemoveElement(data);
+				if(ok)return true;
+				//	else writeln("MISS");
 			}
-			DimType diam=cast(DimType)(diameter);
+			
+			if(hasChildren(node, level)){
+				float quarterSize=halfSize/2;
+				
+				bool[Point.length] direction;
+				foreach(i;0..Point.length){
+					direction[i]=posRemove[i]>pos[i];
+				}
+				Point xy=pos[]+quarterSize*(direction[]*2-1);
+				uint index=directionToIndex(direction);
+				
+				bool ok=removeFormQuad(xy,&node.child[index],quarterSize,level+1);
+				if(ok)return true;
+				
+				enum uint nodesNumber=2^^Point.length;
+				foreach(ubyte i;0..nodesNumber){
+					if(i==index)continue;
+					direction=indexToDirection(i);
+					xy=pos[]+quarterSize*(direction[]*2-1);
+					ok=removeFormQuad(xy,&node.child[i],quarterSize,level+1);
+					if(ok)return true;
+				}
+			}
+			if(hasElements(level) && level<levelFrom){
+				bool ok=node.dataContainer.tryRemoveElement(data);
+				if(ok)return true;
+				//else writeln("MISS");
+			}
+			return false;
+		}
+		
+		
+		foreach(i,el;posRemove){
+			if(el>size/2 || el<-size/2){
+				static if(loose){
+					root.dataContainer.removeElement(data);
+				}
+				return;
+			}
+		}
+		static if(loose){
+			float diam=data.radius*2;
 			byte level=-1;
-			DimType sizeTmp=size/2;
-			while(sizeTmp>diam/4 && level<maxLevel){
+			float sizeTmp=size/2;
+			while(sizeTmp>diam/2 && level<maxLevel){
+				level++;
+				sizeTmp/=2;
+			}
+			levelFrom=level;
+		}
+		Point pos=0;
+		bool ok=removeFormQuad(pos, &root, size/2, 0);
+		assert(ok,"Unable to find element in Tree");
+	}
+	
+	void add(Point pos, T data){
+		foreach(i,el;pos){
+			if(el>size/2 || el<-size/2){
+				static if(loose){
+					root.dataContainer.add(data);
+				}
+				return;
+			}
+		}
+		static if(loose){
+			float diam=data.radius*2;
+			byte level=-1;
+			float sizeTmp=size/2;
+			while(sizeTmp>diam/2 && level<maxLevel){
 				level++;
 				sizeTmp/=2;
 			}
 			
-			addToQuad(pos, PointData(data, pos, diam/2), &root, size/2, cast(ubyte)(maxLevel-level));
-		}
-	}else{
-		void add(vec posGlobal,T data){
-			Point pos=0;
-			foreach(i,el;posGlobal.vector){
-				if(el>size/2 || el<-size/2){
-					return;
-				}
-				pos[i]=el;
-			}
-			addToQuad(pos, PointData(data), &root, size/2, 0);
+			addToQuad(pos, data, &root, size/2, cast(ubyte)(maxLevel-level));
+		}else{
+			addToQuad(pos, data, &root, size/2, 0);
 		}
 	}
 	
 	
-	void addToQuad(Point pos, PointData data, Node* quad, DimType halfSize, ubyte level){
-		mixin(doNotInline);
+	void addToQuad(Point pos, T data, Node* quad, float halfSize, ubyte level){
 		while(level<maxLevel){
 			if(quad.child is null){
 				allocateQuads(quad, level);
 			}
-			DimType quarterSize=halfSize/2;
+			float quarterSize=halfSize/2;
 			bool[Point.length] direction;
 			foreach(i;0..Point.length){
 				direction[i]=pos[i]>0;
 			}
-			Point tt=quarterSize*(direction[]*2-1);
-			int[2] tt2=direction[]*2-1;
-
 			pos=pos[]-quarterSize*(direction[]*2-1);
 			
 			quad=&quad.child[directionToIndex(direction)];
 			halfSize=quarterSize;
 			level++;
 		}
-		quad.dataContainer.add(data);
-		
+		quad.dataContainer.add(data);	
 	}
 	
 	/////////////////////////
@@ -139,15 +178,15 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 	
 	
 	
-	int visitAll(scope int delegate(Point pos, Node* quad, DimType halfSize, int level) visitor){
+	int visitAll(scope int delegate(Point pos, Node* quad, float halfSize, int level) visitor){
 		Point pos=0;
 		return visitAll(visitor,pos,&root, size/2,0);		
 	}
-	int visitAll(scope int delegate(Point pos, Node* quad, DimType halfSize, int level) visitor, Point pos, Node* quad, DimType halfSize, int level){
-		int visitAllImpl(Point pos, Node* quad, DimType halfSize, int level){
+	int visitAll(scope int delegate(Point pos, Node* quad, float halfSize, int level) visitor, Point pos, Node* quad, float halfSize, int level){
+		int visitAllImpl(Point pos, Node* quad, float halfSize, int level){
 			int res=visitor(pos, quad, halfSize, level);
 			if(quad.child !is null && level<maxLevel){
-				DimType quarterSize=halfSize/2;
+				float quarterSize=halfSize/2;
 				enum uint nodesNumber=2^^Point.length;
 				foreach(i;0..nodesNumber){
 					auto direction=indexToDirection(i);
@@ -162,16 +201,9 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 	}	
 	
 	
-	void visitAllNodesIn(scope int delegate(Point pos, Node* quad, DimType halfSize, int level) visitor, vec pdownLeft, vec pupRight){
-		Point downLeft;
-		Point upRight;
+	void visitAllNodesIn(scope int delegate(Point pos, Node* quad, float halfSize, int level) visitor, Point downLeft, Point upRight){
 		
-		foreach(i;0..Point.length){
-			downLeft[i]=cast(DimType)(pdownLeft.vector[i]);
-			upRight [i]=cast(DimType)(pupRight.vector[i]);
-		}
-		
-		int check(Point pos, Node* quad, DimType halfSize, int level)
+		int check(Point pos, Node* quad, float halfSize, int level)
 		{
 			if(quad.dataContainer.length>0){
 				foreach( obj;quad.dataContainer){
@@ -198,13 +230,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 	}
 	
 	
-	void visitAllDataIn(scope void delegate(ref T data) visitor, vec pdownLeft, vec pupRight){
-		Point downLeft;
-		Point upRight;		
-		foreach(i;0..Point.length){
-			downLeft[i]=cast(DimType)(pdownLeft.vector[i]);
-			upRight [i]=cast(DimType)(pupRight.vector[i]);
-		}
+	void visitAllDataIn(scope void delegate(ref T data) visitor, Point downLeft, Point upRight){
 		
 		void visitAllDataNoCheck(Node* node, int level){
 			if(hasElements(level)){
@@ -214,7 +240,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 							continue;
 						}
 					}
-					visitor(pData.userData);			
+					visitor(pData);			
 				}
 			}
 			
@@ -226,7 +252,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 			}			
 		}
 		
-		void visitAllDataImpl(Point pos, Node* node, DimType halfSize, int level){
+		void visitAllDataImpl(Point pos, Node* node, float halfSize, int level){
 			Point myDownLeft=pos[]-halfSize*(1+loose);//loose size is twice of a normal tree
 			Point myUpRight =pos[]+halfSize*(1+loose);
 			if(notInBox(downLeft, upRight, myDownLeft, myUpRight)){
@@ -243,12 +269,12 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 							continue;
 						}
 					}
-					visitor(pData.userData);				
+					visitor(pData);				
 				}
 			}
 			
 			if(hasChildren(node, level)){
-				DimType quarterSize=halfSize/2;
+				float quarterSize=halfSize/2;
 				enum uint nodesNumber=2^^Point.length;
 				foreach(i;0..nodesNumber){
 					auto direction=indexToDirection(i);
@@ -259,6 +285,39 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 		}
 		Point pos=0;
 		visitAllDataImpl(pos, &root, size/2, 0);		
+	}
+	
+	static if(hasMember!(T,"pos"))
+	void updatePositions(){	
+		void updatePositionsImpl(Point pos, Node* node, float halfSize, int level){
+			if(hasElements(level)){
+				Point myDownLeft=pos[]-halfSize*(1+loose);//loose size is twice of a normal tree
+				Point myUpRight =pos[]+halfSize*(1+loose);
+				foreach_reverse(i,pData;node.dataContainer){
+					static if(loose){
+						float radius=pData.radius;
+					}else{
+						float radius=0;
+					}
+					if(!circleInBox(myDownLeft, myUpRight, pData.pos, radius )){
+						node.dataContainer.remove(i);
+						add(pData.pos,pData);
+					}			
+				}
+			}
+			
+			if(hasChildren(node, level)){
+				float quarterSize=halfSize/2;
+				enum uint nodesNumber=2^^Point.length;
+				foreach(i;0..nodesNumber){
+					auto direction=indexToDirection(i);
+					Point xy=pos[]+quarterSize*(direction[]*2-1);
+					updatePositionsImpl(xy,&node.child[i],quarterSize,level+1);
+				}
+			}	
+		}
+		Point pos=0;
+		updatePositionsImpl(pos, &root, size/2, 0);		
 	}
 	
 	
@@ -310,10 +369,20 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 		}
 	}
 	
-	static bool circleNotInBox(Point left, Point right,Point pos, DimType radius)  {
+	static bool circleInBox(Point left, Point right,Point pos, float radius)  {
+		bool ok=true;
+		foreach(i;0..Point.length){
+			ok&=(pos[i]+radius<right[i]) & (pos[i]-radius>left[i]);
+		}
+		return ok;
+	}
+	
+	
+	
+	static bool circleNotInBox(Point left, Point right,Point pos, float radius)  {
 		bool ok=false;
 		foreach(i;0..Point.length){
-			ok|=(cast(long)pos[i]>cast(long)radius+cast(long)right[i]) || (cast(long)left[i]>cast(long)pos[i]+cast(long)radius);
+			ok|=(pos[i]>radius+right[i]) | (left[i]>pos[i]+radius);
 		}
 		return ok;
 	}
@@ -340,112 +409,144 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 
 unittest{
 	import std.meta;
+	struct vec2{
+		float[2] v;
+		alias v this;
+		this(float x, float y){
+			v[0]=x;
+			v[1]=y;
+		}
+	}
+	struct vec3{
+		float[3] v;
+		alias v this;
+		this(float x, float y, float z){
+			v[0]=x;
+			v[1]=y;
+			v[2]=z;
+		}
+	}
 	int numFound;
 	int numOk;
-	void test0(ref int num){numFound++;numOk+=num==0;}
-	void test1(ref int num){numFound++;numOk+=num==1;}
-	void test2(ref int num){numFound++;numOk+=num==2;}
-	void test3(ref int num){numFound++;numOk+=num==3;}
-	void test4(ref int num){numFound++;numOk+=num==4;}
-	void test5(ref int num){numFound++;numOk+=num==5;}
-	void test6(ref int num){numFound++;numOk+=num==6;}
-	void test7(ref int num){numFound++;numOk+=num==7;}
-
+	void test0(T)(ref T num){numFound++;numOk+=num.data==0;}
+	void test1(T)(ref T num){numFound++;numOk+=num.data==1;}
+	void test2(T)(ref T num){numFound++;numOk+=num.data==2;}
+	void test3(T)(ref T num){numFound++;numOk+=num.data==3;}
+	void test4(T)(ref T num){numFound++;numOk+=num.data==4;}
+	void test5(T)(ref T num){numFound++;numOk+=num.data==5;}
+	void test6(T)(ref T num){numFound++;numOk+=num.data==6;}
+	void test7(T)(ref T num){numFound++;numOk+=num.data==7;}
 	//Test Loose QuadTree
 	{
 		numFound=numOk=0;
-		alias TestTree=SpatialTree!(2,int,true);
+		struct QuadTreeData1{
+			float[2] pos;
+			float radius;
+			int data;
+		}
+		alias TestTree=SpatialTree!(2,QuadTreeData1,true);
 		TestTree tree;
 		tree.initialize();
-		tree.add(vec2(-1,+1), 0.1, 0);
-		tree.add(vec2(+1,+1), 0.1, 1);
-		tree.add(vec2(+1,-1), 0.1, 2);
-		tree.add(vec2(-1,-1), 0.1, 3);		
-
-		tree.visitAllDataIn(&test0,vec2(-10,0.1),vec2(-0.1, 10));
-		tree.visitAllDataIn(&test1,vec2(0.1,0.1),vec2(10, 10));
-		tree.visitAllDataIn(&test2,vec2(0.1,-10),vec2(10, -0.1));
-		tree.visitAllDataIn(&test3,vec2(-10,-10),vec2(-0.1, -0.1));
+		tree.add(vec2(-1,+1), QuadTreeData1(vec2(-1,+1),0.1,0));
+		tree.add(vec2(+1,+1), QuadTreeData1(vec2(+1,+1),0.1,1));
+		tree.add(vec2(+1,-1), QuadTreeData1(vec2(+1,-1),0.1,2));
+		tree.add(vec2(-1,-1), QuadTreeData1(vec2(-1,-1),0.1,3));		
+		
+		tree.visitAllDataIn(&test0!QuadTreeData1,vec2(-10,0.1),vec2(-0.1, 10));
+		tree.visitAllDataIn(&test1!QuadTreeData1,vec2(0.1,0.1),vec2(10, 10));
+		tree.visitAllDataIn(&test2!QuadTreeData1,vec2(0.1,-10),vec2(10, -0.1));
+		tree.visitAllDataIn(&test3!QuadTreeData1,vec2(-10,-10),vec2(-0.1, -0.1));
 		assert(numFound==4);
 		assert(numOk==4);
 	}
-
+	
 	//Test QuadTree
 	{
 		numFound=numOk=0;
-		alias TestTree=SpatialTree!(2,int,false);
+		struct QuadTreeData2{
+			int data;
+		}
+		alias TestTree=SpatialTree!(2,QuadTreeData2,false);
 		TestTree tree;
 		tree.initialize();
 		
-		tree.add(vec2(-5,+5), 0);
-		tree.add(vec2(+5,+5), 1);
-		tree.add(vec2(+5,-5), 2);
-		tree.add(vec2(-5,-5), 3);
+		tree.add(vec2(-5,+5), QuadTreeData2(0));
+		tree.add(vec2(+5,+5), QuadTreeData2(1));
+		tree.add(vec2(+5,-5), QuadTreeData2(2));
+		tree.add(vec2(-5,-5), QuadTreeData2(3));
 		
 		
-		tree.visitAllDataIn(&test0,vec2(-10,0.1),vec2(-0.1, 10));
-		tree.visitAllDataIn(&test1,vec2(0.1,0.1),vec2(10, 10));
-		tree.visitAllDataIn(&test2,vec2(0.1,-10),vec2(10, -0.1));
-		tree.visitAllDataIn(&test3,vec2(-10,-10),vec2(-0.1, -0.1));
+		tree.visitAllDataIn(&test0!QuadTreeData2,vec2(-10,0.1),vec2(-0.1, 10));
+		tree.visitAllDataIn(&test1!QuadTreeData2,vec2(0.1,0.1),vec2(10, 10));
+		tree.visitAllDataIn(&test2!QuadTreeData2,vec2(0.1,-10),vec2(10, -0.1));
+		tree.visitAllDataIn(&test3!QuadTreeData2,vec2(-10,-10),vec2(-0.1, -0.1));
 		assert(numFound==4);
 		assert(numOk==4);
 	}
-
+	
 	//Test Loose OctTree
 	{
 		numFound=numOk=0;
-		alias TestTree=SpatialTree!(3,int,true);
+		struct OctTreeData1{
+			float[3] pos;
+			float radius;
+			int data;
+		}
+		alias TestTree=SpatialTree!(3,OctTreeData1,true);
 		TestTree tree;
 		tree.initialize();
 		
-		tree.add(vec3(-5,+5,+5), 0.1, 0);
-		tree.add(vec3(+5,+5,+5), 0.1, 1);
-		tree.add(vec3(+5,-5,+5), 0.1, 2);
-		tree.add(vec3(-5,-5,+5), 0.1, 3);
-		tree.add(vec3(-5,+5,-5), 0.1, 4);
-		tree.add(vec3(+5,+5,-5), 0.1, 5);
-		tree.add(vec3(+5,-5,-5), 0.1, 6);
-		tree.add(vec3(-5,-5,-5), 0.1, 7);
+		tree.add(vec3(-5,+5,+5), OctTreeData1(vec3(-5,+5,+5),0.1,0));
+		tree.add(vec3(+5,+5,+5), OctTreeData1(vec3(+5,+5,+5),0.1,1));
+		tree.add(vec3(+5,-5,+5), OctTreeData1(vec3(+5,-5,+5),0.1,2));
+		tree.add(vec3(-5,-5,+5), OctTreeData1(vec3(-5,-5,+5),0.1,3));
+		tree.add(vec3(-5,+5,-5), OctTreeData1(vec3(-5,+5,-5),0.1,4));
+		tree.add(vec3(+5,+5,-5), OctTreeData1(vec3(+5,+5,-5),0.1,5));
+		tree.add(vec3(+5,-5,-5), OctTreeData1(vec3(+5,-5,-5),0.1,6));
+		tree.add(vec3(-5,-5,-5), OctTreeData1(vec3(-5,-5,-5),0.1,7));
 		
 		
-		tree.visitAllDataIn(&test0,vec3(-10,0.1,0.1),vec3(-0.1, 10,10));
-		tree.visitAllDataIn(&test1,vec3(0.1,0.1,0.1),vec3(10, 10,10));
-		tree.visitAllDataIn(&test2,vec3(0.1,-10,0.1),vec3(10, -0.1,10));
-		tree.visitAllDataIn(&test3,vec3(-10,-10,0.1),vec3(-0.1, -0.1,10));
-		tree.visitAllDataIn(&test4,vec3(-10,0.1,-10),vec3(-0.1, 10,-0.1));
-		tree.visitAllDataIn(&test5,vec3(0.1,0.1,-10),vec3(10, 10,-0.1));
-		tree.visitAllDataIn(&test6,vec3(0.1,-10,-10),vec3(10, -0.1,-0.1));
-		tree.visitAllDataIn(&test7,vec3(-10,-10,-10),vec3(-0.1, -0.1,-0.1));
+		tree.visitAllDataIn(&test0!OctTreeData1,vec3(-10,0.1,0.1),vec3(-0.1, 10,10));
+		tree.visitAllDataIn(&test1!OctTreeData1,vec3(0.1,0.1,0.1),vec3(10, 10,10));
+		tree.visitAllDataIn(&test2!OctTreeData1,vec3(0.1,-10,0.1),vec3(10, -0.1,10));
+		tree.visitAllDataIn(&test3!OctTreeData1,vec3(-10,-10,0.1),vec3(-0.1, -0.1,10));
+		tree.visitAllDataIn(&test4!OctTreeData1,vec3(-10,0.1,-10),vec3(-0.1, 10,-0.1));
+		tree.visitAllDataIn(&test5!OctTreeData1,vec3(0.1,0.1,-10),vec3(10, 10,-0.1));
+		tree.visitAllDataIn(&test6!OctTreeData1,vec3(0.1,-10,-10),vec3(10, -0.1,-0.1));
+		tree.visitAllDataIn(&test7!OctTreeData1,vec3(-10,-10,-10),vec3(-0.1, -0.1,-0.1));
 		assert(numFound==8);
 		assert(numOk==8);
 	}
-
-
+	
+	
 	//Test OctTree
 	{
 		numFound=numOk=0;
-		alias TestTree=SpatialTree!(3,int,false);
+		struct OctTreeData2{
+			int data;
+		}
+		alias TestTree=SpatialTree!(3,OctTreeData2,false);
 		TestTree tree;
 		tree.initialize();
 		
-		tree.add(vec3(-5,+5,+5), 0);
-		tree.add(vec3(+5,+5,+5), 1);
-		tree.add(vec3(+5,-5,+5), 2);
-		tree.add(vec3(-5,-5,+5), 3);
-		tree.add(vec3(-5,+5,-5), 4);
-		tree.add(vec3(+5,+5,-5), 5);
-		tree.add(vec3(+5,-5,-5), 6);
-		tree.add(vec3(-5,-5,-5), 7);
+		tree.add(vec3(-5,+5,+5), OctTreeData2(0));
+		tree.add(vec3(+5,+5,+5), OctTreeData2(1));
+		tree.add(vec3(+5,-5,+5), OctTreeData2(2));
+		tree.add(vec3(-5,-5,+5), OctTreeData2(3));
+		tree.add(vec3(-5,+5,-5), OctTreeData2(4));
+		tree.add(vec3(+5,+5,-5), OctTreeData2(5));
+		tree.add(vec3(+5,-5,-5), OctTreeData2(6));
+		tree.add(vec3(-5,-5,-5), OctTreeData2(7));
 		
 		
-		tree.visitAllDataIn(&test0,vec3(-10,0.1,0.1),vec3(-0.1, 10,10));
-		tree.visitAllDataIn(&test1,vec3(0.1,0.1,0.1),vec3(10, 10,10));
-		tree.visitAllDataIn(&test2,vec3(0.1,-10,0.1),vec3(10, -0.1,10));
-		tree.visitAllDataIn(&test3,vec3(-10,-10,0.1),vec3(-0.1, -0.1,10));
-		tree.visitAllDataIn(&test4,vec3(-10,0.1,-10),vec3(-0.1, 10,-0.1));
-		tree.visitAllDataIn(&test5,vec3(0.1,0.1,-10),vec3(10, 10,-0.1));
-		tree.visitAllDataIn(&test6,vec3(0.1,-10,-10),vec3(10, -0.1,-0.1));
-		tree.visitAllDataIn(&test7,vec3(-10,-10,-10),vec3(-0.1, -0.1,-0.1));
+		tree.visitAllDataIn(&test0!OctTreeData2,vec3(-10,0.1,0.1),vec3(-0.1, 10,10));
+		tree.visitAllDataIn(&test1!OctTreeData2,vec3(0.1,0.1,0.1),vec3(10, 10,10));
+		tree.visitAllDataIn(&test2!OctTreeData2,vec3(0.1,-10,0.1),vec3(10, -0.1,10));
+		tree.visitAllDataIn(&test3!OctTreeData2,vec3(-10,-10,0.1),vec3(-0.1, -0.1,10));
+		tree.visitAllDataIn(&test4!OctTreeData2,vec3(-10,0.1,-10),vec3(-0.1, 10,-0.1));
+		tree.visitAllDataIn(&test5!OctTreeData2,vec3(0.1,0.1,-10),vec3(10, 10,-0.1));
+		tree.visitAllDataIn(&test6!OctTreeData2,vec3(0.1,-10,-10),vec3(10, -0.1,-0.1));
+		tree.visitAllDataIn(&test7!OctTreeData2,vec3(-10,-10,-10),vec3(-0.1, -0.1,-0.1));
 		assert(numFound==8);
 		assert(numOk==8);
 	}

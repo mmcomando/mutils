@@ -2,8 +2,6 @@ module mutils.events;
 
 import core.time;
 
-alias vec2i=int[2];
-
 Events gEvents;
 
 enum MouseButton {
@@ -37,8 +35,8 @@ struct Events{
 	bool[MouseButton.max + 1] mouseDownKeys;
 	bool[MouseButton.max + 1] mousePressedKeys;
 	bool[MouseButton.max + 1] mouseReleasedKeys;
-	vec2i _mousePos = [100,100];
-	vec2i _mouseWheel;
+	int[2] _mousePos = [100,100];
+	int[2] _mouseWheel;
 
 	alias Clock=MonoTimeImpl!(ClockType.precise);
 	float dtf;
@@ -93,11 +91,11 @@ struct Events{
 	}
 	
 	
-	vec2i mousePos() {
+	int[2] mousePos() {
 		return _mousePos;
 	}
 	
-	vec2i mouseWheel() {
+	int[2] mouseWheel() {
 		return _mouseWheel;
 	}
 	
@@ -277,8 +275,8 @@ struct Events{
 				}
 				break;
 			case SDL_MOUSEWHEEL:
-				_mouseWheel.x = event.wheel.x;
-				_mouseWheel.y = event.wheel.y;
+				_mouseWheel[0] = event.wheel.x;
+				_mouseWheel[1] = event.wheel.y;
 				
 				break;
 			case SDL_QUIT:

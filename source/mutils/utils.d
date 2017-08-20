@@ -19,6 +19,14 @@ void printException(Exception e, int maxStack = 4) {
 	writeln("--------------");
 }
 
+const(char)* getTmpSmallCString(string str) {
+	assert(str.length<256);
+	static char[256] tmpStr;
+	tmpStr[0..str.length]=str[];
+	tmpStr[str.length]='\0';
+	return cast(const(char)*)tmpStr.ptr;
+}
+
 
 
 //for build in arrays
