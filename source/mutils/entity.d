@@ -6,7 +6,8 @@ import std.traits;
 
 import mutils.container.buckets_chain;
 
-struct EntityManager(Entities...){
+struct EntityManager(OptionsPar, Entities...){
+	alias Options=OptionsPar;
 	alias FromEntities=Entities;
 	//Enum elements are well defined, 0->Entities[0], 1->Entities[1],
 	//Enum EntityEnumM {...} // form mixin
@@ -129,6 +130,7 @@ struct EntityManager(Entities...){
 		EntityData!(EntityType)* ent=getContainer!(EntityType).add();
 		ent.entityId.id=lastId++;
 		ent.entityId.type=getEnum!EntityType;
+		Options.onEntityAdd(ent);
 		return &ent.entity;
 	}
 
@@ -139,12 +141,15 @@ struct EntityManager(Entities...){
 	}
 
 	void remove(EntityType)(EntityType* entity){
+		Options.onEntityRemove(entity);
 		getContainer!(EntityType).remove(cast(EntityData!(EntityType)*)(cast(void*)entity-8));		
 	}
 
 	void remove(EntityId* entityId){
 		foreach(i,Entity;Entities){
 			if(entityId.type==i){
+				Entity* ent=entityId.get!Entity;
+				Options.onEntityRemove(ent);
 				getContainer!(Entity).remove(cast(EntityData!(Entity)*)(entityId));	
 				return;
 			}
@@ -220,6 +225,16 @@ struct EntityManager(Entities...){
 
 
 unittest{
+	static int entitiesAdded=0;
+	struct EnityManagerOptions{
+		static void onEntityAdd(T)(T* entity){
+			entitiesAdded++;
+		}
+
+		static void onEntityRemove(T)(T* entity){
+			entitiesAdded--;
+		}
+	}
 
 	
 	struct EntityTurrent{
@@ -243,6 +258,7 @@ unittest{
 	
 	
 	alias TetstEntityManager=EntityManager!(
+		EnityManagerOptions,
 		EntityTurrent,
 		EntityTurrent2,
 		EntitySomething
@@ -258,11 +274,13 @@ unittest{
 
 	assert(entitiesManager.getContainer!(EntityTurrent).length==1);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==1);
+	assert(entitiesAdded==2);
 
 	entitiesManager.remove(ret1);
 	entitiesManager.remove(ret2);
 
 	assert(entitiesManager.getContainer!(EntityTurrent).length==0);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==0);
+	assert(entitiesAdded==0);
 }
 
