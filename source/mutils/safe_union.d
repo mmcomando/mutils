@@ -9,14 +9,15 @@ import std.traits : isArray,ForeachType,hasMember,ReturnType,Parameters;
  * Union of ConTypes... 
  * Ensures correct access with assert
  */
-struct SafeUnion(ConTypes...) {
+struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	alias FromTypes=ConTypes;
 	static assert(FromTypes.length>0,"Union has to have members.");
 
 	mixin(getCode!(FromTypes));
 	//enum Types{...}    //from mixin
 	alias Types=TypesM;// alias used to give better autocompletion in IDE-s
-	Types currentType=Types.none;
+
+	Types currentType=(makeFirstParDefaultOne)?Types._e_0:Types.none;
 
 	/**
 	 * Constuctor supporting direcs assigment of Type
@@ -25,7 +26,7 @@ struct SafeUnion(ConTypes...) {
 		static assert(properType!T,"Given Type is not present in union");
 		set(obj);
 	}  
-	void opAssign(SafeUnion!(ConTypes) obj){
+	void opAssign(SafeUnion!(makeFirstParDefaultOne, ConTypes) obj){
 		this.tupleof=obj.tupleof;
 	}
 	//void opAssign(this);
@@ -229,7 +230,7 @@ unittest{
 			assert(0);
 		}
 	}
-	alias Shape=SafeUnion!(Triangle,Rectangle);
+	alias Shape=SafeUnion!(false, Triangle,Rectangle);
 	Shape shp;
 	shp.set(Triangle());
 	assert(shp.isType!Triangle);
