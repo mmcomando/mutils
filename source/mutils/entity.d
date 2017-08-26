@@ -130,7 +130,7 @@ struct EntityManager(OptionsPar, Entities...){
 		EntityData!(EntityType)* ent=getContainer!(EntityType).add();
 		ent.entityId.id=lastId++;
 		ent.entityId.type=getEnum!EntityType;
-		Options.onEntityAdd(ent);
+		Options.onEntityAdd(&ent.entity);
 		return &ent.entity;
 	}
 
@@ -185,6 +185,7 @@ struct EntityManager(OptionsPar, Entities...){
 	}
 
 	static EntityId* entityToEntityId(EntityType)(EntityType* el){
+		static assert(staticIndexOf!(EntityType, FromEntities)!=-1);
 		EntityId* id=cast(EntityId*)(cast(void*)el-8);
 		assert(id.type<Entities.length);
 		return id;
