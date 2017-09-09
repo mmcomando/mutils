@@ -6,15 +6,19 @@ import std.traits : ForeachType,hasMember;
 import mutils.container.buckets_chain;
 import mutils.container.vector : DataContainer = Vector;
 
-template QuadTree(T, bool loose=false){
-	alias QuadTree=SpatialTree!(2,T,loose);
+template QuadTree(T, bool loose=false, ubyte maxLevel=8){
+	alias QuadTree=SpatialTree!(2, T, loose, maxLevel);
+}
+
+template OcTree(T, bool loose=false, ubyte maxLevel=8){
+	alias OcTree=SpatialTree!(3, T, loose, maxLevel);
 }
 
 /***
  * Implementation of QuadTree and OcTree, with loose bounds and without
  * Loose octree requires from type T to have member pos and radius, it can be function or variable.
  * */
-struct SpatialTree(ubyte dimension, T, bool loose=false){
+struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 	static assert(dimension==2 || dimension==3, "Only QuadTrees and OcTrees are supported (dimension value: 2 or 3).");
 	static assert(!loose || hasMember!(T, "pos") || hasMember!(T, "radius"), "Loose SpatialTree has to have members: pos and radius.");
 	
@@ -24,15 +28,14 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 	
 	float size=100;
 	QuadContainer quadContainer;
-	enum maxLevel=8;
 	
 	/* Example T
-	struct SpatialTreeData{
-		float[2] pos;
-		float radius;
-		MyData1 data1;
-		MyData* data2;
-	}
+	 struct SpatialTreeData{
+		 float[2] pos;
+		 float radius;
+		 MyData1 data1;
+		 MyData* data2;
+	 }
 	 */
 	
 	static struct Node{
@@ -299,7 +302,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 					}else{
 						float radius=0;
 					}
-					if(!circleInBox(myDownLeft, myUpRight, pData.pos, radius )){
+					if(!circleInBox(myDownLeft, myUpRight, pData.pos, radius ) || (level!=maxLevel && (radius*2)<halfSize)){
 						node.dataContainer.remove(i);
 						add(pData.pos,pData);
 					}			
@@ -319,7 +322,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false){
 		Point pos=0;
 		updatePositionsImpl(pos, &root, size/2, 0);		
 	}
-	
+
 	
 	
 	/////////////////////////
