@@ -1,110 +1,132 @@
 module mutils.benchmark;
 
-import std.stdio:writeln;
-import std.format:format;
+import std.stdio:writeln,File;
 import core.time;
-import std.file:write;
+import std.file;
 import std.conv:to;
 
 private alias Clock=MonoTimeImpl!(ClockType.precise);
 
 
-void benchmark( alias benchTemplate, uint repeatNum, string outputFileName, alias CTP_Array,Args...)( Args arg){
-	template RunAndSaveResults(){
-		void runAndSaveResults(){
-			long[repeatNum] resultLocal;
-			foreach(___i;0..repeatNum){ 
-				mixin benchTemplate;
-				long start=Clock.currTime.ticks();
-				test();
-				long end=Clock.currTime.ticks();
-				resultLocal[___i]=end-start;
+struct BenchmarkData(uint testsNum, uint iterationsNum){
+	long[iterationsNum][testsNum] times;
+
+	void start(size_t testNum)(size_t iterationNum){
+		times[testNum][iterationNum]=Clock.currTime.ticks();
+	}
+
+	void end(size_t testNum)(size_t iterationNum){
+		long end=Clock.currTime.ticks();
+		times[testNum][iterationNum]=end-times[testNum][iterationNum];
+	}
+
+	void writeToCsvFile()(string outputFileName){
+		string[testsNum] testNames;
+		foreach(i;0..testsNum){
+			testNames[i]=i.to!string;
+		}
+		writeToCsvFile(outputFileName, testNames);
+	}
+
+	void writeToCsvFile(string outputFileName, string[testsNum] testNames){
+		float to_ms=1000.0/Clock.ticksPerSecond;
+		auto f = File(outputFileName, "w");	
+		scope(exit)f.close();
+
+		f.write("index,");
+		foreach(name;testNames){
+			f.write(name);
+			f.write(" [ms],");
+		}
+		f.write("\n");
+		foreach(i;0..iterationsNum){
+			f.write(i);
+			f.write(",");
+			foreach(j;0..testsNum){
+				f.write(times[j][i]*to_ms);
+				f.write(",");
 			}
-			results~=resultLocal;
-			names~=___name;
+			f.write("\n");
 		}
 	}
 
-	static string getCode(){
-		string code;
-		foreach(i,el;CTP_Array.Parameters)code~=format("foreach(___i%s,%s;CTP_Array.Parameters[%s].values)", el.name, el.name,i);
-		code~="{\n";
-		code~="enum ___name=format(\"";
-		foreach(i,el;CTP_Array.Parameters)code~=format("%s:%%s ", el.name);
-		code~="\",";
-		foreach(i,el;CTP_Array.Parameters){
-			static if(__traits(compiles,(el.values[0]).stringof)){
-				code~=format("%s.stringof, ", el.name);
-			}else{
-				code~=format("___i%s, ", el.name);
-			}
+
+	void plotUsingGnuplot(string outputFileName){
+		string[testsNum] testNames;
+		foreach(i;0..testsNum){
+			testNames[i]=i.to!string;
 		}
-		code~=");";
+		plotUsingGnuplot(outputFileName, testNames);
+	}
+
+	void plotUsingGnuplot(string outputFileName, string[testsNum] testNames){
+		string temDir=tempDir();
+		string tmpOutputFileCsv=temDir~"/tmp_bench.csv";
+		writeToCsvFile(tmpOutputFileCsv, testNames);
+		scope(exit)remove(tmpOutputFileCsv);
+
 		
-		code~="\nmixin RunAndSaveResults;runAndSaveResults();";
-		code~="}";
-		return code;
+		string tmpScript=temDir~"/tmp_bench.gnuplot";
+		auto f = File(tmpScript, "w");	
+		scope(exit)remove(tmpScript);
+		f.write(gnuplotScriptParts[0]);
+		f.write(outputFileName);
+		f.write(gnuplotScriptParts[1]);
+		f.write(tmpOutputFileCsv);
+		f.write(gnuplotScriptParts[2]);
+		f.close();
+
+		import std.process;
+		auto result = execute(["gnuplot", tmpScript]);
+		assert(result.status == 0);
 	}
 
-	long[repeatNum][] results;
-	string[] names;
+	string[3] gnuplotScriptParts=[`
+#
+set terminal png 
+set output '`,`'
+set key autotitle columnhead
+
+set key left box
+set samples 50
+set style data points
+
+set datafile separator ","
+#plot  using 1:2  with linespoints, 'result.csv' using 1:3  with linespoints
+plot for [col=2:40] '`,`' using 1:col with linespoints`
+
+	];
+
 	
-	mixin(getCode());
-	
-
-	if(outputFileName !is null){
-		string csvContent;
-		csvContent~="index,";
-		foreach(name;names){
-			csvContent~=name~",";
-		}
-		csvContent~="\n";
-		foreach(i;0..repeatNum){
-			csvContent~=i.to!string~",";
-			foreach(j;0..results.length){
-				csvContent~=results[j][i].to!string~",";
-			}
-			csvContent~="\n";
-		}
-		write(outputFileName, csvContent);
-	}
 }
-
-
-
-struct CP(string namep,ArgsP...){
-	enum name=namep;
-	alias values=ArgsP;
-}
-struct CPArray(ArgsP...){
-	alias Parameters=ArgsP;
-}
-
 
 enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
 void doNotOptimize(Args...)(ref Args args) { asm { naked;ret; } }// function call overhead
 
 unittest{    
+	import std.meta;
 
-	template TestMixin(){
-		void test(){
-			foreach( i;1..30_000_0){
-				auto ret=testFunc(cast(TYPE)i);
-				doNotOptimize(ret);
-			}
-		}
-	}
-
+	
 	static auto mul(T)(T a){
 		mixin(doNotInline);
 		return a+200*a;
 	}
+	alias BenchTypes=AliasSeq!(int, double);
+	enum iterationsNum=40;
 
-	benchmark!(TestMixin, 1, null,//null is a file name 
-		CPArray!(
-			CP!("testFunc",mul),
-			CP!("TYPE", int,double)
-			)
-		)();
+	BenchmarkData!(BenchTypes.length, iterationsNum) bench;
+
+	foreach(testNum, TYPE;BenchTypes){
+		foreach( itNum; 0..iterationsNum){
+			bench.start!(testNum)(itNum);
+			TYPE sum=0;
+			foreach( i;1..30_000_0){
+				sum+=mul(cast(TYPE)i);
+			}
+			doNotOptimize(sum);
+			bench.end!(testNum)(itNum);
+		}
+	}
+	bench.writeToCsvFile("test.csv",["mul int", "mul double"]);
 	
 }
