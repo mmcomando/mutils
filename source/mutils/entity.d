@@ -6,13 +6,12 @@ import std.traits;
 
 import mutils.container.buckets_chain;
 
-struct EntityManager(OptionsPar, Entities...){
-	alias Options=OptionsPar;
+struct EntityManager(Entities...){
 	alias FromEntities=Entities;
 	//Enum elements are well defined, 0->Entities[0], 1->Entities[1],
 	//Enum EntityEnumM {...} // form mixin
 	mixin(createEnumCode());
-	alias EntityEnum=EntityEnumM;
+	alias EntityEnum=EntityEnumM;//For autocompletion
 	uint lastId=1;
 
 	static struct EntityId{
@@ -59,7 +58,7 @@ struct EntityManager(OptionsPar, Entities...){
 			assert(0);
 		}
 		
-		auto ref hasComponent(Component)(){
+		auto hasComponent(Component)(){
 			foreach(i,Entity;Entities){
 				enum componentNum=staticIndexOf!(Component,Fields!Entity);
 				if(type==i){
@@ -130,7 +129,7 @@ struct EntityManager(OptionsPar, Entities...){
 		EntityData!(EntityType)* ent=getContainer!(EntityType).add();
 		ent.entityId.id=lastId++;
 		ent.entityId.type=getEnum!EntityType;
-		Options.onEntityAdd(&ent.entity);
+		ent.entity.initialize();
 		return &ent.entity;
 	}
 
@@ -141,7 +140,7 @@ struct EntityManager(OptionsPar, Entities...){
 	}
 
 	void remove(EntityType)(EntityType* entity){
-		Options.onEntityRemove(entity);
+		entity.destroy();
 		getContainer!(EntityType).remove(cast(EntityData!(EntityType)*)(cast(void*)entity-8));		
 	}
 
@@ -149,13 +148,13 @@ struct EntityManager(OptionsPar, Entities...){
 		foreach(i,Entity;Entities){
 			if(entityId.type==i){
 				Entity* ent=entityId.get!Entity;
-				Options.onEntityRemove(ent);
+				ent.destroy();
 				getContainer!(Entity).remove(cast(EntityData!(Entity)*)(entityId));	
 				return;
 			}
 		}
 		assert(0);
-	
+		
 	}
 
 	import std.meta;
@@ -202,7 +201,7 @@ struct EntityManager(OptionsPar, Entities...){
 		}
 	}
 
-
+	
 	static string getEntityName(EntityEnum type){
 		foreach(i,Entity;Entities){
 			if(type==i)
@@ -227,39 +226,45 @@ struct EntityManager(OptionsPar, Entities...){
 
 unittest{
 	static int entitiesAdded=0;
-	struct EnityManagerOptions{
-		static void onEntityAdd(T)(T* entity){
-			entitiesAdded++;
-		}
-
-		static void onEntityRemove(T)(T* entity){
-			entitiesAdded--;
-		}
-	}
-
 	
 	struct EntityTurrent{
 		int a;
-		void update(){
-			
+
+		void update(){}
+
+		void initialize(){
+			entitiesAdded++;
 		}
+		
+		void destroy(){}
 	}
 	struct EntityTurrent2{
 		int a;
-		void update(){
-			
+
+		void update(){}
+
+		void initialize(){
+			entitiesAdded++;
 		}
+		
+		void destroy(){}
 	}
 	struct EntitySomething{
 		int a;
+
 		void update(){
 			
 		}
+
+		void initialize(){
+			entitiesAdded++;
+		}
+		
+		void destroy(){}
 	}
 	
 	
 	alias TetstEntityManager=EntityManager!(
-		EnityManagerOptions,
 		EntityTurrent,
 		EntityTurrent2,
 		EntitySomething
