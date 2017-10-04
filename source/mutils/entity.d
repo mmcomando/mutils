@@ -6,6 +6,17 @@ import std.traits;
 
 import mutils.container.buckets_chain;
 
+/**
+ * EntityId No Reference
+ * Struct representing EntityId but without compile time information of EntityManager
+ * Used to bypass forward reference problems
+**/
+struct EntityIdNR{
+	@disable this(this);
+	uint id;
+	uint type;
+}
+
 struct EntityManager(Entities...){
 	alias FromEntities=Entities;
 	//Enum elements are well defined, 0->Entities[0], 1->Entities[1],
@@ -45,7 +56,7 @@ struct EntityManager(Entities...){
 			assert(0);
 		}
 		
-		auto getComponent(Component)(){
+		Component* getComponent(Component)(){
 			foreach(i,Entity;Entities){
 				enum componentNum=staticIndexOf!(Component,Fields!Entity);
 				static if(componentNum!=-1){
@@ -90,6 +101,31 @@ struct EntityManager(Entities...){
 	void initialize(){
 		foreach(ref con;entityContainers){
 			con.initialize;
+		}
+
+		foreach(Entity;Entities){
+			Entity ent;
+			foreach (i, ref m; ent.tupleof) {
+				enum name = Entity.tupleof[i].stringof;
+				alias typeof(m) Type;
+				static if(hasStaticMember!(Type, "staticInitialize")){
+					Type.staticInitialize();
+				}
+			}
+		}
+	}
+
+	void destroy(){
+		
+		foreach(Entity;Entities){
+			Entity ent;
+			foreach (i, ref m; ent.tupleof) {
+				enum name = Entity.tupleof[i].stringof;
+				alias typeof(m) Type;
+				static if(hasStaticMember!(Type, "staticDestroy")){
+					Type.staticDestroy();
+				}
+			}
 		}
 	}
 
@@ -211,7 +247,7 @@ struct EntityManager(Entities...){
 	}
 	//Order is very important
 	static string createEnumCode(){
-		string code="enum EntityEnumM{";
+		string code="enum EntityEnumM:uint{";
 		foreach(i,Entity;Entities){
 			code~=format("_%d=%d,",i,i);
 		}
