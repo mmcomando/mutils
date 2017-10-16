@@ -82,16 +82,28 @@ public:
 		return used+elemNum<=array.length;
 	}
 	
-	void add( T  t ) {
-		import std.stdio;
+	void add(T  t) {
 		if(used>=array.length){
 			extend(array.length*2);
 		}
 		array[used]=t;
 		used++;
 	}
+
+	///Add element at given position moving others
+	void add(T t, size_t pos){
+		assert(pos<=used);
+		if(used>=array.length){
+			extend(array.length*2);
+		}
+		foreach_reverse(size_t i;pos..used){
+			array[i+1]=array[i];
+		}
+		array[pos]=t;
+		used++;
+	}
 	
-	void add( T[]  t ) {
+	void add(T[]  t) {
 		if(used+t.length>array.length){
 			extend(nextPow2(used+t.length));
 		}
@@ -121,7 +133,7 @@ public:
 		assert(tryRemoveElement(elem));
 	}
 	
-	T opIndex(size_t elemNum){
+	ref T opIndex(size_t elemNum){
 		assert(elemNum<used);
 		return array[elemNum];
 	}
