@@ -3,6 +3,7 @@ module mutils.entity;
 import std.format;
 import std.stdio;
 import std.traits;
+import std.meta;
 
 import mutils.container.buckets_chain;
 
@@ -17,12 +18,28 @@ struct EntityIdNR{
 	uint type;
 }
 
+bool hasComponent(Entity, Components...)(){
+	bool has=true;
+	foreach(Component;Components){
+		enum componentNum=staticIndexOf!(Component,Fields!Entity);
+		has = has & (componentNum!=-1);
+	}
+	return has;
+}
+
 struct EntityManager(Entities...){
 	alias FromEntities=Entities;
+	template EntitiesWithComponents(Components...){
+		template EntityHasComponents(EEE){
+			alias EntityHasComponents=hasComponent!(EEE, Components);
+		}
+		alias EntitiesWithComponents= Filter!(EntityHasComponents, FromEntities);
+	}
+
 	//Enum elements are well defined, 0->Entities[0], 1->Entities[1],
 	//Enum EntityEnumM {...} // form mixin
 	mixin(createEnumCode());
-	alias EntityEnum=EntityEnumM;//For autocompletion
+	alias EntityEnum=EntityEnumM;//Alias for autocompletion
 	uint lastId=1;
 
 	static struct EntityId{
@@ -69,11 +86,10 @@ struct EntityManager(Entities...){
 			assert(0);
 		}
 		
-		auto hasComponent(Component)(){
+		auto hasComponent(Components...)(){
 			foreach(i,Entity;Entities){
-				enum componentNum=staticIndexOf!(Component,Fields!Entity);
 				if(type==i){
-					return componentNum!=-1;
+					return mutils.entity.hasComponent!(Entity, Components);
 				}
 			}
 			assert(0);
@@ -193,7 +209,6 @@ struct EntityManager(Entities...){
 		
 	}
 
-	import std.meta;
 
 	auto allWith(Component)(){
 		static struct ForeachStruct(T){
@@ -227,7 +242,7 @@ struct EntityManager(Entities...){
 	}
 
 	/////////////////////////
-	// Enum code//
+	/////// Enum code  //////
 	/////////////////////////
 	static EntityEnum getEnum(T)(){
 		foreach(i,Type;Entities){
@@ -261,31 +276,35 @@ struct EntityManager(Entities...){
 
 
 unittest{
-	static int entitiesAdded=0;
+	static int entitiesNum=0;
 	
-	struct EntityTurrent{
+	static struct EntityTurrent{
 		int a;
 
 		void update(){}
 
 		void initialize(){
-			entitiesAdded++;
+			entitiesNum++;
 		}
 		
-		void destroy(){}
+		void destroy(){
+			entitiesNum--;
+		}
 	}
-	struct EntityTurrent2{
+	static struct EntityTurrent2{
 		int a;
 
 		void update(){}
 
 		void initialize(){
-			entitiesAdded++;
+			entitiesNum++;
 		}
 		
-		void destroy(){}
+		void destroy(){
+			entitiesNum--;
+		}
 	}
-	struct EntitySomething{
+	static struct EntitySomething{
 		int a;
 
 		void update(){
@@ -293,10 +312,12 @@ unittest{
 		}
 
 		void initialize(){
-			entitiesAdded++;
+			entitiesNum++;
 		}
 		
-		void destroy(){}
+		void destroy(){
+			entitiesNum--;
+		}
 	}
 	
 	
@@ -316,13 +337,13 @@ unittest{
 
 	assert(entitiesManager.getContainer!(EntityTurrent).length==1);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==1);
-	assert(entitiesAdded==2);
+	assert(entitiesNum==2);
 
 	entitiesManager.remove(ret1);
 	entitiesManager.remove(ret2);
 
 	assert(entitiesManager.getContainer!(EntityTurrent).length==0);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==0);
-	assert(entitiesAdded==0);
+	assert(entitiesNum==0);
 }
 
