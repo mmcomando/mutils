@@ -148,9 +148,10 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	/**
 	 * Forwards call to union member
 	 * Works only if all union members has this function and this function has the same return type and parameter types
+	 * Can not be made opDispatch because it somehow breakes hasMember trait
 	 */
-	auto opDispatch(string funcName, Args...)(Args args)
-		if(checkOpDispach!(funcName)() )	
+	auto call(string funcName, Args...)(Args args)
+		if(checkOpDispach!(funcName) )	
 	{		
 		mixin("alias CompareReturnType=ReturnType!(FromTypes[0]."~funcName~");");
 		mixin("alias CompareParametersTypes=Parameters!(FromTypes[0]."~funcName~");");
@@ -235,12 +236,11 @@ unittest{
 	shp.set(Triangle());
 	assert(shp.isType!Triangle);
 	assert(!shp.isType!Rectangle);
-	assert(shp.add(6)==16);//Bad error messages if opDispatch!("add") cannot be instantiated
-	assert(shp.opDispatch!("add")(6)==16);//Better error messages 
+	assert(shp.call!("add")(6)==16);//Better error messages 
 	assert(shp.apply!strangeID==123);
 	//shp.get!(Rectangle);//Crash
 	shp.set(Rectangle());
-	assert(shp.add(6)==106);
+	assert(shp.call!("add")(6)==106);
 	assert(shp.apply!strangeID==14342);
 	shp.currentType=shp.Types.none;
 	//shp.apply!strangeID;//Crash
