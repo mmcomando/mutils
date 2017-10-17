@@ -5,6 +5,7 @@ import std.stdio;
 import mutils.container.sorted_vector;
 import mutils.container.vector;
 import mutils.linalg.algorithm;
+import mutils.timeline.utils;
 
 /**
  *
@@ -13,7 +14,7 @@ import mutils.linalg.algorithm;
  */
 struct Trace(T, alias mixFunction=mix){
 	SortedVector!(DataPoint,"a.time < b.time") data;
-	uint lastNum=0;
+	TimeIndexGetter indexGetter;
 
 	struct DataPoint{
 		T point;
@@ -29,42 +30,16 @@ struct Trace(T, alias mixFunction=mix){
 	}
 	
 	T get(float time){
-		assert(data.length>lastNum);
-		if(time<data[0].time){
-			return data[0].point;
+		uint[2] ti=indexGetter.index(data[], time);
+		DataPoint curr=data[ti[0]];
+		DataPoint next=data[ti[1]];
+		if(ti[0]==ti[1]){
+			return curr.point;
 		}
-		foreach(i;1..data.length){
-			DataPoint last=data[i-1];
-			if(time>=last.time && time <=data[i].time){
-				float blend=(time-last.time)/(data[i].time-last.time);
-				return mixFunction(last.point,data[i].point,blend);
-			}
-		}
-		return data[$-1].point;
+		float blend=(time-curr.time)/(next.time-curr.time);
+		return mixFunction(curr.point, next.point, blend);
 	}
 
-	T getCached(float time){
-		assert(data.length>lastNum);
-		if(time<data[lastNum].time){
-			lastNum=0;
-			return data[lastNum].point;
-		}
-		if(time<data[0].time){
-			lastNum=0;
-			return data[0].point;
-		}
-		foreach(i;lastNum+1..data.length){
-			DataPoint last=data[i-1];
-			if(time>=last.time && time <=data[i].time){
-				lastNum=cast(uint)i;
-				float blend=(time-last.time)/(data[i].time-last.time);
-				assert(get(time)==mixFunction(last.point, data[i].point, blend));
-				return mixFunction(last.point, data[i].point, blend);
-			}
-		}
-		lastNum=cast(uint)data.length-1;
-		return data[$-1].point;
-	}
 
 }
 
@@ -81,12 +56,12 @@ unittest{
 
 	assert(trace.data[2].point==vec2i(0,0));
 
-	assert(trace.getCached(-10)==vec2i(0,0));
-	assert(trace.getCached(0)==vec2i(0,0));
-	assert(trace.getCached(1)==vec2i(2,2));
-	assert(trace.getCached(2.5)==vec2i(1,1));
-	assert(trace.getCached(5)==vec2i(2,2));
-	assert(trace.getCached(-10)==vec2i(0,0));
-	assert(trace.getCached(0)==vec2i(0,0));	
+	assert(trace.get(-10)==vec2i(0,0));
+	assert(trace.get(0)==vec2i(0,0));
+	assert(trace.get(1)==vec2i(2,2));
+	assert(trace.get(2.5)==vec2i(1,1));
+	assert(trace.get(5)==vec2i(2,2));
+	assert(trace.get(-10)==vec2i(0,0));
+	assert(trace.get(0)==vec2i(0,0));	
 }
 

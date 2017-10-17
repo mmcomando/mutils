@@ -5,6 +5,8 @@ import std.stdio;
 import mutils.container.sorted_vector;
 import mutils.container.vector;
 import mutils.linalg.algorithm;
+import mutils.timeline.utils;
+
 /**
  *
  * Class to get T value interpolated by Bezier Curvein in given time, useful for contigious paths 
@@ -12,6 +14,7 @@ import mutils.linalg.algorithm;
  */
 struct TraceBezier(T, alias mixFun=mix){
 	SortedVector!(DataPoint, "a.time < b.time") data;
+	TimeIndexGetter indexGetter;
 
 	struct DataPoint{
 		T point;
@@ -42,21 +45,14 @@ struct TraceBezier(T, alias mixFun=mix){
 	}
 	
 	T get(float time){
-		DataPoint curr,next;
-		
-		if(time<=data[0].time){
-			return data[0].point;
+		uint[2] ti=indexGetter.index(data[], time);
+		DataPoint curr=data[ti[0]];
+		DataPoint next=data[ti[1]];
+		if(ti[0]==ti[1]){
+			return curr.point;
 		}
-		
-		foreach(i;0..data.length-1){
-			curr=data[i];			
-			next=data[i+1];			
-			if(time>=curr.time && time <=next.time){
-				float blend=(time-curr.time)/(next.time-curr.time);
-				return mix(curr,next,blend);
-			}
-		}
-		return data[$-1].point;		
+		float blend=(time-curr.time)/(next.time-curr.time);
+		return mix(curr, next, blend);
 	}
 	
 	void recompute(size_t i){
@@ -118,9 +114,7 @@ struct TraceBezier(T, alias mixFun=mix){
 		float start=0;
 		data[0].time=start;
 		foreach(i,ref p;data[1..$]){
-			//writeln(lengthBetween(data[0].time,p.time,(i+1)*3));
 			p.time=lengthBetween(data[0].time,p.time,(i+1)*3)*timPerLen;
-			//writeln(p.time);
 		}
 	}
 //private:
@@ -165,26 +159,4 @@ unittest{
 	
 	trace.computeAll();	
 	trace.addAndRecompute(vec(0.5,1.5),1.5);
-	
-	// I was using software to make plots, to check if i am doing well here xD
-	/*foreach(da;trace.data[0..0]){
-		auto p=da.point;
-		//writefln("pppp %4.1f; %4.1f",da.suppVec.x, da.suppVec.y);
-		writefln("%4.1f; %4.1f",p.x,p.y);
-		p=da.point-da.suppVec;
-		writefln("%4.1f; %4.1f",p.x,p.y);
-		p=da.point+da.suppVec;
-		writefln("%4.1f; %4.1f",p.x,p.y);
-		
-		
-		p=da.point;
-		writefln("%4.1f; %4.1f",p.x,p.y);
-		
-	}
-	
-	foreach(i;0..41){
-		auto p=trace.get(0.1*i);
-		writefln("%4.3f %4.3f",p.x,p.y);
-	
-	}*/
 }
