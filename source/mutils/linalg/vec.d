@@ -90,6 +90,16 @@ struct Vec(T, int dim){
 	}
 
 
+	import std.format:FormatSpec,formatValue;
+	/**
+	 * Preety print
+	 */
+	void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt)
+	{
+		formatValue(sink, vector, fmt);
+	}
+
+
 }
 
 unittest{
