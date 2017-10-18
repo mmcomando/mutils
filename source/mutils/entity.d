@@ -235,6 +235,7 @@ struct EntityManager(Entities...){
 	}
 
 	static EntityId* entityToEntityId(EntityType)(EntityType* el){
+		static assert(!isPointer!(EntityType), "Wrong type passed. Ponter to pointer maybe?");
 		static assert(staticIndexOf!(EntityType, FromEntities)!=-1);
 		EntityId* id=cast(EntityId*)(cast(void*)el-8);
 		assert(id.type<Entities.length);

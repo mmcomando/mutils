@@ -13,7 +13,7 @@ import mutils.timeline.utils;
  * 
  */
 struct Trace(T, alias mixFunction=mix){
-	SortedVector!(DataPoint,"a.time < b.time") data;
+	SortedVector!(DataPoint, "a.time < b.time") data;
 	TimeIndexGetter indexGetter;
 
 	struct DataPoint{
@@ -22,7 +22,7 @@ struct Trace(T, alias mixFunction=mix){
 	}
 
 	void add(T point, float time){
-		data~=DataPoint(point,time);
+		data~=DataPoint(point, time);
 	}
 	
 	void remove(size_t i){
