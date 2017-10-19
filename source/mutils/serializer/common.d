@@ -109,6 +109,8 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 		}
 	} else static if (!useMalloc && isMallocType!T) {
 		//don't save, leave default value
+	}else static if (is(T==interface)) {
+		//don't save, leave default value
 	} else{
 		static assert(0, "Type can not be serialized");
 	}

@@ -137,11 +137,14 @@ struct TraceBezier(T, alias mixFun=mix){
 		T v6=mixFun(v4,v5, blend);
 		return v6;
 	}
-
+	bool hasRoundEnds(){
+		return data[0].point==data[$-1].point;
+	}
 	///first and last point should be the same
-	void roundEnds(){		
-		data[$-1].suppVec=computeSupportingPoint(data[$-2],data[$-1],data[1]);
-		data[0-0].suppVec=computeSupportingPoint(data[$-2],data[0+0],data[1-0]);
+	void roundEnds(){	
+		data[$-1].point=data[0].point;
+		data[$-1].suppVec=computeSupportingPoint(data[$-2],data[0+0],data[1]);
+		data[0].suppVec=data[$-1].suppVec;
 	}
 
 }
