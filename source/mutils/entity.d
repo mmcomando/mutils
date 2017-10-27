@@ -11,7 +11,7 @@ import mutils.container.buckets_chain;
  * EntityId No Reference
  * Struct representing EntityId but without compile time information of EntityManager
  * Used to bypass forward reference problems
-**/
+ **/
 struct EntityIdNR{
 	@disable this(this);
 	uint id;
@@ -209,7 +209,7 @@ struct EntityManager(Entities...){
 		
 	}
 
-
+	
 	auto allWith(Component)(){
 		static struct ForeachStruct(T){
 			T* mn;
@@ -270,9 +270,44 @@ struct EntityManager(Entities...){
 		code~="}";
 		return code;
 	}
+
+	
+	auto getRange(Entity)(size_t start, size_t end){
+		auto container=&getContainer!Entity();
+		assert(end<=container.length);
+		return Range!(Entity)(container, start, end);
+	}
+
+	
+
+	struct Range(Entity){
+		getEntityContainer!Entity* container;
+		size_t start;
+		size_t end;
+
+		size_t length(){
+			return end-start;
+		}
+		
+		int opApply(Dg)(scope Dg dg){ 
+			int result;
+			foreach(int i, ref EntityData!(Entity) el;*container){
+				if(i<start){
+					continue;
+				}
+				if(i>=end){
+					break;
+				}
+				result=dg(el.entity);
+				if (result)
+					break;			
+			}
+			return result;
+		}
+
+	}
+
 }
-
-
 
 
 

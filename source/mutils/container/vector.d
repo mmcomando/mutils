@@ -84,7 +84,7 @@ public:
 	
 	void add(T  t) {
 		if(used>=array.length){
-			extend(array.length*2);
+			extend(nextPow2(used+1));
 		}
 		array[used]=t;
 		used++;
@@ -143,7 +143,7 @@ public:
 	}
 	
 	T[] opSlice(size_t x, size_t y){
-		assert(y<used);
+		assert(y<=used);
 		return array[x..y];
 	}
 	

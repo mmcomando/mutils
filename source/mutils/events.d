@@ -50,6 +50,10 @@ struct Events{
 	void initialzie(){
 		newTime = Clock.currTime.ticks();
 	}
+
+	long getFrameTimeMsecs(){
+		return cast(long)(1000f/fps);
+	}
 	
 	void update() {
 		import core.stdc.string : memset;
