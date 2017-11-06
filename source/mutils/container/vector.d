@@ -166,6 +166,16 @@ public:
 		array[elemNum]=obj;
 		
 	}
+
+
+	import std.format:FormatSpec,formatValue;
+	/**
+	 * Preety print
+	 */
+	void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt)
+	{
+		formatValue(sink, array[0..used], fmt);
+	}
 	
 }
 unittest{

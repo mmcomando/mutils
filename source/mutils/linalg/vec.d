@@ -99,6 +99,11 @@ struct Vec(T, int dim){
 		formatValue(sink, vector, fmt);
 	}
 
+	import mutils.serializer.common;
+	void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer, ref ContainerOrSlice con){
+		serializer.serialize!(load)(vector, con);
+	}
+
 
 }
 
