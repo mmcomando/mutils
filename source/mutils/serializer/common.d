@@ -85,9 +85,8 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 	static if (__traits(compiles,var.beforeSerialize!(load)(ser,con))) {
 		var.beforeSerialize!(load)(ser,con);
 	} 
-	
-	//serializeStripLeft!(load)(con);
-	static if (__traits(compiles,var.customSerialize!(load)(ser,con))) {
+
+	static if (hasMember!(T, "customSerialize" )) {
 		var.customSerialize!(load)(ser, con);
 	} else static if (isBasicType!T) {
 		ser.serializeBasicVar!(load)(var, con);
@@ -125,14 +124,21 @@ struct NoGcSlice(T){
 	shared static immutable Exception e=new Exception("BoundsChecking NoGcException");
 	T slice;
 	alias slice this;
-	T opSlice(X,Y)(X start, Y end){
-		if(start>=slice.length || end>slice.length){
-			//assert(0);
-			throw e;
+	import std.traits;
+
+	//prevent NoGcSlice in NoGcSlice, NoGcSlice!(NoGcSlice!(T))
+	static if( !hasMember!(T, "slice")){
+		T opSlice(X,Y)(X start, Y end){
+			if(start>=slice.length || end>slice.length){
+				//assert(0);
+				throw e;
+			}
+			return slice[start..end];
 		}
-		return slice[start..end];
+
+
+		size_t opDollar() { return slice.length; }
 	}
-	size_t opDollar() { return slice.length; }
 }
 
 

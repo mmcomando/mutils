@@ -23,6 +23,7 @@ class JSON_Lua_SerializerToken(bool isJson){
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		try{
 			static if(load==Load.yes){
+				//pragma(msg, typeof(con));
 				auto sss=NoGcSlice!(ContainerOrSlice)(con);
 				serializeImpl!(load,useMalloc)(var, sss);
 				con=sss[0..$];

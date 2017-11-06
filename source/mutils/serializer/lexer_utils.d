@@ -161,33 +161,43 @@ void serializeStringToken(bool load, Container)(ref TokenData token, ref Contain
 ///Return string is valid only to next call to doubleToString(), returns string representing double with fixed precision
 string doubleToString(double num){
 	static char[32] numStr;
+	bool isNeg=num<0;
 	double rightPart=num%1;
 	double leftPart=num-rightPart;
 	if(rightPart<0){
 		rightPart*=-1;
 	}
-	string arr1=longToStringImpl(numStr[], cast(long)leftPart);
-	numStr[arr1.length]='.';
+	if(isNeg){
+		numStr[0]='-';
+		leftPart*=-1;
+	}
+	string arr1=longToStringImpl(numStr[isNeg..$], cast(long)leftPart);
+	numStr[isNeg+arr1.length]='.';
 	enum int precison=6;
-	char[] tmpArr=numStr[arr1.length+1..$];
+	char[] tmpArr=numStr[isNeg+arr1.length+1..$];
 	string arr2=longToStringImpl(tmpArr, cast(long)(rightPart*10^^precison));
 	size_t diff=precison-arr2.length;
+	// bum is on left side of arr2, move to right
 	if(diff>0){
 		foreach_reverse(i,ch;tmpArr){
-			if(i==0){
+			if(i<diff){
 				break;
 			}
-			tmpArr[i]=tmpArr[i-1];
+			tmpArr[i]=tmpArr[i-diff];
 		}
 	}
-	foreach(ref ch;numStr[arr1.length+1..arr1.length+1+diff]){
+	//set zeros between left part and right part
+	foreach(ref ch;numStr[isNeg+arr1.length+1..isNeg+arr1.length+1+diff]){
 		ch='0';
 	}
-	return cast(string)numStr[0..arr1.length+1+diff+arr2.length];
+	return cast(string)numStr[0..isNeg+arr1.length+1+diff+arr2.length];
 }
 
 unittest{
+	assert(doubleToString(1)=="1.000000");
 	assert(doubleToString(-11.1)=="-11.099999");//floating are less predictable
+	assert(doubleToString(-0.25)=="-0.250000");
+	assert(doubleToString(-125)=="-125.000000");
 }
 
 ///Return string is valid only to next call to longToString()
@@ -231,19 +241,22 @@ unittest{
 }
 
 long stringToLong(string str){
+	bool isNeg=str[0]=='-';
+	string slice=isNeg?str[1..$]:str;
 	long num;
 	long mul=1;
-	foreach_reverse(ch;str){
+	foreach_reverse(ch;slice){
 		long numCh=ch-'0';
 		num+=numCh*mul;
 		mul*=10;
 	}
-	return num;
+	return isNeg?-num:num;
 }
 
 unittest{
-	assert(stringToLong(cast(string)"123")==123);
-	assert(stringToLong(cast(string)"0")==0);
+	assert(stringToLong("-123")==-123);
+	assert(stringToLong("123")==123);
+	assert(stringToLong("0")==0);
 }
 
 void serializeNumberToken(bool load, Container)(ref TokenData token, ref Container con){
@@ -256,7 +269,7 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 			con=con[1..$];
 		}
 		foreach(i,ch;con){
-			if(ch>='0' && ch<='9'){
+			if( ch>='0' && ch<='9'){
 				firstPart=con[0..i+1];
 			}else{
 				break;
@@ -277,11 +290,11 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 				con=con[1..$];
 			}
 			double num=stringToLong(firstPart)+cast(double)stringToLong(secondPart)/(10^^secondPart.length);
-			token.double_=num;
+			token.double_=minus?-num:num;
 			token.type=StandardTokens.double_;
 		}else{
 			long num=stringToLong(firstPart);
-			token.long_=num;
+			token.long_=minus?-num:num;
 			token.type=StandardTokens.long_;
 		}
 	}else{
