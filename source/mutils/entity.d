@@ -29,6 +29,7 @@ bool hasComponent(Entity, Components...)(){
 
 struct EntityManager(Entities...){
 	alias FromEntities=Entities;
+	alias UniqueComponents=NoDuplicates!(staticMap!(Fields, Entities));
 	template EntitiesWithComponents(Components...){
 		template EntityHasComponents(EEE){
 			alias EntityHasComponents=hasComponent!(EEE, Components);
@@ -119,28 +120,17 @@ struct EntityManager(Entities...){
 			con.initialize;
 		}
 
-		foreach(Entity;Entities){
-			Entity ent;
-			foreach (i, ref m; ent.tupleof) {
-				enum name = Entity.tupleof[i].stringof;
-				alias typeof(m) Type;
-				static if(hasStaticMember!(Type, "staticInitialize")){
-					Type.staticInitialize();
-				}
+		foreach(Comp;UniqueComponents){
+			static if(hasStaticMember!(Comp, "staticInitialize")){
+				Comp.staticInitialize();
 			}
 		}
 	}
 
 	void destroy(){
-		
-		foreach(Entity;Entities){
-			Entity ent;
-			foreach (i, ref m; ent.tupleof) {
-				enum name = Entity.tupleof[i].stringof;
-				alias typeof(m) Type;
-				static if(hasStaticMember!(Type, "staticDestroy")){
-					Type.staticDestroy();
-				}
+		foreach(Comp;UniqueComponents){
+			static if(hasStaticMember!(Comp, "staticDestroy")){
+				Comp.staticDestroy();
 			}
 		}
 	}
