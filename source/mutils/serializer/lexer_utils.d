@@ -376,10 +376,10 @@ struct TokenData{
 
 
 	void opAssign(T)(T el)
-		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(Unqual!T==char))
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(Unqual!T==char)  || is(T==bool) )
 	{
 		alias TP=Unqual!T;
-		static if(isIntegral!TP){
+		static if(isIntegral!TP || is(T==bool)){
 			type=StandardTokens.long_;
 			this.long_=el;
 		}else static if(isFloatingPoint!TP){
@@ -397,9 +397,9 @@ struct TokenData{
 	}
 
 	bool isType(T)()
-		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char))
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char) || is(T==bool) )
 	{
-		static if(isIntegral!T){
+		static if(isIntegral!T || is(T==bool) ){
 			return type==StandardTokens.long_;
 		}else static if(isFloatingPoint!T){
 			return type==StandardTokens.double_;
@@ -413,9 +413,9 @@ struct TokenData{
 	}
 
 	auto get(T)()
-		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char))
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char) || is(T==bool) )
 	{
-		static if(isIntegral!T){
+		static if(isIntegral!T || is(T==bool)){
 			assert(type==StandardTokens.long_);
 			return cast(T)long_;
 		}else static if(isFloatingPoint!T){

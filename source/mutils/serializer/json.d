@@ -213,6 +213,18 @@ unittest{
 	assert(test.b=='b');
 }
 
+// test nothing
+unittest{
+	static struct TestStruct{
+	}
+	__gshared static TestStruct test;
+	Vector!char container;
+	
+	//save
+	JSONSerializer.instance.serialize!(Load.no,true)(test, container);
+	//load
+	JSONSerializer.instance.serialize!(Load.yes,true)(test,container[]);
+}
 
 //-----------------------------------------
 //--- Lexer 

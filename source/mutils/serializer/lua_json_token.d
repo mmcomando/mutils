@@ -198,7 +198,7 @@ package:
 	void loadClassOrStruct(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(load==Load.yes && (is(T==class) || is(T==struct)) );
 		
-		while(true){
+		while(var.tupleof.length>0){
 			string varNa;
 			serializeName!(load)(varNa,con);
 			//scope(exit)Mallocator.instance.dispose(cast(string)varNa);
@@ -244,12 +244,19 @@ package:
 			enum bool doSerialize=!hasNoserializeUda!(TP);
 			enum bool useMalloc=hasMallocUda!(TP);
 			enum string varNameTmp =__traits(identifier, var.tupleof[i]);
-			string varName=cast(string)varNameTmp;
-			serializeName!(load)(varName,con);
-			serializeImpl!(load,useMalloc)(a,con);
-			
-			if(i!=var.tupleof.length-1){
-				serializeCharToken!(load)(',' ,con);
+			static if(doSerialize && (useMalloc || !isMallocType!(typeof(a))) ){
+				string varName=cast(string)varNameTmp;
+				serializeName!(load)(varName,con);
+				serializeImpl!(load, useMalloc)(a,con);
+				
+				if(i!=var.tupleof.length-1){
+					serializeCharToken!(load)(',' ,con);
+				}
+			}else{
+				// hack remove comma if last tuple element was not serializable
+				if(i==var.tupleof.length-1){
+					con.remove(con.length-1);
+				}
 			}
 		}
 	}

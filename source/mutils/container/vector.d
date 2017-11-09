@@ -15,6 +15,14 @@ struct Vector(T){
 	size_t used;
 public:
 
+	this(T t){
+		add(t);
+	}
+
+	this(T[] t){
+		add(t);
+	}
+
 	this(size_t numElements){
 		assert(numElements>0);
 		extend(numElements);

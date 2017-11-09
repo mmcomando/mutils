@@ -17,8 +17,8 @@ struct TraceBezier(T, alias mixFun=mix){
 	TimeIndexGetter indexGetter;
 
 	struct DataPoint{
-		T point;
-		T suppVec;
+		T point=T(0);
+		T suppVec=T(0);
 		float time=0;
 	}
 

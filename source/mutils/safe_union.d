@@ -150,7 +150,7 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 * Works only if all union members has this function and this function has the same return type and parameter types
 	 * Can not be made opDispatch because it somehow breakes hasMember trait
 	 */
-	auto call(string funcName, Args...)(Args args)
+	auto call(string funcName, Args...)(auto ref Args args)
 		if(checkOpDispach!(funcName) )	
 	{		
 		mixin("alias CompareReturnType=ReturnType!(FromTypes[0]."~funcName~");");
