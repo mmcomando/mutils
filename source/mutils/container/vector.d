@@ -8,7 +8,6 @@ import core.stdc.string : memset,memcpy;
 	return 1<< bsr(num)+1;
 }
 
-enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
 
 struct Vector(T){
 	T[] array;
@@ -51,15 +50,19 @@ public:
 	void reset(){
 		used=0;
 	}
+
 	
 	void reserve(size_t numElements){
 		if(numElements>array.length){
 			extend(numElements);
 		}
 	}
+
+	size_t capacity(){
+		return array.length-used;
+	}
 	
 	void extend(size_t newNumOfElements){
-		mixin(doNotInline);
 		auto oldArray=manualExtend(newNumOfElements);
 		if(oldArray !is null){
 			freeData(oldArray);
@@ -142,17 +145,18 @@ public:
 	}
 	
 	ref T opIndex(size_t elemNum){
+		pragma(inline, true);
 		assert(elemNum<used);
-		return array[elemNum];
+		return array.ptr[elemNum];
 	}
 	
 	auto opSlice(){
-		return array[0..used];
+		return array.ptr[0..used];
 	}
 	
 	T[] opSlice(size_t x, size_t y){
 		assert(y<=used);
-		return array[x..y];
+		return array.ptr[x..y];
 	}
 	
 	size_t opDollar(){
@@ -182,7 +186,7 @@ public:
 	 */
 	void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt)
 	{
-		formatValue(sink, array[0..used], fmt);
+		//formatValue(sink, array[0..used], fmt);
 	}
 	
 }
