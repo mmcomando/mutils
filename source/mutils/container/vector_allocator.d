@@ -57,7 +57,7 @@ public:
 		}
 	}
 
-	@nogc void freeData(void[] data){
+	void freeData(void[] data){
 		allocator.dispose(array);
 	}
 
