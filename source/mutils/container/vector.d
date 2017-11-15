@@ -186,7 +186,9 @@ public:
 	 */
 	void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt)
 	{
-		//formatValue(sink, array[0..used], fmt);
+		static if(__traits(compiles,formatValue(sink, array[0..used], fmt))){
+			formatValue(sink, array[0..used], fmt);
+		}
 	}
 	
 }
