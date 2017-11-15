@@ -128,7 +128,8 @@ unittest{
 			bench.end!(testNum)(itNum);
 		}
 	}
-	bench.writeToCsvFile("test.csv",["mul int", "mul double"]);
+	//bench.writeToCsvFile("test.csv",["mul int", "mul double"]);
+	//bench.plotUsingGnuplot("test.csv",["mul int", "mul double"]);
 	
 }
 
