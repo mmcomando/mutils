@@ -1,4 +1,4 @@
-﻿module mutils.container.hash_map;
+﻿module mutils.container.hash_set;
 
 import core.bitop;
 import core.simd: ubyte16;
@@ -57,16 +57,16 @@ struct Hash{
 	
 	size_t getH1(){
 		Hash tmp=h;
-		tmp.d[7]=d[7] & emptyMask;//clear H2 hash
+		tmp.d.ptr[7]=d.ptr[7] & emptyMask;//clear H2 hash
 		return tmp.h;
 	}
 	
 	ubyte getH2(){
-		return d[7] & hashMask;
+		return d.ptr[7] & hashMask;
 	}
 	
 	ubyte getH2WithLastSet(){
-		return d[7] | emptyMask;
+		return d.ptr[7] | emptyMask;
 	}
 	
 }
@@ -80,7 +80,6 @@ size_t defaultHashFunc(T)(ref T t){
 }
 
 ulong hashInt(ulong x){
-	pragma(inline, true);
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
 	x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
 	x = x ^ (x >> 31);
@@ -96,8 +95,8 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	enum rehashFactor=0.95;
 
 	// Table for fast power of 2 modulo
-	immutable static uint[] moduloMaskTable=[0b0,0b1,0b11,0b111,0b111_1,0b111_11,0b111_111,0b111_111_1,0b111_111_11,0b111_111_111,0b111_111_111_1,0b111_111_111_11,0b111_111_111_111,0b111_111_111_111_1];
-	alias powerOf2s=AliasSeq!(1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192);
+	immutable static uint[] moduloMaskTable=[0b0,0b1,0b11,0b111,0b111_1,0b111_11,0b111_111,0b111_111_1,0b111_111_11,0b111_111_111,0b111_111_111_1,0b111_111_111_11,0b111_111_111_111,0b111_111_111_111_1,0b111_111_111_111_11,0b111_111_111_111_111];
+	alias powerOf2s=AliasSeq!(1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768);
 	static assert(moduloMaskTable.length==powerOf2s.length);
 
 	
@@ -108,10 +107,15 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 
 	static struct Group{
 		union{
-			ubyte16 controlVec;
 			Control[16] control;
+			ubyte16 controlVec;
 		}
 		T[16] elements;
+
+		// Prevent error in Vector!Group
+		bool opEquals()(auto ref const Group r) const { 
+			assert(0);
+		}
 	}
 
 	
@@ -166,9 +170,27 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		allElements.clear();
 	}
 
+	bool tryRemove(T el){
+		uint index=getIndex(el);
+		if(index==uint.max){
+			return false;
+		}
+		addedElements--;
+		int group=index/16;
+		int elIndex=index%16;
+		groups[group].control[elIndex]=Control.init;
+		return true;
+	}
 
+	void remove(T el){
+		assert(tryRemove(el));
+	}
 
 	void add(T el){
+		if(isIn(el)){
+			return;
+		}
+
 		if(getLoadFactor(addedElements+1)>rehashFactor){
 			rehash();
 		}
@@ -194,12 +216,10 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				group=0;
 			}
 		}
-
 	}
 
 	// Where byte is equal to check byte is set to 0xFF
 	static auto getMatchSIMD(ubyte16 control, ubyte check){
-		pragma(inline, true);
 		ubyte16 v=check;
 		version(DigitalMars){
 			import core.simd: __simd, XMM;
@@ -214,37 +234,45 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		return ret;// Could squish to ushort but might not be portable
 	}
 	// Division is expensive use lookuptable
-	uint hashMod(size_t hash){
+	uint hashMod(size_t hash) nothrow @nogc @system{
 		pragma(inline, true);
 		return cast(uint)(hash & moduloMaskTable.ptr[exponent]);
 	}
 
 	bool isIn(T el){
-		mixin(doNotInline);
+		return getIndex(el)!=uint.max;
+	}
+
+	uint getIndex(T el){
 		size_t groupsLength=groups.length;
 		if(groupsLength==0){
-			return false;
+			return uint.max;
 		}
 		Hash hash=Hash(hashFunc(el));
 		ubyte h2=hash.getH2WithLastSet;// Searched byte in control
 		int group=hashMod(hash.getH1);// Starting point
 		ControlView cntrlV; // Treat contrls array as ubyte16 or two longs
-		uint groupScanned=0;// How many groups we scanned
+		//uint groupScanned=0;// How many groups we scanned
+		uint groupExit=group+maxGroupsSkip;
+		groupExit=hashMod(groupExit);// Element don't exist, during add there was never such a big skip 
+		if(groupExit>=groupsLength){
+			groupExit-=groupsLength;
+		}
 		while(true){
 			Group* gr=&groups[group];
 			cntrlV.vec=getMatchSIMD(gr.controlVec, h2);// Compare 16 contols at once to h2
 			while( (cntrlV.l[0]!=0) | (cntrlV.l[1]!=0)){
 				bool ind=cntrlV.l[0]==0;// Watch  first or second long
 				int i=(ffsll(cntrlV.l[ind])-1)>>3;// Find first set bit and divide by 8 to get element index
-				if(gr.elements[8*ind+i]==el){
-					return true;
+				int elIndex=8*ind+i;
+				if(gr.elements.ptr[elIndex]==el){
+					return group*16+elIndex;
 				}
-				cntrlV.vec.ptr[8*ind+i]=0x00;// Clear byte so ffsll won't catch it again
+				cntrlV.vec.ptr[elIndex]=0x00;// Clear byte so ffsll won't catch it again
 			}
-			if(groupScanned>=maxGroupsSkip){// Element don't exist, during add there was never such a big skip 
-				return false;
+			if(group==groupExit){
+				return uint.max;
 			}
-			groupScanned++;
 			group++;
 			if(group>=groupsLength){
 				group=0;
@@ -254,7 +282,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	}
 
 	// foreach support
-	int opApply(Dg)(scope Dg dg){ 
+	int opApply(scope int delegate(ref T) dg){ 
 		int result;
 		foreach(ref Group gr; groups){
 			foreach(i, ref Control c; gr.control){
@@ -271,13 +299,35 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		return result;
 	}
 
+	// foreach support
+	int opApply(scope int delegate(ref Control c,ref T) dg){ 
+		int result;
+		foreach(ref Group gr; groups){
+			foreach(i, ref Control c; gr.control){
+				if(c.isEmpty){
+					continue;
+				}
+				
+				result=dg(gr.control[i], gr.elements[i]);
+				if (result)
+					break;	
+			}
+		}		
+		
+		return result;
+	}
+
 	void saveGroupDistributionPlot(string path){
-		assert(groups.length<=8192);
+		//assert(groups.length<=8192);
 		BenchmarkData!(1, 8192) distr;// For now use benchamrk as a plotter
 
-		foreach(int el; this){
+		foreach(ref T el; this){
 			int group=hashMod(hashFunc(el));
+			if(group>=8192){
+				continue;
+			}
 			distr.times[0][group]++;
+
 		}
 		distr.plotUsingGnuplot(path, ["group distribution"]);
 	}
@@ -286,59 +336,63 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 
 import mutils.benchmark;
 unittest{
-	HashSet!(int) map;
-	assert(map.isIn(123)==false);
-	map.add(123);
-	assert(map.addedElements==1);
-	assert(map.isIn(122)==false);
-	assert(map.isIn(123)==true);
-	//assert(addedElements==0);
+	HashSet!(int) set;
+	assert(set.isIn(123)==false);
+	set.add(123);
+	set.add(123);
+	assert(set.addedElements==1);
+	assert(set.isIn(122)==false);
+	assert(set.isIn(123)==true);
+	set.remove(123);
+	assert(set.isIn(123)==false);
+	assert(set.addedElements==0);
+	assert(set.tryRemove(500)==false);
+	set.add(123);
+	assert(set.tryRemove(123)==true);
 
 	
 	foreach(i;1..130){
-		map.add(i);		
+		set.add(i);		
 	}
 
 	foreach(i;1..130){
-		assert(map.isIn(i));
+		assert(set.isIn(i));
 	}
 
 	foreach(i;130..500){
-		assert(!map.isIn(i));
+		assert(!set.isIn(i));
 	}
 
-	foreach(int el; map){
-		assert(map.isIn(el));
+	foreach(int el; set){
+		assert(set.isIn(el));
 	}
 }
 
 void benchmarkHashSetInt(){
-	HashSet!(int) map;
+	HashSet!(int) set;
 	byte[int] mapStandard;
-	uint elementsNumToAdd=ushort.max+1;
+	uint elementsNumToAdd=300;
 	// Add elements
 	foreach(int i;0..elementsNumToAdd){
-		map.add(i);
+		set.add(i);
 		mapStandard[i]=true;
 	}
 	// Check if isIn is working
 	foreach(int i;0..elementsNumToAdd){
-		assert(map.isIn(i));
+		assert(set.isIn(i));
 		assert((i in mapStandard) !is null);
 	}
 	// Check if isIn is returning false properly
 	foreach(int i;elementsNumToAdd..1000_0000){
-		assert(!map.isIn(i));
+		assert(!set.isIn(i));
 		assert((i in mapStandard) is null);
 	}
 
 	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
-	
-	doNotOptimize(map);// Make some confusion for compiler
+	doNotOptimize(set);// Make some confusion for compiler
 	doNotOptimize(mapStandard);
-
-	ushort trueResults;
+	ubyte trueResults;
 	//benchmark this implementation
 	trueResults=0;
 	foreach(b;0..itNum){
@@ -357,7 +411,7 @@ void benchmarkHashSetInt(){
 	foreach(b;0..itNum){
 		bench.start!(0)(b);
 		foreach(i;0..1000_00){
-			auto ret=map.isIn(trueResults);
+			auto ret=set.isIn(trueResults);
 			trueResults+=cast(typeof(trueResults))(ret);
 			doNotOptimize(ret);
 		}
@@ -367,7 +421,7 @@ void benchmarkHashSetInt(){
 
 	doNotOptimize(trueResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
-	map.saveGroupDistributionPlot("distr.png");
+	set.saveGroupDistributionPlot("distr.png");
 
 }
 
