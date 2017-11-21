@@ -4,6 +4,7 @@ import core.bitop;
 import core.simd: ubyte16;
 import std.meta;
 import std.stdio;
+import std.traits;
 
 import mutils.container.vector;
 
@@ -11,8 +12,7 @@ import mutils.container.vector;
 enum emptyMask=0b0000_0001;
 enum hashMask=0b1111_1110;
 // lower 7 bits - part of hash, last bit - isEmpty
-static struct Control{
-	
+struct Control{	
 	ubyte b=0;
 	
 	bool isEmpty(){
@@ -29,7 +29,7 @@ static struct Control{
 			ubyte[size_t.sizeof] d;
 		}
 		Tmp t=Tmp(hash);
-		return (t.d[0] & hashMask)==(b & hashMask);
+		return (t.d[7] & hashMask)==(b & hashMask);
 	}
 	
 	void set(size_t hash){
@@ -38,13 +38,15 @@ static struct Control{
 			ubyte[size_t.sizeof] d;
 		}
 		Tmp t=Tmp(hash);
-		b=(t.d[0] & hashMask) | emptyMask;
+		b=(t.d[7] & hashMask) | emptyMask;
 	}
 }
 
-// hash
-static struct Hash{
-	nothrow @nogc @system:
+// Hash helper struct
+// hash is made out of two parts[     H1 57 bits      ][ H2 7bits]
+// H1 is used to find group
+// H2 is used quick(SIMD) find element in group
+struct Hash{
 	union{
 		size_t h=void;
 		ubyte[size_t.sizeof] d=void;
@@ -55,34 +57,29 @@ static struct Hash{
 	
 	size_t getH1(){
 		Hash tmp=h;
-		tmp.d[0]=d[0] & emptyMask;//clear H2 hash
+		tmp.d[7]=d[7] & emptyMask;//clear H2 hash
 		return tmp.h;
 	}
 	
 	ubyte getH2(){
-		return d[0] & hashMask;
+		return d[7] & hashMask;
 	}
 	
 	ubyte getH2WithLastSet(){
-		return d[0] | emptyMask;
+		return d[7] | emptyMask;
 	}
 	
 }
+
 size_t defaultHashFunc(T)(ref T t){
-	return t.hashOf;
+	static if (isIntegral!(T)){
+		return hashInt(t);
+	}else{
+		return hashInt(t.hashOf);// hashOf is not giving proper distribution between H1 and H2 hash parts
+	}
 }
 
-ulong hashIntNone(ulong x) nothrow @nogc @system{
-	pragma(inline, true);
-	return x;
-}
-
-ulong hashInt1(ulong x) nothrow @nogc @system{
-	pragma(inline, true);
-	return (x | 64) ^ ((x >>> 15) | (x << 17));
-}
-
-ulong hashInt2(ulong x) nothrow @nogc @system{
+ulong hashInt(ulong x){
 	pragma(inline, true);
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
 	x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
@@ -90,14 +87,17 @@ ulong hashInt2(ulong x) nothrow @nogc @system{
 	return x;
 }
 
+
 extern(C) int ffsll(long i) nothrow @nogc @system;
+
+//It is very importnant to have hashing function with distribution over all bits (hash is divided to two parts H1 57bit and H2 7bit)
 struct HashSet(T, alias hashFunc=defaultHashFunc){
 	static assert(size_t.sizeof==8);// Only 64 bit
 	enum rehashFactor=0.95;
 
 	// Table for fast power of 2 modulo
-	immutable static uint[] moduloMaskTable=[0b0,0b1,0b11,0b111,0b1111,0b1111_1,0b1111_11,0b1111_111,0b1111_1111,0b1111_1111_1,0b1111_1111_11,0b1111_1111_111,0b1111_1111_111];
-	alias powerOf2s=AliasSeq!(1,2,4,8,16,32,64,128,256,512,1024,2048,4096);
+	immutable static uint[] moduloMaskTable=[0b0,0b1,0b11,0b111,0b111_1,0b111_11,0b111_111,0b111_111_1,0b111_111_11,0b111_111_111,0b111_111_111_1,0b111_111_111_11,0b111_111_111_111,0b111_111_111_111_1];
+	alias powerOf2s=AliasSeq!(1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192);
 	static assert(moduloMaskTable.length==powerOf2s.length);
 
 	
@@ -117,7 +117,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	
 	Vector!Group groups;// Length should be always power of 2
 	size_t addedElements;//Used to compute loadFactor
-	uint exponent;
+	uint exponent;// Needed for division lookuptable
 	uint maxGroupsSkip;// How many groups where skped during add, max
 
 	float getLoadFactor(size_t forElementsNum){
@@ -144,7 +144,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				break sw;					
 			}
 			default:
-				assert(0);
+				assert(0, "Too many elements in map");
 		}
 
 		Vector!T allElements;
@@ -166,7 +166,6 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		allElements.clear();
 	}
 
-	
 
 
 	void add(T el){
@@ -175,7 +174,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		}
 		addedElements++;
 		Hash hash=Hash(hashFunc(el));
-		int group=cast(uint)(hash.h%cast(short)groups.length);
+		int group=hashMod(hash.getH1);// Starting point
 		uint groupSkip=0;
 		while(true){
 			Group* gr=&groups[group];
@@ -212,14 +211,13 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			static assert(0);
 		}
 		
-		return ret;
+		return ret;// Could squish to ushort but might not be portable
 	}
-
+	// Division is expensive use lookuptable
 	uint hashMod(size_t hash){
 		pragma(inline, true);
 		return cast(uint)(hash & moduloMaskTable.ptr[exponent]);
 	}
-
 
 	bool isIn(T el){
 		mixin(doNotInline);
@@ -229,8 +227,8 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		}
 		Hash hash=Hash(hashFunc(el));
 		ubyte h2=hash.getH2WithLastSet;// Searched byte in control
-		int group=hashMod(hash.h);// Starting point
-		ControlView cntrlV; // Treat contrls array as ubyte16 ot two longs
+		int group=hashMod(hash.getH1);// Starting point
+		ControlView cntrlV; // Treat contrls array as ubyte16 or two longs
 		uint groupScanned=0;// How many groups we scanned
 		while(true){
 			Group* gr=&groups[group];
@@ -253,6 +251,35 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			}
 		}
 
+	}
+
+	// foreach support
+	int opApply(Dg)(scope Dg dg){ 
+		int result;
+		foreach(ref Group gr; groups){
+			foreach(i, ref Control c; gr.control){
+				if(c.isEmpty){
+					continue;
+				}
+
+				result=dg(gr.elements[i]);
+				if (result)
+					break;	
+				}
+		}		
+
+		return result;
+	}
+
+	void saveGroupDistributionPlot(string path){
+		assert(groups.length<=8192);
+		BenchmarkData!(1, 8192) distr;// For now use benchamrk as a plotter
+
+		foreach(int el; this){
+			int group=hashMod(hashFunc(el));
+			distr.times[0][group]++;
+		}
+		distr.plotUsingGnuplot(path, ["group distribution"]);
 	}
 
 }
@@ -279,55 +306,68 @@ unittest{
 	foreach(i;130..500){
 		assert(!map.isIn(i));
 	}
+
+	foreach(int el; map){
+		assert(map.isIn(el));
+	}
 }
 
-void test(){
-	HashSet!(int, hashIntNone) map;
-	//HashSet!(int) map;
+void benchmarkHashSetInt(){
+	HashSet!(int) map;
 	byte[int] mapStandard;
-	foreach(int i;0..20000){
+	uint elementsNumToAdd=ushort.max+1;
+	// Add elements
+	foreach(int i;0..elementsNumToAdd){
 		map.add(i);
 		mapStandard[i]=true;
 	}
-
-	foreach(int i;0..2000){
+	// Check if isIn is working
+	foreach(int i;0..elementsNumToAdd){
 		assert(map.isIn(i));
 		assert((i in mapStandard) !is null);
 	}
-	foreach(int i;20000..1000_000_00){
+	// Check if isIn is returning false properly
+	foreach(int i;elementsNumToAdd..1000_0000){
 		assert(!map.isIn(i));
 		assert((i in mapStandard) is null);
 	}
 
-	enum itNum=1;
+	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
 	
-	doNotOptimize(map);
+	doNotOptimize(map);// Make some confusion for compiler
 	doNotOptimize(mapStandard);
-	ushort aaa;
-	foreach(b;0..itNum){
-		bench.start!(0)(b);
-		foreach(i;0..1000_000_00){
-			auto ret=map.isIn(aaa);
-			aaa+=cast(ushort)(ret*7+1);
-			doNotOptimize(ret);
-		}
-		bench.end!(0)(b);
-	}
-	writeln(aaa);
-	aaa=0;
+
+	ushort trueResults;
+	//benchmark this implementation
+	trueResults=0;
 	foreach(b;0..itNum){
 		bench.start!(1)(b);
-		foreach(i;0..1000_000_00){
-			auto ret=aaa in mapStandard;
-			aaa+=cast(ushort)(cast(bool)ret*7+1);
+		foreach(i;0..1000_00){
+			auto ret=trueResults in mapStandard;
+			trueResults+=cast(typeof(trueResults))(cast(bool)ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(1)(b);
 	}
-	writeln(aaa);
 
-	doNotOptimize(aaa);
-	//bench.writeToCsvFile("test.csv",["my", "standard"]);
+	auto myResult=trueResults;
+	//benchmark standard library implementation
+	trueResults=0;
+	foreach(b;0..itNum){
+		bench.start!(0)(b);
+		foreach(i;0..1000_00){
+			auto ret=map.isIn(trueResults);
+			trueResults+=cast(typeof(trueResults))(ret);
+			doNotOptimize(ret);
+		}
+		bench.end!(0)(b);
+	}
+	assert(trueResults==myResult);//same behavior as standard map
+
+	doNotOptimize(trueResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
+	map.saveGroupDistributionPlot("distr.png");
+
 }
+

@@ -12,6 +12,10 @@ private alias Clock=MonoTimeImpl!(ClockType.precise);
 struct BenchmarkData(uint testsNum, uint iterationsNum){
 	long[iterationsNum][testsNum] times;
 
+	void setTime(size_t testNum)(size_t iterationNum, size_t time){
+		times[testNum][iterationNum]=time;
+	}
+
 	void start(size_t testNum)(size_t iterationNum){
 		times[testNum][iterationNum]=Clock.currTime.ticks();
 	}
