@@ -94,12 +94,6 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	static assert(size_t.sizeof==8);// Only 64 bit
 	enum rehashFactor=0.95;
 
-	// Table for fast power of 2 modulo
-	immutable static uint[] moduloMaskTable=[0b0,0b1,0b11,0b111,0b111_1,0b111_11,0b111_111,0b111_111_1,0b111_111_11,0b111_111_111,0b111_111_111_1,0b111_111_111_11,0b111_111_111_111,0b111_111_111_111_1,0b111_111_111_111_11,0b111_111_111_111_111];
-	alias powerOf2s=AliasSeq!(1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768);
-	static assert(moduloMaskTable.length==powerOf2s.length);
-
-	
 	union ControlView{
 		ubyte16 vec;
 		ulong[2] l;
@@ -121,7 +115,6 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	
 	Vector!Group groups;// Length should be always power of 2
 	size_t addedElements;//Used to compute loadFactor
-	uint exponent;// Needed for division lookuptable
 	uint maxGroupsSkip;// How many groups where skped during add, max
 
 	float getLoadFactor(size_t forElementsNum){
@@ -140,15 +133,6 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			foreach(i;0..groups.capacity){
 				groups~=Group();
 			}
-		}
-	sw:switch(groups.length){
-			foreach(i, d;powerOf2s){
-				case d:
-				exponent=i;
-				break sw;					
-			}
-			default:
-				assert(0, "Too many elements in map");
 		}
 
 		Vector!T allElements;
@@ -235,8 +219,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	}
 	// Division is expensive use lookuptable
 	uint hashMod(size_t hash) nothrow @nogc @system{
-		pragma(inline, true);
-		return cast(uint)(hash & moduloMaskTable.ptr[exponent]);
+		return cast(uint)(hash & (groups.length-1));
 	}
 
 	bool isIn(T el){
@@ -248,22 +231,22 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		if(groupsLength==0){
 			return uint.max;
 		}
+
 		Hash hash=Hash(hashFunc(el));
-		ubyte h2=hash.getH2WithLastSet;// Searched byte in control
-		int group=hashMod(hash.getH1);// Starting point
+		int group=hashMod(hash.getH1);// Starting point		
+		uint groupExit=hashMod(group+maxGroupsSkip);
+
 		ControlView cntrlV; // Treat contrls array as ubyte16 or two longs
-		//uint groupScanned=0;// How many groups we scanned
-		uint groupExit=group+maxGroupsSkip;
-		groupExit=hashMod(groupExit);// Element don't exist, during add there was never such a big skip 
-		if(groupExit>=groupsLength){
-			groupExit-=groupsLength;
-		}
 		while(true){
 			Group* gr=&groups[group];
-			cntrlV.vec=getMatchSIMD(gr.controlVec, h2);// Compare 16 contols at once to h2
-			while( (cntrlV.l[0]!=0) | (cntrlV.l[1]!=0)){
+			cntrlV.vec=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 16 contols at once to h2
+			while( true){
 				bool ind=cntrlV.l[0]==0;// Watch  first or second long
-				int i=(ffsll(cntrlV.l[ind])-1)>>3;// Find first set bit and divide by 8 to get element index
+				int ffInd=ffsll(cntrlV.l[ind]);
+				if(ffInd==0){// All bits are 0
+					break;
+				}
+				int i=(ffInd-1)>>3;// Find first set bit and divide by 8 to get element index
 				int elIndex=8*ind+i;
 				if(gr.elements.ptr[elIndex]==el){
 					return group*16+elIndex;
