@@ -22,12 +22,12 @@ struct HashMap(Key, T){
 	void add(Key k, T v){
 		KeyValue kv=KeyValue(k, v);
 
-		uint index=set.getIndex(kv);
-		if(index==uint.max){
+		size_t index=set.getIndex(kv);
+		if(index==set.getIndexEmptyValue){
 			set.add(kv);
 		}else{
-			int group=index/16;
-			int elIndex=index%16;
+			size_t group=index/16;
+			size_t elIndex=index%16;
 			set.groups[group].elements[elIndex].value=v;
 		}
 	}
@@ -44,17 +44,17 @@ struct HashMap(Key, T){
 
 	bool isIn(Key k){
 		KeyValue kv=KeyValue(k);		
-		uint index=set.getIndex(kv);
-		return index!=uint.max;		
+		size_t index=set.getIndex(kv);
+		return index!=set.getIndexEmptyValue;		
 	}
 
 	T get(Key k){
 		KeyValue kv=KeyValue(k);
 		
-		uint index=set.getIndex(kv);
-		assert(index!=uint.max);
-		int group=index/16;
-		int elIndex=index%16;
+		size_t index=set.getIndex(kv);
+		assert(index!=set.getIndexEmptyValue);
+		size_t group=index/16;
+		size_t elIndex=index%16;
 		return set.groups[group].elements[elIndex].value;
 
 	}
@@ -62,12 +62,12 @@ struct HashMap(Key, T){
 	T getDefault(Key k, T defaultValue){
 		KeyValue kv=KeyValue(k);
 		
-		uint index=set.getIndex(kv);
-		if(index==uint.max){
+		size_t index=set.getIndex(kv);
+		if(index==set.getIndexEmptyValue){
 			return defaultValue;
 		}else{
-			int group=index/16;
-			int elIndex=index%16;
+			size_t group=index/16;
+			size_t elIndex=index%16;
 			return set.groups[group].elements[elIndex].value;
 		}
 		
@@ -76,14 +76,14 @@ struct HashMap(Key, T){
 	T getInsertDefault(Key k, T defaultValue){
 		KeyValue kv=KeyValue(k);
 		
-		uint index=set.getIndex(kv);
-		if(index==uint.max){
+		size_t index=set.getIndex(kv);
+		if(index==set.getIndexEmptyValue){
 			kv.value=defaultValue;
 			set.add(kv);
 			return defaultValue;
 		}else{
-			int group=index/16;
-			int elIndex=index%16;
+			size_t group=index/16;
+			size_t elIndex=index%16;
 			return set.groups[group].elements[elIndex].value;
 		}		
 	}

@@ -79,6 +79,7 @@ size_t defaultHashFunc(T)(ref T t){
 	}
 }
 
+// Can turn bad hash function to good one
 ulong hashInt(ulong x){
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
 	x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
@@ -87,6 +88,7 @@ ulong hashInt(ulong x){
 }
 
 
+extern(C) int ffsl(int i) nothrow @nogc @system;
 extern(C) int ffsll(long i) nothrow @nogc @system;
 
 //It is very importnant to have hashing function with distribution over all bits (hash is divided to two parts H1 57bit and H2 7bit)
@@ -155,13 +157,13 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	}
 
 	bool tryRemove(T el){
-		uint index=getIndex(el);
-		if(index==uint.max){
+		size_t index=getIndex(el);
+		if(index==getIndexEmptyValue){
 			return false;
 		}
 		addedElements--;
-		int group=index/16;
-		int elIndex=index%16;
+		size_t group=index/16;
+		size_t elIndex=index%16;
 		groups[group].control[elIndex]=Control.init;
 		return true;
 	}
@@ -202,64 +204,70 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		}
 	}
 
-	// Where byte is equal to check byte is set to 0xFF
+	// Returns ushort with bits set to 1 if control matches check
 	static auto getMatchSIMD(ubyte16 control, ubyte check){
 		ubyte16 v=check;
 		version(DigitalMars){
-			import core.simd: __simd, XMM;
-			ubyte16 ret=__simd(XMM.PCMPEQB, control, v);
+			import core.simd: __simd, ushort8, XMM;
+			ubyte16 ok=__simd(XMM.PCMPEQB, control, v);
+			ubyte16 bitsMask=[1,2,4,8,16,32,64,128, 1,2,4,8,16,32,64,128];
+			ubyte16 bits=bitsMask&ok;
+			ubyte16 zeros=0;
+			ushort8 vv=__simd(XMM.PSADBW, bits, zeros);
+			ushort num=cast(ushort)(vv[0]+vv[4]*256);
 		}else version(LDC){
 			import ldc.simd;
-			ubyte16 ret = equalMask!ubyte16(control, v);
+			import ldc.gccbuiltins_x86;
+			ubyte16 ok = equalMask!ubyte16(control, v);
+			ushort num=cast(ushort)__builtin_ia32_pmovmskb128(ok);
 		}else{
 			static assert(0);
 		}
 		
-		return ret;// Could squish to ushort but might not be portable
+		return num;
 	}
 	// Division is expensive use lookuptable
-	uint hashMod(size_t hash) nothrow @nogc @system{
-		return cast(uint)(hash & (groups.length-1));
+	int hashMod(size_t hash) nothrow @nogc @system{
+		return cast(int)(hash & (groups.length-1));
 	}
 
 	bool isIn(T el){
-		return getIndex(el)!=uint.max;
+		return getIndex(el)!=getIndexEmptyValue;
 	}
 
-	uint getIndex(T el){
+	enum size_t getIndexEmptyValue=size_t.max;
+
+	size_t getIndex(T el){
+		mixin(doNotInline);
 		size_t groupsLength=groups.length;
 		if(groupsLength==0){
-			return uint.max;
+			return getIndexEmptyValue;
 		}
 
 		Hash hash=Hash(hashFunc(el));
-		int group=hashMod(hash.getH1);// Starting point		
-		uint groupExit=hashMod(group+maxGroupsSkip);
-
-		ControlView cntrlV; // Treat contrls array as ubyte16 or two longs
+		size_t mask=groupsLength-1;
+		size_t group=cast(int)(hash.getH1 & mask);// Starting point	
+		size_t groupExit=(group+maxGroupsSkip)& mask;
+		
 		while(true){
 			Group* gr=&groups[group];
-			cntrlV.vec=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 16 contols at once to h2
+			int cntrlV=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 16 contols at once to h2
 			while( true){
-				bool ind=cntrlV.l[0]==0;// Watch  first or second long
-				int ffInd=ffsll(cntrlV.l[ind]);
+				int ffInd=ffsl(cntrlV);
 				if(ffInd==0){// All bits are 0
 					break;
 				}
-				int i=(ffInd-1)>>3;// Find first set bit and divide by 8 to get element index
-				int elIndex=8*ind+i;
-				if(gr.elements.ptr[elIndex]==el){
-					return group*16+elIndex;
+				int i=ffInd-1;// Find first set bit and divide by 8 to get element index
+				if(gr.elements.ptr[i]==el){
+					return group*16+i;
 				}
-				cntrlV.vec.ptr[elIndex]=0x00;// Clear byte so ffsll won't catch it again
+				cntrlV&=0xFFFF<<ffInd;
 			}
 			if(group==groupExit){
-				return uint.max;
+				return getIndexEmptyValue;
 			}
 			group++;
-			if(group>=groupsLength){
-				group=0;
-			}
+			group=group & mask;
 		}
 
 	}
@@ -301,7 +309,6 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	}
 
 	void saveGroupDistributionPlot(string path){
-		//assert(groups.length<=8192);
 		BenchmarkData!(1, 8192) distr;// For now use benchamrk as a plotter
 
 		foreach(ref T el; this){
@@ -320,6 +327,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 import mutils.benchmark;
 unittest{
 	HashSet!(int) set;
+
 	assert(set.isIn(123)==false);
 	set.add(123);
 	set.add(123);
@@ -354,7 +362,7 @@ unittest{
 void benchmarkHashSetInt(){
 	HashSet!(int) set;
 	byte[int] mapStandard;
-	uint elementsNumToAdd=300;
+	uint elementsNumToAdd=3500;
 	// Add elements
 	foreach(int i;0..elementsNumToAdd){
 		set.add(i);
@@ -370,17 +378,18 @@ void benchmarkHashSetInt(){
 		assert(!set.isIn(i));
 		assert((i in mapStandard) is null);
 	}
+	writeln(set.getLoadFactor(set.addedElements));
 
 	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
 	doNotOptimize(set);// Make some confusion for compiler
 	doNotOptimize(mapStandard);
-	ubyte trueResults;
+	ushort trueResults;
 	//benchmark this implementation
 	trueResults=0;
 	foreach(b;0..itNum){
 		bench.start!(1)(b);
-		foreach(i;0..1000_00){
+		foreach(i;0..1000_000){
 			auto ret=trueResults in mapStandard;
 			trueResults+=cast(typeof(trueResults))(cast(bool)ret);
 			doNotOptimize(ret);
@@ -393,7 +402,7 @@ void benchmarkHashSetInt(){
 	trueResults=0;
 	foreach(b;0..itNum){
 		bench.start!(0)(b);
-		foreach(i;0..1000_00){
+		foreach(i;0..1000_000){
 			auto ret=set.isIn(trueResults);
 			trueResults+=cast(typeof(trueResults))(ret);
 			doNotOptimize(ret);
