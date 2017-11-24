@@ -26,8 +26,8 @@ struct HashMap(Key, T){
 		if(index==set.getIndexEmptyValue){
 			set.add(kv);
 		}else{
-			size_t group=index/16;
-			size_t elIndex=index%16;
+			size_t group=index/8;
+			size_t elIndex=index%8;
 			set.groups[group].elements[elIndex].value=v;
 		}
 	}
@@ -53,8 +53,8 @@ struct HashMap(Key, T){
 		
 		size_t index=set.getIndex(kv);
 		assert(index!=set.getIndexEmptyValue);
-		size_t group=index/16;
-		size_t elIndex=index%16;
+		size_t group=index/8;
+		size_t elIndex=index%8;
 		return set.groups[group].elements[elIndex].value;
 
 	}
@@ -66,8 +66,8 @@ struct HashMap(Key, T){
 		if(index==set.getIndexEmptyValue){
 			return defaultValue;
 		}else{
-			size_t group=index/16;
-			size_t elIndex=index%16;
+			size_t group=index/8;
+			size_t elIndex=index%8;
 			return set.groups[group].elements[elIndex].value;
 		}
 		
@@ -82,8 +82,8 @@ struct HashMap(Key, T){
 			set.add(kv);
 			return defaultValue;
 		}else{
-			size_t group=index/16;
-			size_t elIndex=index%16;
+			size_t group=index/8;
+			size_t elIndex=index%8;
 			return set.groups[group].elements[elIndex].value;
 		}		
 	}

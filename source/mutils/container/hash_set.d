@@ -1,7 +1,7 @@
 ﻿module mutils.container.hash_set;
 
 import core.bitop;
-import core.simd: ubyte16;
+import core.simd: ushort8;
 import std.meta;
 import std.stdio;
 import std.traits;
@@ -9,47 +9,48 @@ import std.traits;
 import mutils.container.vector;
 
 
-enum emptyMask=0b0000_0001;
-enum hashMask=0b1111_1110;
-// lower 7 bits - part of hash, last bit - isEmpty
+enum ushort emptyMask=1;
+enum ushort neverUsedMask=2;
+enum ushort hashMask=~emptyMask;
+// lower 15 bits - part of hash, last bit - isEmpty
 struct Control{	
-	ubyte b=0;
+	ushort b=neverUsedMask;
 	
 	bool isEmpty(){
 		return (b & emptyMask)==0;
 	}
 	
-	void setEmpty(){
+	/*void setEmpty(){
 		b=emptyMask;
-	}
+	}*/
 	
-	bool cmpHash(size_t hash){
+	/*bool cmpHash(size_t hash){
 		union Tmp{
 			size_t h;
-			ubyte[size_t.sizeof] d;
+			ushort[size_t.sizeof/2] d;
 		}
 		Tmp t=Tmp(hash);
-		return (t.d[7] & hashMask)==(b & hashMask);
-	}
+		return (t.d[0] & hashMask)==(b & hashMask);
+	}*/
 	
 	void set(size_t hash){
 		union Tmp{
 			size_t h;
-			ubyte[size_t.sizeof] d;
+			ushort[size_t.sizeof/2] d;
 		}
 		Tmp t=Tmp(hash);
-		b=(t.d[7] & hashMask) | emptyMask;
+		b=(t.d[0] & hashMask) | emptyMask;
 	}
 }
 
 // Hash helper struct
-// hash is made out of two parts[     H1 57 bits      ][ H2 7bits]
-// H1 is used to find group
-// H2 is used quick(SIMD) find element in group
+// hash is made out of two parts[     H1 48 bits      ][ H2 16 bits]
+// whole hash is used to find group
+// H2 is used to quickly(SIMD) find element in group
 struct Hash{
 	union{
 		size_t h=void;
-		ubyte[size_t.sizeof] d=void;
+		ushort[size_t.sizeof/2] d=void;
 	}
 	this(size_t hash){
 		h=hash;
@@ -57,16 +58,16 @@ struct Hash{
 	
 	size_t getH1(){
 		Hash tmp=h;
-		tmp.d.ptr[7]=d.ptr[7] & emptyMask;//clear H2 hash
+		tmp.d[0]=d[0] & emptyMask;//clear H2 hash
 		return tmp.h;
 	}
 	
-	ubyte getH2(){
-		return d.ptr[7] & hashMask;
+	ushort getH2(){
+		return d[0] & hashMask;
 	}
 	
-	ubyte getH2WithLastSet(){
-		return d.ptr[7] | emptyMask;
+	ushort getH2WithLastSet(){
+		return d[0] | emptyMask;
 	}
 	
 }
@@ -91,41 +92,36 @@ ulong hashInt(ulong x){
 extern(C) int ffsl(int i) nothrow @nogc @system;
 extern(C) int ffsll(long i) nothrow @nogc @system;
 
-//It is very importnant to have hashing function with distribution over all bits (hash is divided to two parts H1 57bit and H2 7bit)
 struct HashSet(T, alias hashFunc=defaultHashFunc){
 	static assert(size_t.sizeof==8);// Only 64 bit
-	enum rehashFactor=0.95;
-
-	union ControlView{
-		ubyte16 vec;
-		ulong[2] l;
-	}
-
+	enum rehashFactor=0.85;
+	enum size_t getIndexEmptyValue=size_t.max;
+	
+	
 	static struct Group{
 		union{
-			Control[16] control;
-			ubyte16 controlVec;
+			Control[8] control;
+			ushort8 controlVec;
 		}
-		T[16] elements;
-
+		T[8] elements;
+		
 		// Prevent error in Vector!Group
 		bool opEquals()(auto ref const Group r) const { 
 			assert(0);
 		}
 	}
-
+	
 	
 	Vector!Group groups;// Length should be always power of 2
-	size_t addedElements;//Used to compute loadFactor
-	uint maxGroupsSkip;// How many groups where skped during add, max
-
+	size_t addedElements;// Used to compute loadFactor
+	
 	float getLoadFactor(size_t forElementsNum){
 		if(groups.length==0){
 			return 1;
 		}
-		return cast(float)forElementsNum/(groups.length*16);
+		return cast(float)forElementsNum/(groups.length*8);
 	}
-
+	
 	void rehash(){
 		mixin(doNotInline);
 		size_t startLength=groups.length;
@@ -136,7 +132,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				groups~=Group();
 			}
 		}
-
+		
 		Vector!T allElements;
 		allElements.reserve(addedElements);
 		foreach(ref Group gr; groups[0..startLength]){
@@ -148,41 +144,40 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			}
 		}
 
-		maxGroupsSkip=0;
 		foreach(el;allElements){
 			add(el);
 		}
 		addedElements=allElements.length;
 		allElements.clear();
 	}
-
+	
 	bool tryRemove(T el){
 		size_t index=getIndex(el);
 		if(index==getIndexEmptyValue){
 			return false;
 		}
 		addedElements--;
-		size_t group=index/16;
-		size_t elIndex=index%16;
+		size_t group=index/8;
+		size_t elIndex=index%8;
 		groups[group].control[elIndex]=Control.init;
 		return true;
 	}
-
+	
 	void remove(T el){
 		assert(tryRemove(el));
 	}
-
+	
 	void add(T el){
 		if(isIn(el)){
 			return;
 		}
-
+		
 		if(getLoadFactor(addedElements+1)>rehashFactor){
 			rehash();
 		}
 		addedElements++;
 		Hash hash=Hash(hashFunc(el));
-		int group=hashMod(hash.getH1);// Starting point
+		int group=hashMod(hash.h);// Starting point
 		uint groupSkip=0;
 		while(true){
 			Group* gr=&groups[group];
@@ -190,27 +185,23 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				if(c.isEmpty){
 					c.set(hash.h);
 					gr.elements[i]=el;
-					if(groupSkip>maxGroupsSkip){
-						maxGroupsSkip=groupSkip;
-					}
 					return;
 				}
 			}
-			groupSkip++;
 			group++;
 			if(group>=groups.length){
 				group=0;
 			}
 		}
 	}
-
+	
 	// Returns ushort with bits set to 1 if control matches check
-	static auto getMatchSIMD(ubyte16 control, ubyte check){
-		ubyte16 v=check;
+	static auto getMatchSIMD(ushort8 control, ushort check){
+		ushort8 v=ushort8(check);
 		version(DigitalMars){
-			import core.simd: __simd, ushort8, XMM;
-			ubyte16 ok=__simd(XMM.PCMPEQB, control, v);
-			ubyte16 bitsMask=[1,2,4,8,16,32,64,128, 1,2,4,8,16,32,64,128];
+			import core.simd: __simd, ubyte16, XMM;
+			ubyte16 ok=__simd(XMM.PCMPEQW, control, v);
+			ubyte16 bitsMask=[1,2,4,8,16,32,64,128,1,2,4,8,16,32,64,128];
 			ubyte16 bits=bitsMask&ok;
 			ubyte16 zeros=0;
 			ushort8 vv=__simd(XMM.PSADBW, bits, zeros);
@@ -218,24 +209,27 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		}else version(LDC){
 			import ldc.simd;
 			import ldc.gccbuiltins_x86;
-			ubyte16 ok = equalMask!ubyte16(control, v);
+			ushort8 ok = equalMask!ushort8(control, v);
 			ushort num=cast(ushort)__builtin_ia32_pmovmskb128(ok);
 		}else{
 			static assert(0);
 		}
-		
 		return num;
 	}
 	// Division is expensive use lookuptable
 	int hashMod(size_t hash) nothrow @nogc @system{
 		return cast(int)(hash & (groups.length-1));
 	}
-
+	
 	bool isIn(T el){
 		return getIndex(el)!=getIndexEmptyValue;
 	}
 
-	enum size_t getIndexEmptyValue=size_t.max;
+	// For debug
+	/*int numA;
+	int numB;
+	int numC;*/
+
 
 	size_t getIndex(T el){
 		mixin(doNotInline);
@@ -243,35 +237,37 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		if(groupsLength==0){
 			return getIndexEmptyValue;
 		}
-
+		
 		Hash hash=Hash(hashFunc(el));
 		size_t mask=groupsLength-1;
-		size_t group=cast(int)(hash.getH1 & mask);// Starting point	
-		size_t groupExit=(group+maxGroupsSkip)& mask;
-		
+		size_t group=cast(int)(hash.h & mask);// Starting point	
+		//numA++;
 		while(true){
+			//numB++;
 			Group* gr=&groups[group];
-			int cntrlV=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 16 contols at once to h2
+			int cntrlV=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 8 controls at once to h2
 			while( true){
+				//numC++;
 				int ffInd=ffsl(cntrlV);
-				if(ffInd==0){// All bits are 0
+				if(ffInd==0){// Element is not present in this group
 					break;
 				}
-				int i=ffInd-1;// Find first set bit and divide by 8 to get element index
+				int i=(ffInd-1)/2;// Find first set bit and divide by 2 to get element index
 				if(gr.elements.ptr[i]==el){
-					return group*16+i;
+					return group*8+i;
 				}
-				cntrlV&=0xFFFF<<ffInd;
+				cntrlV&=0xFFFF_FFFF<<(ffInd+1);
 			}
-			if(group==groupExit){
+			cntrlV=getMatchSIMD(gr.controlVec, neverUsedMask);// If there is neverUsed element, we will never find our element
+			if(cntrlV!=0){
 				return getIndexEmptyValue;
 			}
 			group++;
 			group=group & mask;
 		}
-
+		
 	}
-
+	
 	// foreach support
 	int opApply(scope int delegate(ref T) dg){ 
 		int result;
@@ -280,16 +276,16 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				if(c.isEmpty){
 					continue;
 				}
-
+				
 				result=dg(gr.elements[i]);
 				if (result)
 					break;	
-				}
+			}
 		}		
-
+		
 		return result;
 	}
-
+	
 	// foreach support
 	int opApply(scope int delegate(ref Control c,ref T) dg){ 
 		int result;
@@ -307,40 +303,50 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		
 		return result;
 	}
-
+	
 	void saveGroupDistributionPlot(string path){
 		BenchmarkData!(1, 8192) distr;// For now use benchamrk as a plotter
-
+		
 		foreach(ref T el; this){
 			int group=hashMod(hashFunc(el));
 			if(group>=8192){
 				continue;
 			}
 			distr.times[0][group]++;
-
+			
 		}
 		distr.plotUsingGnuplot(path, ["group distribution"]);
 	}
-
+	
 }
-
+unittest{
+	HashSet!(int) set;
+	
+	ushort8 control=15;
+	control.array[0]=10;
+	control.array[7]=10;
+	ushort check=15;
+	ushort ret=set.getMatchSIMD(control, check);
+	assert(ret==0b0011_1111_1111_1100);
+	
+}
 import mutils.benchmark;
 unittest{
 	HashSet!(int) set;
-
+	
 	assert(set.isIn(123)==false);
 	set.add(123);
 	set.add(123);
-	assert(set.addedElements==1);
-	assert(set.isIn(122)==false);
 	assert(set.isIn(123)==true);
+	assert(set.isIn(122)==false);
+	assert(set.addedElements==1);
 	set.remove(123);
 	assert(set.isIn(123)==false);
 	assert(set.addedElements==0);
 	assert(set.tryRemove(500)==false);
 	set.add(123);
 	assert(set.tryRemove(123)==true);
-
+	
 	
 	foreach(i;1..130){
 		set.add(i);		
@@ -362,7 +368,7 @@ unittest{
 void benchmarkHashSetInt(){
 	HashSet!(int) set;
 	byte[int] mapStandard;
-	uint elementsNumToAdd=3500;
+	uint elementsNumToAdd=200;//cast(uint)(64536*0.9);
 	// Add elements
 	foreach(int i;0..elementsNumToAdd){
 		set.add(i);
@@ -374,46 +380,100 @@ void benchmarkHashSetInt(){
 		assert((i in mapStandard) !is null);
 	}
 	// Check if isIn is returning false properly
-	foreach(int i;elementsNumToAdd..1000_0000){
+	foreach(int i;elementsNumToAdd..elementsNumToAdd+10_000){
 		assert(!set.isIn(i));
 		assert((i in mapStandard) is null);
 	}
-	writeln(set.getLoadFactor(set.addedElements));
-
+	//writeln(set.getLoadFactor(set.addedElements));
+	//set.numA=set.numB=set.numC=0;
 	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
 	doNotOptimize(set);// Make some confusion for compiler
 	doNotOptimize(mapStandard);
-	ushort trueResults;
-	//benchmark this implementation
-	trueResults=0;
+	ushort myResults;
+	myResults=0;
+	//benchmark standard library implementation
 	foreach(b;0..itNum){
 		bench.start!(1)(b);
 		foreach(i;0..1000_000){
-			auto ret=trueResults in mapStandard;
-			trueResults+=cast(typeof(trueResults))(cast(bool)ret);
+			auto ret=myResults in mapStandard;
+			myResults+=1;//cast(typeof(myResults))(cast(bool)ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(1)(b);
 	}
-
-	auto myResult=trueResults;
-	//benchmark standard library implementation
-	trueResults=0;
+	
+	auto stResult=myResults;
+	//benchmark this implementation
+	myResults=0;
 	foreach(b;0..itNum){
 		bench.start!(0)(b);
 		foreach(i;0..1000_000){
-			auto ret=set.isIn(trueResults);
-			trueResults+=cast(typeof(trueResults))(ret);
+			auto ret=set.isIn(myResults);
+			myResults+=1;//cast(typeof(myResults))(ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(0)(b);
 	}
-	assert(trueResults==myResult);//same behavior as standard map
+	assert(myResults==stResult);//same behavior as standard map
+	//writeln(set.numA);
+	//writeln(set.numB);
+	//writeln(set.numC);
+	
+	doNotOptimize(myResults);
+	bench.plotUsingGnuplot("test.png",["my", "standard"]);
+	set.saveGroupDistributionPlot("distr.png");	
+}
 
+
+void benchmarkHashSetPerformancePerElement(){
+	ushort trueResults;
+	doNotOptimize(trueResults);
+	enum itNum=1000;
+	BenchmarkData!(2, itNum) bench;
+	HashSet!(int) set;
+	byte[int] mapStandard;
+	//writeln(set.getLoadFactor(set.addedElements));
+	//set.numA=set.numB=set.numC=0;
+	size_t lastAdded;
+	size_t numToAdd=16*8;
+
+	foreach(b;0..itNum){
+		foreach(i;lastAdded..lastAdded+numToAdd){
+			mapStandard[cast(uint)i]=true;
+		}
+		lastAdded+=numToAdd;
+		bench.start!(1)(b);
+		foreach(i;0..1000_00){
+			auto ret=trueResults in mapStandard;
+			trueResults+=1;//cast(typeof(trueResults))(cast(bool)ret);
+			doNotOptimize(ret);
+		}
+		bench.end!(1)(b);
+	}
+	lastAdded=0;
+	trueResults=0;
+	foreach(b;0..itNum){
+		foreach(i;lastAdded..lastAdded+numToAdd){
+			set.add(cast(uint)i);
+		}
+		lastAdded+=numToAdd;
+		bench.start!(0)(b);
+		foreach(i;0..1000_00){
+			auto ret=set.isIn(trueResults);
+			trueResults+=1;//cast(typeof(trueResults))(ret);
+			doNotOptimize(ret);
+		}
+		bench.end!(0)(b);
+	}
+
+	/*writeln(set.numA);
+	writeln(set.numB);
+	writeln(set.numC);*/
 	doNotOptimize(trueResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
-	set.saveGroupDistributionPlot("distr.png");
+	//set.saveGroupDistributionPlot("distr.png");
 
 }
+
 
