@@ -27,6 +27,15 @@ bool hasComponent(Entity, Components...)(){
 	return has;
 }
 
+/*
+Never used so comment out for now
+Component* getComponent(Entity, Component)(){
+	enum componentNum=staticIndexOf!(Component, Fields!Entity);
+	static assert(componentNum!=-1, "Entity don't have this component.");
+	Entity* el=get!Entity;
+	return &el.tupleof[componentNum];	
+}*/
+
 struct EntityManager(Entities...){
 	alias FromEntities=Entities;
 	alias UniqueComponents=NoDuplicates!(staticMap!(Fields, Entities));
@@ -224,41 +233,25 @@ struct EntityManager(Entities...){
 		return tmp;
 	}
 
-	static EntityId* entityToEntityId(EntityType)(EntityType* el){
-		static assert(!isPointer!(EntityType), "Wrong type passed. Maybe pointer to pointer was passed?");
-		static assert(staticIndexOf!(EntityType, FromEntities)!=-1);
-		EntityId* id=cast(EntityId*)(cast(void*)el-8);
-		assert(id.type<Entities.length);
-		return id;
-	}
+	// Based on pointer of component checks its base type
+	EntityId* getEntityFromComponent(Component)(ref Component c){
+		alias EntsWithComp=EntitiesWithComponents!(Component);
+		static assert(EntsWithComp.length!=0, "There are no entities with this component.");
 
-	/////////////////////////
-	/////// Enum code  //////
-	/////////////////////////
-	static EntityEnum getEnum(T)(){
-		foreach(i,Type;Entities){
-			static if(is(Type==T)){
-				return cast(EntityEnum)i;
-			}
+		foreach(Entity; EntsWithComp){
+			auto container=&getContainer!(Entity)();
+			foreach(ref bucket; container.buckets[]){
+				if(!bucket.isIn(cast(container.ElementType*)&c)){
+					continue;
+				}
+				enum componentNum=staticIndexOf!(Component,Fields!Entity);
+					Entity el;
+				enum ptrDt=el.tupleof[componentNum].offsetof;
+				Entity* ent=cast(Entity*)(&c-ptrDt);
+				return entityToEntityId(ent);
+			}		
 		}
-	}
-
-	
-	static string getEntityName(EntityEnum type){
-		foreach(i,Entity;Entities){
-			if(type==i)
-				return Entity.stringof;
-		}
-		return "!unknown";
-	}
-	//Order is very important
-	static string createEnumCode(){
-		string code="enum EntityEnumM:uint{";
-		foreach(i,Entity;Entities){
-			code~=format("_%d=%d,",i,i);
-		}
-		code~="}";
-		return code;
+		return null;
 	}
 
 	
@@ -281,6 +274,7 @@ struct EntityManager(Entities...){
 		
 		int opApply(Dg)(scope Dg dg){ 
 			int result;
+			// Can be improved: skip whole containers
 			foreach(int i, ref EntityData!(Entity) el;*container){
 				if(i<start){
 					continue;
@@ -295,6 +289,42 @@ struct EntityManager(Entities...){
 			return result;
 		}
 
+	}
+
+	static EntityId* entityToEntityId(EntityType)(EntityType* el){
+		static assert(!isPointer!(EntityType), "Wrong type passed. Maybe pointer to pointer was passed?");
+		static assert(staticIndexOf!(EntityType, FromEntities)!=-1);
+		EntityId* id=cast(EntityId*)(cast(void*)el-8);
+		assert(id.type<Entities.length);
+		return id;
+	}
+	
+	static string getEntityName(EntityEnum type){
+		foreach(i,Entity;Entities){
+			if(type==i)
+				return Entity.stringof;
+		}
+		return "!unknown";
+	}
+	/////////////////////////
+	/////// Enum code  //////
+	/////////////////////////
+	static EntityEnum getEnum(T)(){
+		foreach(i,Type;Entities){
+			static if(is(Type==T)){
+				return cast(EntityEnum)i;
+			}
+		}
+	}
+	
+	// Order if enum is important, indexing of objects is made out of it
+	static string createEnumCode(){
+		string code="enum EntityEnumM:uint{";
+		foreach(i,Entity;Entities){
+			code~=format("_%d=%d,",i,i);
+		}
+		code~="}";
+		return code;
 	}
 
 }
@@ -363,6 +393,7 @@ unittest{
 
 	assert(entitiesManager.getContainer!(EntityTurrent).length==1);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==1);
+	assert(entitiesManager.getEntityFromComponent(ret1.a).type==entitiesManager.getEnum!EntityTurrent);
 	assert(entitiesNum==2);
 
 	entitiesManager.remove(ret1);
