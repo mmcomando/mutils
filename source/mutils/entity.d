@@ -27,14 +27,20 @@ bool hasComponent(Entity, Components...)(){
 	return has;
 }
 
-/*
-Never used so comment out for now
-Component* getComponent(Entity, Component)(){
+
+Component* getComponent(Component, Entity)(ref Entity ent)
+	if(!isPointer!Entity)
+{
 	enum componentNum=staticIndexOf!(Component, Fields!Entity);
 	static assert(componentNum!=-1, "Entity don't have this component.");
-	Entity* el=get!Entity;
-	return &el.tupleof[componentNum];	
-}*/
+	return &ent.tupleof[componentNum];	
+}
+
+Component* getComponent(Component, Entity)(Entity* ent){
+	enum componentNum=staticIndexOf!(Component, Fields!Entity);
+	static assert(componentNum!=-1, "Entity don't have this component.");
+	return &ent.tupleof[componentNum];	
+}
 
 struct EntityManager(Entities...){
 	alias FromEntities=Entities;
@@ -185,17 +191,23 @@ struct EntityManager(Entities...){
 		}
 	}
 
-	EntityType* add(EntityType)(){
-		EntityData!(EntityType)* ent=getContainer!(EntityType).add();
-		ent.entityId.id=lastId++;
-		ent.entityId.type=getEnum!EntityType;
-		ent.entity.initialize();
-		return &ent.entity;
+	// Adds enitiy without calling initialize on it, the user has to do it himself
+	EntityType* addNoInitialize(EntityType, Components...)(Components components){
+		EntityData!(EntityType)* entD=getContainer!(EntityType).add();
+		entD.entityId.id=lastId++;
+		entD.entityId.type=getEnum!EntityType;
+		
+		foreach(ref comp;components){
+			auto entCmp=getComponent!(typeof(comp))(entD.entity);
+			*entCmp=comp;
+		}
+
+		return &entD.entity;
 	}
 
-	EntityType* add(EntityType)(EntityType el){
-		auto ent=add!(EntityType);
-		ent.tupleof=el.tupleof;
+	EntityType* add(EntityType, Components...)(Components components){
+		EntityType* ent=addNoInitialize!(EntityType)(components);
+		ent.initialize();
 		return ent;
 	}
 
@@ -397,8 +409,11 @@ unittest{
 	assert(entitiesManager.getContainer!(EntityTurrent).length==0);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==0);
 
-	EntityTurrent* ret1=entitiesManager.add!(EntityTurrent)(EntityTurrent());
-	EntityTurrent2* ret2=entitiesManager.add!(EntityTurrent2)(EntityTurrent2());
+	EntityTurrent* ret1=entitiesManager.add!(EntityTurrent)(3);
+	EntityTurrent2* ret2=entitiesManager.add!(EntityTurrent2)();
+
+	assert(*ret1.getComponent!int==3);
+	assert(*ret2.getComponent!int==0);
 
 	assert(entitiesManager.getContainer!(EntityTurrent).length==1);
 	assert(entitiesManager.getContainer!(EntityTurrent2).length==1);
