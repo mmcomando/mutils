@@ -46,6 +46,15 @@ public:
 	size_t length(){
 		return used;
 	}	
+
+	void length(size_t newLength){
+		assert(newLength>=used);
+		reserve(newLength);
+		foreach(ref el;array[used..newLength]){
+			el=T.init;
+		}
+		used=newLength;
+	}
 	
 	void reset(){
 		used=0;

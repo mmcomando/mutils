@@ -124,26 +124,20 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	
 	void rehash(){
 		mixin(doNotInline);
-		size_t startLength=groups.length;
-		if(getLoadFactor(addedElements+1)>rehashFactor){
-			groups~=Group();
-			// Length to power of 2
-			foreach(i;0..groups.capacity){
-				groups~=Group();
-			}
-		}
-		
+		// Get all elements
 		Vector!T allElements;
-		allElements.reserve(addedElements);
-		foreach(ref Group gr; groups[0..startLength]){
-			foreach(i, ref Control c; gr.control){
-				if(!c.isEmpty){
-					allElements~=gr.elements[i];
-				}
-				c=Control.init;
-			}
+		allElements.reserve(groups.length);
+		
+		foreach(ref Control c,ref T el; this){
+			allElements~=el;
+			c=Control.init;
 		}
 
+		if(getLoadFactor(addedElements+1)>rehashFactor){// Reallocate
+			groups.length=(groups.length?groups.length:1)<<1;// Power of two
+		}
+
+		// Insert elements
 		foreach(el;allElements){
 			add(el);
 		}
