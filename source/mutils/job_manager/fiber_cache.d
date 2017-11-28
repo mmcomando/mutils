@@ -245,7 +245,7 @@ class FiberTLSCache{
 
 
 
-import std.datetime;
+import mutils.benchmark;
 import std.stdio:writefln,writeln;
 import std.random:randomShuffle;
 import std.conv:to;
@@ -355,7 +355,7 @@ void testCV(){
 		sw.stop();
 		assert(vec.dataGot==sum);
 		
-		writefln( "G1 Benchmark: %s %s[ms], %s[it/ms]",vec.dataGot,sw.peek().msecs,vec.dataGot/sw.peek().msecs);
+		writefln( "G1 Benchmark: %s %s[ms], %s[it/ms]",vec.dataGot,sw.msecs,vec.dataGot/sw.msecs);
 		vec.clear();
 	}
 
@@ -368,7 +368,7 @@ void testCV(){
 		sw.stop();  
 		assert(vec.dataGot==sum);
 
-		writefln( "G2 Benchmark: %s %s[ms], %s[it/ms]",vec.dataGot,sw.peek().msecs,vec.dataGot/sw.peek().msecs);
+		writefln( "G2 Benchmark: %s %s[ms], %s[it/ms]",vec.dataGot,sw.msecs,vec.dataGot/sw.msecs);
 		vec.clear();
 	}
 	{
@@ -382,7 +382,7 @@ void testCV(){
 		foreach(i,data;vec.dataArray){
 			assert(!data.used);
 		}
-		writefln( "R1 Benchmark: %s %s[ms], %s[it/ms]",sum,sw.peek().msecs,sum/sw.peek().msecs);
+		writefln( "R1 Benchmark: %s %s[ms], %s[it/ms]",sum,sw.msecs,sum/sw.msecs);
 	}
 	{
 		//GC.disable;
@@ -398,7 +398,7 @@ void testCV(){
 		}
 		writeln(vec.dataGot);
 		writeln(vec.dataArray.length);
-		writefln( "R2 Benchmark: %s %s[ms], %s[it/ms]",sum,sw.peek().msecs,sum/sw.peek().msecs);
+		writefln( "R2 Benchmark: %s %s[ms], %s[it/ms]",sum,sw.msecs,sum/sw.msecs);
 	}
 }
 unittest{

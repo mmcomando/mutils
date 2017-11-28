@@ -9,11 +9,11 @@ import core.simd;
 import core.thread : Thread,ThreadID,Fiber;
 
 import std.algorithm : sum;
-import std.datetime;
 import std.functional : toDelegate;
 import std.random : uniform;
 import std.stdio : write,writeln,writefln;
 
+import mutils.benchmark;
 import mutils.job_manager.debug_sink;
 import mutils.job_manager.manager;
 import mutils.job_manager.shared_utils;
@@ -32,7 +32,7 @@ void simpleYield(){
 void activeSleep(uint u_seconds){
 	StopWatch sw;
 	sw.start();
-	while(sw.peek().usecs<u_seconds){}//for 10us will iterate ~120 tiems
+	while(sw.usecs<u_seconds){}//for 10us will iterate ~120 tiems
 	sw.stop();
 	
 }
@@ -114,7 +114,7 @@ void testPerformance(){
 	assertM(jobManager.debugHelper.fibersAdded,iterations*packetSize+iterations);
 	assertM(jobManager.debugHelper.fibersDone ,iterations*packetSize+iterations);
 	sw.stop();  
-	writefln( "Benchmark: %s*%s : %s[ms], %s[it/ms]",iterations,packetSize,sw.peek().msecs,iterations*packetSize/sw.peek().msecs);
+	writefln( "Benchmark: %s*%s : %s[ms], %s[it/ms]",iterations,packetSize,sw.msecs,iterations*packetSize/sw.msecs);
 }
 
 void testUnique(){	
@@ -162,9 +162,9 @@ void testPerformanceSleep(){
 	
 	
 	sw.stop();  
-	result=cast(float)iterations*u_secs/sw.peek().usecs;
+	result=cast(float)iterations*u_secs/sw.usecs;
 	
-	writefln( "BenchmarkSleep: %s*%s : %s[us], %s[it/us]  %s",iterations,u_secs,sw.peek().usecs,cast(float)iterations*u_secs/sw.peek().usecs,result/base);
+	writefln( "BenchmarkSleep: %s*%s : %s[us], %s[it/us]  %s",iterations,u_secs,sw.usecs,cast(float)iterations*u_secs/sw.usecs,result/base);
 }
 
 
@@ -214,8 +214,8 @@ void testPerformanceMatrix(){
 	
 	
 	sw.stop();  
-	result=cast(float)iterations*matricesNum/sw.peek().usecs;
-	writefln( "BenchmarkMatrix: %s*%s : %s[us], %s[it/us] %s",iterations,matricesNum,sw.peek().usecs,cast(float)iterations*matricesNum/sw.peek().usecs,result/base);
+	result=cast(float)iterations*matricesNum/sw.usecs;
+	writefln( "BenchmarkMatrix: %s*%s : %s[us], %s[it/us] %s",iterations,matricesNum,sw.usecs,cast(float)iterations*matricesNum/sw.usecs,result/base);
 }
 
 void testForeach(){

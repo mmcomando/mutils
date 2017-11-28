@@ -269,3 +269,30 @@ unittest{
 
 	//TimeThis.print();
 }
+
+// Replacement for deprecated std.datetime StopWatch, used mainly in benchmark tests
+struct StopWatch{
+	long begin;
+	long end;
+
+	void start(){
+		begin=Clock.currTime.ticks();
+	}
+
+	void stop(){
+		end=Clock.currTime.ticks();
+	}
+
+	long secs(){
+		return (end-begin)/Clock.ticksPerSecond;
+	}
+
+	long msecs(){
+		return (end-begin)*1000/Clock.ticksPerSecond;
+	}
+
+	long usecs(){
+		return (end-begin)*1000_000/Clock.ticksPerSecond;
+	}
+
+}

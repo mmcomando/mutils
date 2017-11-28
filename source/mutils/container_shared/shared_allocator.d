@@ -199,7 +199,7 @@ void ttt(){
 	}
 	
 }
-import std.datetime;
+import mutils.benchmark;
 void testAL(){
 	BucketAllocator!(64) allocator=Mallocator.instance.make!(BucketAllocator!(64));
 	scope(exit)Mallocator.instance.dispose(allocator);
@@ -230,7 +230,7 @@ void testAL(){
 		sw.start();
 		testMultithreaded(&test,16);
 		sw.stop();  	
-		writefln( "Benchmark: %s %s[ms], %s[it/ms]",sum,sw.peek().msecs,sum/sw.peek().msecs);
+		writefln( "Benchmark: %s %s[ms], %s[it/ms]",sum,sw.msecs,sum/sw.msecs);
 		
 		assert(allocator.usedSlots==0);
 	}
