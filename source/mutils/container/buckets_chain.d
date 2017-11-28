@@ -164,7 +164,7 @@ struct BucketWithBits(T,uint elementsNum=128){
 		size_t ptr=cast(size_t)obj;
 		size_t ptrBeg=cast(size_t)&elements;
 		size_t ptrEnd=cast(size_t)&elements[elementsNum-1];
-		if(ptr>=ptrBeg && ptr<=ptrEnd){
+		if(ptr>=ptrBeg && ptr<=ptrEnd+T.sizeof){
 			return true;
 		}
 		return false;

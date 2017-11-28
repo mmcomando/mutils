@@ -122,6 +122,15 @@ struct EntityManager(Entities...){
 	alias EntityContainers=staticMap!(getEntityContainer,Entities);
 	EntityContainers entityContainers;
 
+	// Check compile time Entites requirements
+	void checkEntities(){
+		foreach(Entity;Entities){
+			alias Components=Fields!Entity;
+			// No duplicate components
+			static assert(Components.length==NoDuplicates!(Components).length, "Entities should have unique components.");
+		}
+	}
+
 	@disable this(this);
 
 	void initialize(){
@@ -245,13 +254,13 @@ struct EntityManager(Entities...){
 					continue;
 				}
 				enum componentNum=staticIndexOf!(Component,Fields!Entity);
-					Entity el;
+				Entity el;
 				enum ptrDt=el.tupleof[componentNum].offsetof;
-				Entity* ent=cast(Entity*)(&c-ptrDt);
+				Entity* ent=cast(Entity*)(cast(void*)&c-ptrDt);
 				return entityToEntityId(ent);
 			}		
 		}
-		return null;
+		assert(0);
 	}
 
 	
