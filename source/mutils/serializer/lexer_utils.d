@@ -276,7 +276,7 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 			}
 		}
 		con=con[firstPart.length..$];
-		if(con[0]=='.'){
+		if(con.length>0 && con[0]=='.'){
 			con=con[1..$];
 			foreach(i,ch;con){
 				if(ch>='0' && ch<='9'){

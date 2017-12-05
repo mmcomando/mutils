@@ -189,6 +189,46 @@ unittest{
 	assert(test.c[]==[1,2,3,4,5,6,7]);
 }
 
+// test map
+unittest{
+	import mutils.container.hash_map;
+	import mutils.container.hash_set;
+	static struct TestInner{
+		int a;
+		ubyte b;
+	}
+
+	static struct Test{
+		HashMap!(Vector!char, TestInner) map;
+		HashMap!(int, int) mapInt;
+	}
+
+	Vector!char key1;
+	Vector!char key2;
+	key1~=cast(char[])"aaaaaaAA";
+	key2~=cast(char[])"BBBBbbbb";
+
+	Test test;
+	test.map.add(key1, TestInner(1, 2));
+	test.map.add(key2, TestInner(3, 5));
+	test.mapInt.add(100, 10);
+	test.mapInt.add(200, 20);
+	Vector!char container;
+	
+	//save
+	JSONSerializer.instance.serialize!(Load.no)(test,container);
+
+	//reset var
+	test=test.init;
+	
+	//load
+	JSONSerializer.instance.serialize!(Load.yes)(test,container[]);
+	assert(test.map.get(key1)==TestInner(1, 2));
+	assert(test.map.get(key2)==TestInner(3, 5));
+	assert(test.mapInt.get(100)==10);
+	assert(test.mapInt.get(200)==20);
+}
+
 // test class
 unittest{
 	static class TestClass{

@@ -184,6 +184,68 @@ package:
 			serializeCharToken!(load)(']',con);			
 		}
 	}
+	void serializeCustomMap(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
+		serializeCharToken!(load)('{' ,con);
+		static if(load==Load.yes){
+			bool ok=!con[0].isChar('}');// false if no elements inside
+			while(ok){
+				T.KeyType key;
+				T.ValueType value;
+				serializeKeyValue!(load)(key, value, con );
+				var.add(key, value);
+
+				if(con[0].isChar(',')){
+					serializeCharToken!(load)(',',con);
+				}else{
+					break;
+				}
+			}
+		}else{
+			size_t i;
+			foreach(ref keyValue; &var.byKeyValue){
+				serializeKeyValue!(load)(keyValue.key, keyValue.value, con );
+				i++;
+				if(i!=var.length){
+					serializeCharToken!(load)(',',con);
+				}
+			}
+		}
+		serializeCharToken!(load)('}' ,con);
+	}
+	void serializeKeyValue(Load load, Key, Value, ContainerOrSlice)(ref Key key, ref Value value, ref ContainerOrSlice con){
+		static assert(isStringVector!Key || isNumeric!Key, "Map key has to be numeric.");
+		static if(isJson){
+			static if(isStringVector!Key){
+				serializeImpl!(load)(key, con);
+			}else static if(load==Load.yes){
+				assert(con[0].type==StandardTokens.string_);
+				TokenData tk;
+				serializeNumberToken!(load)(tk, con[0].str);
+				if(tk.type==StandardTokens.double_){
+					key=cast(Key)tk.double_;
+				}else if(tk.type==StandardTokens.long_){
+					key=cast(Key)tk.long_;
+				}else{
+					assert(0);
+				}
+				con=con[1..$];
+			}else{//save
+				serializeCharToken!(load)('"' ,con);
+				serializeImpl!(load)(key, con);
+				serializeCharToken!(load)('"' ,con);
+			}
+			serializeCharToken!(load)(':' ,con);
+			serializeImpl!(load)(value, con);
+		}else{
+			serializeCharToken!(load)('[' ,con);
+			serializeImpl!(load)(key, con);
+			serializeCharToken!(load)(']' ,con);
+			serializeCharToken!(load)('=' ,con);
+			serializeImpl!(load)(value, con);
+
+		}
+	}
+
 	
 	
 	void serializePointer(Load load,bool useMalloc, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){

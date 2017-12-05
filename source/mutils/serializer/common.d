@@ -63,9 +63,24 @@ auto hasNoserializeUda(Args...)(){
 	return hasMalloc;
 }
 
+bool isStringVector(T)(){
+	static if(is( Unqual!(ForeachType!T)==char )){
+		return true;
+	}else{
+		return false;
+	}
+}
 /// Checks if type can be treated as vector ex. replace int[] with MyArray!int
 bool isCustomVector(T)(){
 	static if(is(T==struct) && hasMember!(T,"opOpAssign") && hasMember!(T,"opIndex") && hasMember!(T,"length")){
+		return true;
+	}else{
+		return false;
+	}
+}
+/// Checks if type can be treated as map
+bool isCustomMap(T)(){
+	static if(is(T==struct) && hasMember!(T,"byKey") && hasMember!(T,"byValue") && hasMember!(T,"byKeyValue") && hasMember!(T,"add") && hasMember!(T,"isIn")){
 		return true;
 	}else{
 		return false;
@@ -90,8 +105,10 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 		var.customSerialize!(load)(ser, con);
 	} else static if (isBasicType!T) {
 		ser.serializeBasicVar!(load)(var, con);
-	}  else static if(isCustomVector!T){
+	} else static if(isCustomVector!T){
 		ser.serializeCustomVector!(load)(var, con);
+	} else static if(isCustomMap!T){
+		ser.serializeCustomMap!(load)(var, con);
 	} else static if (is(T == struct)) {
 		ser.serializeStruct!(load)(var, con);
 	} else static if (isStaticArray!T) {
