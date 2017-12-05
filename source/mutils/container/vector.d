@@ -4,6 +4,8 @@ import core.bitop;
 import core.stdc.stdlib : malloc,free;
 import core.stdc.string : memset,memcpy;
 
+import std.traits:Unqual;
+
 @nogc @safe nothrow size_t nextPow2(size_t num){
 	return 1<< bsr(num)+1;
 }
@@ -98,6 +100,14 @@ public:
 		return cast(void[])oldArray;
 		
 	}
+	
+	Vector!T copy(){
+		Vector!T duplicate;
+		duplicate.reserve(used);
+		duplicate~=array[0..used];
+		return duplicate;
+	}
+
 	bool canAddWithoutRealloc(uint elemNum=1){
 		return used+elemNum<=array.length;
 	}
@@ -182,10 +192,23 @@ public:
 		add(obj);
 	}
 	
-	void opIndexAssign(T obj,size_t elemNum){
-		assert(elemNum<used);
-		array[elemNum]=obj;
-		
+	void opIndexAssign(T obj, size_t elemNum){
+		assert(elemNum<used, "Range viloation");
+		array[elemNum]=obj;		
+	}
+
+	void opSliceAssign(T obj, size_t a, size_t b){
+		assert(b<used && a<=b, "Range viloation");
+		array.ptr[a..b]=obj;		
+	}
+
+	bool opEquals()(auto ref const Vector!T r) const { 
+		return used==r.used && array.ptr[0..used]==r.array.ptr[0..r.used];
+	}
+
+	size_t toHash() const nothrow @trusted
+	{
+		return hashOf(cast( Unqual!(T)[])array.ptr[0..used]);
 	}
 
 

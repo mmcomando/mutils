@@ -1,7 +1,7 @@
 ﻿//Package for test, maybe there will be full implementation
 module mutils.linalg.vec;
 
-
+import std.math: sqrt;
 
 struct Vec(T, int dim){
 	static assert(dim>0);
@@ -46,10 +46,21 @@ struct Vec(T, int dim){
 		}
 	}
 
-	size_t length(){
-		return vector.length;
+	float length(){
+		float len=0;
+		foreach(el; vector){
+			len+=el*el;
+		}
+		return sqrt(len);
 	}
 
+	float length_squared(){
+		float len=0;
+		foreach(el; vector){
+			len+=el*el;
+		}
+		return len;
+	}
 
 	void opAssign(T[dim] rhs){
 		vector=rhs;

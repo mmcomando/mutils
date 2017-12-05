@@ -4,6 +4,8 @@ import std.stdio;
 import mutils.container.hash_set;
 
 struct HashMap(Key, T){
+	alias KeyType=Key;
+	alias ValueType=T;
 	struct KeyValue{
 		Key key;
 		T value;
@@ -30,6 +32,10 @@ struct HashMap(Key, T){
 			size_t elIndex=index%8;
 			set.groups[group].elements[elIndex].value=v;
 		}
+	}
+	
+	size_t length(){
+		return set.length;
 	}
 
 	bool tryRemove(Key k){
@@ -98,7 +104,7 @@ struct HashMap(Key, T){
 		return result;		
 	}
 
-	int byValue(scope int delegate(T k) dg){
+	int byValue(scope int delegate(ref T k) dg){
 		int result;
 		foreach(ref KeyValue kv;set){
 			result=dg(kv.value);
@@ -108,7 +114,7 @@ struct HashMap(Key, T){
 		return result;		
 	}
 
-	int byKeyValue(scope int delegate(KeyValue k) dg){
+	int byKeyValue(scope int delegate(ref KeyValue k) dg){
 		int result;
 		foreach(ref KeyValue kv;set){
 			result=dg(kv);
@@ -116,6 +122,22 @@ struct HashMap(Key, T){
 				break;	
 		}
 		return result;		
+	}
+
+	import std.format:FormatSpec,formatValue;
+	/**
+	 * Preety print
+	 */
+	void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt)
+	{
+		formatValue(sink, '[', fmt);
+		foreach(kv; &byKeyValue){
+			formatValue(sink, kv.key, fmt);
+			formatValue(sink, ':', fmt);
+			formatValue(sink, kv.value, fmt);
+			formatValue(sink, ", ", fmt);
+		}
+		formatValue(sink, ']', fmt);
 	}
 }
 

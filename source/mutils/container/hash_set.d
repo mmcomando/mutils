@@ -8,6 +8,18 @@ import std.traits;
 
 import mutils.container.vector;
 
+version(DigitalMars){
+	import core.bitop;
+	alias firstSetBit=bsr;// DMD treats it as intrinsics
+}else version(LDC){
+	import ldc.intrinsics;
+	int firstSetBit(int i){
+		return llvm_cttz(i, true)+1;
+	}
+}else{
+	static assert("Compiler not supported.");
+}
+
 
 enum ushort emptyMask=1;
 enum ushort neverUsedMask=2;
@@ -72,7 +84,7 @@ struct Hash{
 	
 }
 
-size_t defaultHashFunc(T)(ref T t){
+size_t defaultHashFunc(T)(auto ref T t){
 	static if (isIntegral!(T)){
 		return hashInt(t);
 	}else{
@@ -87,10 +99,6 @@ ulong hashInt(ulong x){
 	x = x ^ (x >> 31);
 	return x;
 }
-
-
-extern(C) int ffsl(int i) nothrow @nogc @system;
-extern(C) int ffsll(long i) nothrow @nogc @system;
 
 struct HashSet(T, alias hashFunc=defaultHashFunc){
 	static assert(size_t.sizeof==8);// Only 64 bit
@@ -145,6 +153,10 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		allElements.clear();
 	}
 	
+	size_t length(){
+		return addedElements;
+	}
+	
 	bool tryRemove(T el){
 		size_t index=getIndex(el);
 		if(index==getIndexEmptyValue){
@@ -156,7 +168,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		groups[group].control[elIndex]=Control.init;
 		return true;
 	}
-	
+
 	void remove(T el){
 		assert(tryRemove(el));
 	}
@@ -236,24 +248,21 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		size_t mask=groupsLength-1;
 		size_t group=cast(int)(hash.h & mask);// Starting point	
 		//numA++;
-		while(true){
+		while( true ){
 			//numB++;
 			Group* gr=&groups[group];
 			int cntrlV=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 8 controls at once to h2
-			while( true){
+			while( cntrlV!=0 ){
 				//numC++;
-				int ffInd=ffsl(cntrlV);
-				if(ffInd==0){// Element is not present in this group
-					break;
-				}
-				int i=(ffInd-1)/2;// Find first set bit and divide by 2 to get element index
-				if(gr.elements.ptr[i]==el){
+				int ffInd=firstSetBit(cntrlV);
+				int i=ffInd/2;// Find first set bit and divide by 2 to get element index
+				if( gr.elements.ptr[i]==el ){
 					return group*8+i;
 				}
 				cntrlV&=0xFFFF_FFFF<<(ffInd+1);
 			}
 			cntrlV=getMatchSIMD(gr.controlVec, neverUsedMask);// If there is neverUsed element, we will never find our element
-			if(cntrlV!=0){
+			if( cntrlV!=0 ){
 				return getIndexEmptyValue;
 			}
 			group++;
@@ -313,6 +322,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	}
 	
 }
+
 unittest{
 	HashSet!(int) set;
 	
@@ -324,7 +334,6 @@ unittest{
 	assert(ret==0b0011_1111_1111_1100);
 	
 }
-import mutils.benchmark;
 unittest{
 	HashSet!(int) set;
 	
@@ -359,6 +368,8 @@ unittest{
 	}
 }
 
+import mutils.benchmark;
+
 void benchmarkHashSetInt(){
 	HashSet!(int) set;
 	byte[int] mapStandard;
@@ -378,7 +389,6 @@ void benchmarkHashSetInt(){
 		assert(!set.isIn(i));
 		assert((i in mapStandard) is null);
 	}
-	//writeln(set.getLoadFactor(set.addedElements));
 	//set.numA=set.numB=set.numC=0;
 	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
@@ -391,7 +401,7 @@ void benchmarkHashSetInt(){
 		bench.start!(1)(b);
 		foreach(i;0..1000_000){
 			auto ret=myResults in mapStandard;
-			myResults+=1;//cast(typeof(myResults))(cast(bool)ret);
+			myResults+=1+cast(bool)ret;//cast(typeof(myResults))(cast(bool)ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(1)(b);
@@ -404,15 +414,16 @@ void benchmarkHashSetInt(){
 		bench.start!(0)(b);
 		foreach(i;0..1000_000){
 			auto ret=set.isIn(myResults);
-			myResults+=1;//cast(typeof(myResults))(ret);
+			myResults+=1+ret;//cast(typeof(myResults))(ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(0)(b);
 	}
-	assert(myResults==stResult);//same behavior as standard map
-	//writeln(set.numA);
-	//writeln(set.numB);
-	//writeln(set.numC);
+	assert(myResults==stResult);// Same behavior as standard map
+	/*writeln(set.getLoadFactor(set.addedElements));
+	writeln(set.numA);
+	writeln(set.numB);
+	writeln(set.numC);*/
 	
 	doNotOptimize(myResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
@@ -460,7 +471,6 @@ void benchmarkHashSetPerformancePerElement(){
 		}
 		bench.end!(0)(b);
 	}
-
 	/*writeln(set.numA);
 	writeln(set.numB);
 	writeln(set.numC);*/

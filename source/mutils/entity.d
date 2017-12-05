@@ -314,7 +314,7 @@ struct EntityManager(Entities...){
 
 	static EntityId* entityToEntityId(EntityType)(EntityType* el){
 		static assert(!isPointer!(EntityType), "Wrong type passed. Maybe pointer to pointer was passed?");
-		static assert(staticIndexOf!(EntityType, FromEntities)!=-1);
+		static assert(staticIndexOf!(EntityType, FromEntities)!=-1, "There is no entity like: "~EntityType.stringof);
 		EntityId* id=cast(EntityId*)(cast(void*)el-8);
 		assert(id.type<Entities.length);
 		return id;
