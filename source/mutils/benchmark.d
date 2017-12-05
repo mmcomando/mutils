@@ -288,11 +288,13 @@ struct StopWatch{
 	}
 
 	long msecs(){
-		return (end-begin)*1000/Clock.ticksPerSecond;
+		long endTime=(end==0)?Clock.currTime.ticks():end;
+		return (endTime-begin)*1000/Clock.ticksPerSecond;
 	}
 
 	long usecs(){
-		return (end-begin)*1000_000/Clock.ticksPerSecond;
+		long endTime=(end==0)?Clock.currTime.ticks():end;
+		return (endTime-begin)*1000_000/Clock.ticksPerSecond;
 	}
 
 }
