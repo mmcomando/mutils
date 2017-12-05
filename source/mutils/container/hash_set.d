@@ -6,7 +6,9 @@ import std.meta;
 import std.stdio;
 import std.traits;
 
+import mutils.benchmark;
 import mutils.container.vector;
+import mutils.traits;
 
 version(DigitalMars){
 	import core.bitop;
@@ -20,12 +22,13 @@ version(DigitalMars){
 	static assert("Compiler not supported.");
 }
 
-
 enum ushort emptyMask=1;
 enum ushort neverUsedMask=2;
 enum ushort hashMask=~emptyMask;
 // lower 15 bits - part of hash, last bit - isEmpty
 struct Control{	
+	nothrow @nogc @safe:
+
 	ushort b=neverUsedMask;
 	
 	bool isEmpty(){
@@ -33,17 +36,17 @@ struct Control{
 	}
 	
 	/*void setEmpty(){
-		b=emptyMask;
-	}*/
+	 b=emptyMask;
+	 }*/
 	
 	/*bool cmpHash(size_t hash){
-		union Tmp{
-			size_t h;
-			ushort[size_t.sizeof/2] d;
-		}
-		Tmp t=Tmp(hash);
-		return (t.d[0] & hashMask)==(b & hashMask);
-	}*/
+	 union Tmp{
+	 size_t h;
+	 ushort[size_t.sizeof/2] d;
+	 }
+	 Tmp t=Tmp(hash);
+	 return (t.d[0] & hashMask)==(b & hashMask);
+	 }*/
 	
 	void set(size_t hash){
 		union Tmp{
@@ -60,6 +63,7 @@ struct Control{
 // whole hash is used to find group
 // H2 is used to quickly(SIMD) find element in group
 struct Hash{
+	nothrow @nogc @safe:
 	union{
 		size_t h=void;
 		ushort[size_t.sizeof/2] d=void;
@@ -93,7 +97,7 @@ size_t defaultHashFunc(T)(auto ref T t){
 }
 
 // Can turn bad hash function to good one
-ulong hashInt(ulong x){
+ulong hashInt(ulong x) nothrow @nogc @safe {
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
 	x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
 	x = x ^ (x >> 31);
@@ -104,8 +108,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	static assert(size_t.sizeof==8);// Only 64 bit
 	enum rehashFactor=0.85;
 	enum size_t getIndexEmptyValue=size_t.max;
-	
-	
+
 	static struct Group{
 		union{
 			Control[8] control;
@@ -118,19 +121,19 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			assert(0);
 		}
 	}
-	
+
 	
 	Vector!Group groups;// Length should be always power of 2
 	size_t addedElements;// Used to compute loadFactor
 	
-	float getLoadFactor(size_t forElementsNum){
+	float getLoadFactor(size_t forElementsNum) {
 		if(groups.length==0){
 			return 1;
 		}
 		return cast(float)forElementsNum/(groups.length*8);
 	}
 	
-	void rehash(){
+	void rehash() {
 		mixin(doNotInline);
 		// Get all elements
 		Vector!T allElements;
@@ -144,7 +147,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		if(getLoadFactor(addedElements+1)>rehashFactor){// Reallocate
 			groups.length=(groups.length?groups.length:1)<<1;// Power of two
 		}
-
+	
 		// Insert elements
 		foreach(el;allElements){
 			add(el);
@@ -157,7 +160,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		return addedElements;
 	}
 	
-	bool tryRemove(T el){
+	bool tryRemove(T el) {
 		size_t index=getIndex(el);
 		if(index==getIndexEmptyValue){
 			return false;
@@ -169,17 +172,17 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		return true;
 	}
 
-	void remove(T el){
+	void remove(T el) {
 		assert(tryRemove(el));
 	}
-	
+
 	void add(T el){
 		if(isIn(el)){
 			return;
 		}
 		
 		if(getLoadFactor(addedElements+1)>rehashFactor){
-			rehash();
+			assumeNoGC(&rehash)();// rehash is @nogc but compiler cannot deduce that because rehash calls add internally
 		}
 		addedElements++;
 		Hash hash=Hash(hashFunc(el));
@@ -201,8 +204,9 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		}
 	}
 	
-	// Returns ushort with bits set to 1 if control matches check
-	static auto getMatchSIMD(ushort8 control, ushort check){
+	// Sets bits in ushort where value in control matches check value
+	// Ex. control=[0,1,2,3,4,5,6,7], check=2, return=0b0000_0000_0011_0000
+	static auto matchSIMD(ushort8 control, ushort check) @nogc {
 		ushort8 v=ushort8(check);
 		version(DigitalMars){
 			import core.simd: __simd, ubyte16, XMM;
@@ -233,11 +237,11 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 
 	// For debug
 	/*int numA;
-	int numB;
-	int numC;*/
+	 int numB;
+	 int numC;*/
 
-
-	size_t getIndex(T el){
+	
+	size_t getIndex(T el) {
 		mixin(doNotInline);
 		size_t groupsLength=groups.length;
 		if(groupsLength==0){
@@ -251,7 +255,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		while( true ){
 			//numB++;
 			Group* gr=&groups[group];
-			int cntrlV=getMatchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 8 controls at once to h2
+			int cntrlV=matchSIMD(gr.controlVec, hash.getH2WithLastSet);// Compare 8 controls at once to h2
 			while( cntrlV!=0 ){
 				//numC++;
 				int ffInd=firstSetBit(cntrlV);
@@ -261,7 +265,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				}
 				cntrlV&=0xFFFF_FFFF<<(ffInd+1);
 			}
-			cntrlV=getMatchSIMD(gr.controlVec, neverUsedMask);// If there is neverUsed element, we will never find our element
+			cntrlV=matchSIMD(gr.controlVec, neverUsedMask);// If there is neverUsed element, we will never find our element
 			if( cntrlV!=0 ){
 				return getIndexEmptyValue;
 			}
@@ -269,36 +273,22 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			group=group & mask;
 		}
 		
-	}
-	
+	}	
 	// foreach support
-	int opApply(scope int delegate(ref T) dg){ 
+	int opApply(DG)(scope DG  dg) { 
 		int result;
 		foreach(ref Group gr; groups){
 			foreach(i, ref Control c; gr.control){
 				if(c.isEmpty){
 					continue;
 				}
-				
-				result=dg(gr.elements[i]);
-				if (result)
-					break;	
-			}
-		}		
-		
-		return result;
-	}
-	
-	// foreach support
-	int opApply(scope int delegate(ref Control c,ref T) dg){ 
-		int result;
-		foreach(ref Group gr; groups){
-			foreach(i, ref Control c; gr.control){
-				if(c.isEmpty){
-					continue;
+				static if( isForeachDelegateWithTypes!(DG, Control, T) ){
+					result=dg(gr.control[i], gr.elements[i]);
+				}else static if( isForeachDelegateWithTypes!(DG, T) ){
+					result=dg(gr.elements[i]);
+				}else{
+					static assert(0);
 				}
-				
-				result=dg(gr.control[i], gr.elements[i]);
 				if (result)
 					break;	
 			}
@@ -323,18 +313,32 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	
 }
 
-unittest{
-	HashSet!(int) set;
-	
+
+
+@nogc nothrow pure unittest{	
 	ushort8 control=15;
 	control.array[0]=10;
 	control.array[7]=10;
 	ushort check=15;
-	ushort ret=set.getMatchSIMD(control, check);
-	assert(ret==0b0011_1111_1111_1100);
-	
+	ushort ret=HashSet!(int).matchSIMD(control, check);
+	assert(ret==0b0011_1111_1111_1100);	
 }
-unittest{
+
+@nogc unittest{
+	static struct KeyValue{
+		int key;
+		int value;
+		bool opEquals()(auto ref const KeyValue r) @nogc{ 
+			return key==r.key;
+		}
+	}
+	static size_t hashFunc(KeyValue kv){
+		return defaultHashFunc(kv.key);
+	}
+
+	HashSet!(KeyValue, hashFunc) set222;
+	set222.add(KeyValue(1,2));
+
 	HashSet!(int) set;
 	
 	assert(set.isIn(123)==false);
@@ -368,7 +372,6 @@ unittest{
 	}
 }
 
-import mutils.benchmark;
 
 void benchmarkHashSetInt(){
 	HashSet!(int) set;
@@ -420,10 +423,10 @@ void benchmarkHashSetInt(){
 		bench.end!(0)(b);
 	}
 	assert(myResults==stResult);// Same behavior as standard map
-	/*writeln(set.getLoadFactor(set.addedElements));
-	writeln(set.numA);
-	writeln(set.numB);
-	writeln(set.numC);*/
+	 //writeln(set.getLoadFactor(set.addedElements));
+	 //writeln(set.numA);
+	 //writeln(set.numB);
+	 //writeln(set.numC);
 	
 	doNotOptimize(myResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
@@ -471,13 +474,11 @@ void benchmarkHashSetPerformancePerElement(){
 		}
 		bench.end!(0)(b);
 	}
-	/*writeln(set.numA);
-	writeln(set.numB);
-	writeln(set.numC);*/
+	//writeln(set.numA);
+	//writeln(set.numB);
+	// writeln(set.numC);
 	doNotOptimize(trueResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
 	//set.saveGroupDistributionPlot("distr.png");
 
 }
-
-

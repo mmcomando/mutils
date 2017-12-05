@@ -118,7 +118,7 @@ struct Vec(T, int dim){
 
 }
 
-unittest{
+@nogc nothrow pure unittest{
 	int[2] arr=[1,2];
 	alias vec2i=Vec!(int, 2);
 	vec2i v1=vec2i(1, 1);

@@ -6,8 +6,10 @@ import core.time;
 import std.file;
 import std.conv:to;
 
-private alias Clock=MonoTimeImpl!(ClockType.precise);
+enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
+void doNotOptimize(Args...)(ref Args args) { asm { naked;ret; } }// function call overhead
 
+private alias Clock=MonoTimeImpl!(ClockType.precise);
 
 struct BenchmarkData(uint testsNum, uint iterationsNum){
 	long[iterationsNum][testsNum] times;
@@ -26,11 +28,7 @@ struct BenchmarkData(uint testsNum, uint iterationsNum){
 	}
 
 	void writeToCsvFile()(string outputFileName){
-		string[testsNum] testNames;
-		foreach(i;0..testsNum){
-			testNames[i]=i.to!string;
-		}
-		writeToCsvFile(outputFileName, testNames);
+		writeToCsvFile(outputFileName, defaultTestNames[0..testsNum]);
 	}
 
 	void writeToCsvFile(string outputFileName, string[testsNum] testNames){
@@ -57,11 +55,7 @@ struct BenchmarkData(uint testsNum, uint iterationsNum){
 
 	
 	void plotUsingGnuplot(string outputFileName){
-		string[testsNum] testNames;
-		foreach(i;0..testsNum){
-			testNames[i]=i.to!string;
-		}
-		plotUsingGnuplot(outputFileName, testNames);
+		plotUsingGnuplot(outputFileName, defaultTestNames[0..testsNum]);
 	}
 
 	void plotUsingGnuplot(string outputFileName, string[testsNum] testNames){
@@ -102,11 +96,13 @@ plot for [col=2:40] '`,`' using 1:col with linespoints`
 
 	];
 
+	static string[10] defaultTestNames=[
+		"1","2","3","4","5","6","7","8","9","10",
+	];
+
 	
 }
 
-enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
-void doNotOptimize(Args...)(ref Args args) { asm { naked;ret; } }// function call overhead
 
 unittest{    
 	import std.meta;
@@ -223,7 +219,7 @@ struct TimeThis{
 		currentTiming=timingMyRoot;
 	}
 
-
+	
 
 	static TimeThis time(string funcName=__FUNCTION__){
 		return TimeThis(funcName, Clock.currTime.ticks());
@@ -249,7 +245,7 @@ struct TimeThis{
 		enableTiming=yes;
 	}
 
-
+	
 
 }
 

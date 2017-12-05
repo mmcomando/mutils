@@ -6,7 +6,7 @@ import core.stdc.string : memset,memcpy;
 
 import std.traits:Unqual;
 
-@nogc @safe nothrow size_t nextPow2(size_t num){
+@nogc @safe nothrow pure size_t nextPow2(size_t num){
 	return 1<< bsr(num)+1;
 }
 
@@ -81,8 +81,8 @@ public:
 	}
 	
 	@nogc void freeData(void[] data){
-		//0xFFFFFF probably invalid value for pointers and other types
-		memset(cast(void*)data.ptr,0xFFFFFFFF,data.length);//very important :) makes bugs show up xD 
+		// 0xFFFFFF probably invalid value for pointers and other types
+		memset(data.ptr,0xFFFFFFFF,data.length);// Makes bugs show up xD 
 		free(data.ptr);
 	}
 	
@@ -91,14 +91,10 @@ public:
 		T[] oldArray=array;
 		size_t oldSize=oldArray.length*T.sizeof;
 		size_t newSize=newNumOfElements*T.sizeof;
-		//T[] memory=mallocator.makeArray!(T)(newNumOfElements);
-		//memcpy(cast(void*)memory.ptr,cast(void*)oldArray.ptr,oldSize);
-		//array=memory;
 		T* memory=cast(T*)malloc(newSize);
 		memcpy(cast(void*)memory,cast(void*)oldArray.ptr,oldSize);
 		array=memory[0..newNumOfElements];
-		return cast(void[])oldArray;
-		
+		return cast(void[])oldArray;		
 	}
 	
 	Vector!T copy(){
@@ -120,7 +116,7 @@ public:
 		used++;
 	}
 
-	///Add element at given position moving others
+	/// Add element at given position moving others
 	void add(T t, size_t pos){
 		assert(pos<=used);
 		if(used>=array.length){
@@ -133,7 +129,7 @@ public:
 		used++;
 	}
 	
-	void add(T[]  t) {
+	void add(T[]  t){
 		if(used+t.length>array.length){
 			extend(nextPow2(used+t.length));
 		}
@@ -224,7 +220,11 @@ public:
 	}
 	
 }
-unittest{
+
+// Helper to avoid GC
+private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return array;}
+
+@nogc nothrow unittest{
 	Vector!int vec;
 	assert(vec.empty);
 	vec.add(0);
@@ -236,29 +236,29 @@ unittest{
 	assert(vec.length==6);
 	assert(vec[3]==3);
 	assert(vec[5]==5);
-	assert(vec[]==[0,1,2,3,4,5]);
+	assert(vec[]==[0,1,2,3,4,5].s);
 	assert(!vec.empty);
 	vec.remove(3);
 	assert(vec.length==5);
-	assert(vec[]==[0,1,2,5,4]);//unstable remove
+	assert(vec[]==[0,1,2,5,4].s);//unstable remove
 	
 }
 
-unittest{
+@nogc nothrow unittest{
 	Vector!int vec;
 	assert(vec.empty);
-	vec~=[0,1,2,3,4,5];
-	assert(vec[]==[0,1,2,3,4,5]);
+	vec~=[0,1,2,3,4,5].s;
+	assert(vec[]==[0,1,2,3,4,5].s);
 	assert(vec.length==6);
 	vec~=6;
-	assert(vec[]==[0,1,2,3,4,5,6]);
+	assert(vec[]==[0,1,2,3,4,5,6].s);
 	
 }
 
 
-unittest{
+@nogc nothrow unittest{
 	Vector!int vec;
-	vec~=[0,1,2,3,4,5];
+	vec~=[0,1,2,3,4,5].s;
 	vec[3]=33;
 	assert(vec[3]==33);
 	
