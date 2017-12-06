@@ -158,105 +158,19 @@ void serializeStringToken(bool load, Container)(ref TokenData token, ref Contain
 	}
 }
 
-///Return string is valid only to next call to doubleToString(), returns string representing double with fixed precision
+import mutils.conv;
+/// Returns string is valid only to next call to any mutils.conv function
 string doubleToString(double num){
-	static char[32] numStr;
-	bool isNeg=num<0;
-	double rightPart=num%1;
-	double leftPart=num-rightPart;
-	if(rightPart<0){
-		rightPart*=-1;
-	}
-	if(isNeg){
-		numStr[0]='-';
-		leftPart*=-1;
-	}
-	string arr1=longToStringImpl(numStr[isNeg..$], cast(long)leftPart);
-	numStr[isNeg+arr1.length]='.';
-	enum int precison=6;
-	char[] tmpArr=numStr[isNeg+arr1.length+1..$];
-	string arr2=longToStringImpl(tmpArr, cast(long)(rightPart*10^^precison));
-	size_t diff=precison-arr2.length;
-	// bum is on left side of arr2, move to right
-	if(diff>0){
-		foreach_reverse(i,ch;tmpArr){
-			if(i<diff){
-				break;
-			}
-			tmpArr[i]=tmpArr[i-diff];
-		}
-	}
-	//set zeros between left part and right part
-	foreach(ref ch;numStr[isNeg+arr1.length+1..isNeg+arr1.length+1+diff]){
-		ch='0';
-	}
-	return cast(string)numStr[0..isNeg+arr1.length+1+diff+arr2.length];
+	return num.to!string;
 }
 
-unittest{
-	assert(doubleToString(1)=="1.000000");
-	assert(doubleToString(-11.1)=="-11.099999");//floating are less predictable
-	assert(doubleToString(-0.25)=="-0.250000");
-	assert(doubleToString(-125)=="-125.000000");
-}
-
-///Return string is valid only to next call to longToString()
+/// Returns string is valid only to next call to any mutils.conv function
 string longToString(long num){
-	static char[20] numStr;//long.max may have max 20 chars
-	return longToStringImpl(numStr[], num);
-}
-
-string longToStringImpl(char[] numStr, long num){
-	bool isNegative=num<0;
-	int i;
-	if(isNegative){
-		i=1;
-		numStr[0]='-';
-		num*=-1;
-	}
-	do{
-		int rest=num%10;
-		num/=10;
-		numStr[i]=cast(char)('0'+rest);
-		i++;
-	}while(num!=0);
-
-	char[] arr=numStr[isNegative..i];
-	int length=cast(int)arr.length;
-	int half=length/2;
-	foreach(int el;0..half){
-		char tmp=arr.ptr[length-1-el];//ptr - no bounds checking
-		arr.ptr[length-1-el]=arr.ptr[el];
-		arr.ptr[el]=tmp;
-	}
-	return cast(string)numStr[0..i];
-}
-
-unittest{
-	assert(longToString(1)=="1");
-	assert(longToString(-1)=="-1");
-	assert(longToString(10000)=="10000");
-	assert(longToString(12345)=="12345");
-	assert(longToString(-12345)=="-12345");
+	return num.to!string;
 }
 
 long stringToLong(string str){
-	bool isNeg=str[0]=='-';
-	string slice=isNeg?str[1..$]:str;
-	long num;
-	long mul=1;
-	foreach_reverse(ch;slice){
-		long numCh=ch-'0';
-		num+=numCh*mul;
-		mul*=10;
-	}
-	return isNeg?-num:num;
-}
-
-unittest{
-	assert(stringToLong("-123")==-123);
-	assert(stringToLong("123")==123);
-	assert(stringToLong("0")==0);
+	return str.to!long;
 }
 
 void serializeNumberToken(bool load, Container)(ref TokenData token, ref Container con){
