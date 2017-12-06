@@ -34,7 +34,7 @@ TO to(TO, FROM)(auto ref const FROM from){
 
 }
 
-unittest{
+nothrow @nogc unittest{
 	// Convert to same value
 	assert(10.to!int==10);
 	// Convert numbers
@@ -71,7 +71,7 @@ string num2str(FROM)(FROM from){
 	}
 }
 
-unittest{
+nothrow @nogc unittest{
 	assert(10.num2str=="10");
 	assert((-10).num2str=="-10");
 }
@@ -93,7 +93,7 @@ NUM str2num(NUM)(string from){
 	return ret;
 }
 
-unittest{
+nothrow @nogc unittest{
 	char[18] noEnd="123456789123456789";// Test without c string ending (\0)
 	string empty;
 	assert(empty.str2num!ubyte==0);
@@ -128,7 +128,7 @@ string enum2str(T)(auto ref const T en){
 	}
 }
 
-unittest{
+nothrow @nogc unittest{
 	assert(enum2str(TestEnum.a)=="a");
 	assert(enum2str(TestEnum.b)=="b");
 	assert(enum2str(cast(TestEnum)123)=="WrongEnum");
@@ -151,7 +151,7 @@ T str2enum(T)(string str){
 	}
 }
 
-unittest{
+nothrow @nogc unittest{
 	assert(str2enum!(TestEnum)("a")==TestEnum.a);
 	assert(str2enum!(TestEnum)("b")==TestEnum.b);
 	assert(str2enum!(TestEnum)("ttt")==byte.max);
@@ -205,7 +205,7 @@ private string[] getFullMembersNames(T,string beforeName)(string[] members){
 	return members;
 }
 
-unittest{
+nothrow @nogc unittest{
 	enum string[] fullMembersNames=getFullMembersNames!(TestStructA, "s")([]);
 	assert(fullMembersNames==["s.a", "s.b"]);
 }
@@ -221,7 +221,7 @@ private string generate_snprintf_call(string returnValueName, string bufferName,
 	return str;
 }
 
-unittest{
+nothrow @nogc unittest{
 	enum string call=generate_snprintf_call("ret", "buff", "%d", ["s.a"]);
 	assert(call=="ret=snprintf(buff.ptr, buff.length, \"%d\", s.a);");
 }
@@ -237,7 +237,7 @@ private string generate_sscanf_call( string stringName, string formatSpecifier, 
 	return str;
 }
 
-unittest{
+nothrow @nogc unittest{
 	enum string call=generate_sscanf_call("str",  "%d", ["s.a"]);
 	assert(call=="sscanf(str.ptr, \"%d\", &s.a);");
 }
@@ -254,7 +254,7 @@ string struct2str(T)(auto ref const T s){
 	return cast(string)buff[0..takesCharsNum];
 }
 
-unittest{
+nothrow @nogc unittest{
 	TestStructB test=TestStructB(2);
 	assert(struct2str(test)=="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, 50)");
 }
@@ -270,7 +270,7 @@ T str2struct(T)(string str){
 	return s;
 }
 
-unittest{
+nothrow @nogc unittest{
 	string loadFrom="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, 100)";
 	TestStructB test=str2struct!(TestStructB)(loadFrom);
 	assert(test.a==2);
@@ -320,6 +320,7 @@ private struct TestStructA{
 }
 
 private struct TestStructB{
+	nothrow @nogc pure:
 	@disable this();
 	
 	this(int a){
