@@ -1,29 +1,50 @@
-﻿module mutils.conv;
+﻿/// Module to replace std.conv 'to' function with similar but @nogc
+/// Function in this module use TLS buffer to store string result, so returned strings are valid only to next usage of X->string conversion functions
+module mutils.conv;
 
-import std.stdio;
-import std.traits: Unqual, isPointer, isNumeric, EnumMembers, OriginalType;
+import std.traits: Unqual, isPointer, isNumeric, EnumMembers, OriginalType, ForeachType, isSIMDVector, isDynamicArray, isStaticArray;
 import std.meta: NoDuplicates;
 
 extern(C) int sscanf(scope const char* s, scope const char* format, ...) nothrow @nogc;
 extern(C) int snprintf (scope char * s, size_t n, scope const char * format, ... ) nothrow @nogc;
 
+auto min(A, B)(A a, B b){
+	return (a<b)?a:b;
+}
+
+static char[1024] gTmpStrBuff;
+
+/// Converts variable from to Type TO
+/// strings are stored in default global buffer
 TO to(TO, FROM)(auto ref const FROM from){
+	return to!(TO, FROM)(from, gTmpStrBuff);
+}
+
+/// Converts variable from to Type TO
+/// strings are stored in buff buffer
+TO to(TO, FROM)(auto ref const FROM from, char[] buff){
 	static if( is(TO==FROM) ){
 		return from;
 	}else static if( is(TO==string) ){
 		static if( is(FROM==enum)){
-			return enum2str(from);
-		}else static if( isNumeric!FROM || isPointer!FROM ){
-			return num2str(from);
+			return enum2str(from, buff);
+		}else static if( isSIMDVector!FROM ){
+			return slice2str(from.array, buff);
+		}else static if( worksWithStr2Num!FROM ){
+			return num2str(from, buff);
 		}else static if( is(FROM==struct)){
-			return struct2str(from);
+			return struct2str(from, buff);
+		}else static if( isDynamicArray!(FROM) ){
+			return slice2str(from, buff);
+		}else static if( isStaticArray!(FROM) ){
+			return slice2str(from[], buff);
 		}else{
 			static assert(0, "Type conversion not supported");
 		}
 	}else static if( is(FROM==string) ){
 		static if( is(TO==enum)){
 			return str2enum!(TO)(from);
-		}else static if( isNumeric!TO || isPointer!TO ){
+		}else static if( worksWithStr2Num!TO ){
 			return str2num!(TO)(from);
 		}else static if( is(TO==struct)){
 			return str2num!(TO)(from);
@@ -54,10 +75,12 @@ nothrow @nogc unittest{
 
 ///////////////////////  Convert numbers
 
-// string is valid only to next num2str usage
-string num2str(FROM)(FROM from){
-	static assert(isNumeric!FROM || isPointer!FROM, "num2str converts only numeric or pointer type to string");
-	static char[1024] buff;
+/// Converts number of type NUM to string and stores it in buff
+/// Internally uses snprintf, string might be cut down to fit in buffer
+/// To check for buffer overflow you might compare length of buff and returned string, if they are equal there might be not enought space in buffer
+/// NULL char is always added at the end of the string
+string num2str(FROM)(FROM from, char[] buff){
+	static assert( worksWithStr2Num!FROM, "num2str converts only numeric or pointer type to string");
 	string sp=getSpecifier!(FROM);
 	char[5] format;
 	format[0]='%';
@@ -72,16 +95,20 @@ string num2str(FROM)(FROM from){
 }
 
 nothrow @nogc unittest{
-	assert(10.num2str=="10");
-	assert((-10).num2str=="-10");
+	char[4] buff;
+	assert(num2str(10, gTmpStrBuff[])=="10");
+	assert(num2str(-10, gTmpStrBuff[])=="-10");
+	assert(num2str(123456789, buff[])=="123\0");
 }
 
+/// Converts string to numeric type NUM
+/// If string is malformed NUM.init is returned
 NUM str2num(NUM)(string from){
-	static assert(isNumeric!NUM || isPointer!NUM, "str2num converts string to numeric or pointer type");
+	static assert( worksWithStr2Num!NUM, "str2num converts string to numeric or pointer type");
 	if(from.length==0){
 		return NUM.init;
 	}
-	NUM ret;
+	NUM ret=NUM.init;
 	string sp=getSpecifier!(NUM);
 	char[32] format;
 	format[]='K';
@@ -98,6 +125,7 @@ nothrow @nogc unittest{
 	string empty;
 	assert(empty.str2num!ubyte==0);
 	assert("".str2num!ubyte==0);
+	assert("asdaf".str2num!ubyte==0);
 	assert(str2num!int(cast(string)noEnd[0..2])==12);
 
 
@@ -114,28 +142,33 @@ nothrow @nogc unittest{
 
 ///////////////////////  Convert enums
 
-string enum2str(T)(auto ref const T en){
+/// Converts enum to string
+/// If wrong enum value is specified "WrongEnum" string is returned
+string enum2str(T)(auto ref const T en, char[] buff){
 	static assert( is(T==enum) , "T must be an enum");
 	switch(en){
 		foreach (i, e; NoDuplicates!(EnumMembers!T) ){
-		case e:
+			case e:
 			enum name = __traits(allMembers, T)[i];
-			return name;
+			foreach(k,char c; name){
+				buff[k]=c;
+			}
+			return cast(string)buff[0..name.length];
 		}
 		default:
 			return "WrongEnum";
-
+			
 	}
 }
 
 nothrow @nogc unittest{
-	assert(enum2str(TestEnum.a)=="a");
-	assert(enum2str(TestEnum.b)=="b");
-	assert(enum2str(cast(TestEnum)123)=="WrongEnum");
+	assert(enum2str(TestEnum.a, gTmpStrBuff)=="a");
+	assert(enum2str(TestEnum.b, gTmpStrBuff)=="b");
+	assert(enum2str(cast(TestEnum)123, gTmpStrBuff)=="WrongEnum");
 }
 
-
-// format is very strict
+/// Converts string to enum
+/// If wrong string is specified max enum base type is returned ex. for: enum:ubyte E{} will return 255
 T str2enum(T)(string str){
 	static assert( is(T==enum) , "T must be an enum");
 	T en;
@@ -157,9 +190,54 @@ nothrow @nogc unittest{
 	assert(str2enum!(TestEnum)("ttt")==byte.max);
 }
 
+///////////////////////  Convert slices
+
+/// Converts slice to string
+/// Uses to!(string)(el, buff) to convert inner elements
+/// If buff.length<=5 null is returned
+/// If there is not enought space in the buffer, function converts as much as it coud with string "...]" at the end 
+string slice2str(T)(auto ref const T slice, char[] buff){
+	alias EL=ForeachType!T;
+	buff[]='K';
+
+	if(buff.length<=5){
+		return null;
+	}
+	buff[0]='[';
+
+	char[] buffSlice=buff[1..$];
+	foreach(ref el; slice){
+		string elStr=to!(string)(el, buffSlice);
+		if(elStr.length+2>=buffSlice.length){
+			buff[$-4..$]="...]";
+			buffSlice=null;
+			break;
+		}
+		buffSlice[elStr.length]=',';
+		buffSlice[elStr.length+1]=' ';
+		buffSlice=buffSlice[elStr.length+2..$];
+	}
+	if(buffSlice.length==0){
+		return cast(string)buff;
+	}
+
+	size_t size=buff.length-buffSlice.length;
+	buff[size-2]=']';
+	return cast(string)buff[0..size-1];
+}
+
+
+nothrow @nogc unittest{
+	char[10] bb;
+	TestStructA[9] sl;
+	int[9] ints=[1,2,3,4,5,6,7,8,9];
+	assert(slice2str(ints[], gTmpStrBuff)=="[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+	assert(slice2str(sl[], bb[])=="[TestS...]");
+}
+
 
 ///////////////////////  Convert structs
-///// Enum are treated as numbers
+///// Enums are treated as numbers
 
 private string getFormatString(T)(){
 	string str;
@@ -183,7 +261,7 @@ private string getFormatString(T)(){
 	return str;
 }
 
-unittest{
+nothrow @nogc unittest{
 	enum string format=getFormatString!(TestStructB);
 	assert(format=="TestStructB(TestStructA(%d, %hhu), %d, %lld, %hhd)");
 }
@@ -197,7 +275,7 @@ private string[] getFullMembersNames(T,string beforeName)(string[] members){
 			enum string fullName =beforeName~"."~varName;
 			static if( is(Type==struct) ){
 				members=getFullMembersNames!(Type, fullName)( members);
-			}else static if( isNumeric!Type || isPointer!Type ){
+			}else static if( worksWithStr2Num!Type ){
 				members~=fullName;
 			}
 		}
@@ -242,32 +320,45 @@ nothrow @nogc unittest{
 	assert(call=="sscanf(str.ptr, \"%d\", &s.a);");
 }
 
-string struct2str(T)(auto ref const T s){
+/// Converts structs to strings
+/// Function is not using to!string so inner elements might be displayed differently ex. enums (they are displayeed as numbers)
+/// Elements which cannot be converted are skipped
+string struct2str(T)(auto ref const T s, char[] buff){
 	static assert( is(T==struct) , "T must be a struct");
 
 	enum string format=getFormatString!T;
 	enum string[] fullMembersNames=getFullMembersNames!(T, "s")([]);
 
-	static char[1024] buff;
 	int takesCharsNum;
 	mixin( generate_snprintf_call("takesCharsNum", "buff", format, fullMembersNames) );
-	return cast(string)buff[0..takesCharsNum];
+	return cast(string)buff[0..min(takesCharsNum, buff.length)];
 }
 
 nothrow @nogc unittest{
 	TestStructB test=TestStructB(2);
-	assert(struct2str(test)=="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, 50)");
+	assert(struct2str(test, gTmpStrBuff)=="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, 50)");
 }
-
-// Format is very strict
+/// Converts string to struct
+/// string format is very strict, returns 0 initialized variable if string is bad
+/// Works like struct2str but opposite
 T str2struct(T)(string str){
 	static assert( is(T==struct) , "T must be a struct");
-	T s=void;
+
+	union ZeroInit{// Init for @disable this() structs
+		mixin("align(T.alignof) ubyte[T.sizeof] zeros;");// Workaround for IDE parser error
+		T s=void;
+	}
+
+	ZeroInit var;
+	if(str[$-1]!=')'){
+		return var.s;
+	}
+
 	enum string format=getFormatString!T;
-	enum string[] fullMembersNames=getFullMembersNames!(T, "s")([]);
+	enum string[] fullMembersNames=getFullMembersNames!(T, "var.s")([]);
 	enum string sscanf_call=generate_sscanf_call("str", format, fullMembersNames);
 	mixin(sscanf_call);
-	return s;
+	return var.s;
 }
 
 nothrow @nogc unittest{
@@ -281,7 +372,9 @@ nothrow @nogc unittest{
 }
 
 
-
+private bool worksWithStr2Num(T)(){
+	return isNumeric!T || isPointer!T || is(Unqual!T==char);
+}
 
 string getSpecifier(TTT)(){
 	static if( is(TTT==enum) ){
