@@ -114,18 +114,17 @@ struct BucketWithBits(T,uint elementsNum=128){
 
 		return &elements[num];
 	}
-	static if(isImplicitlyConvertible!(T, T)){// @disable this(this) don't support this type of add
-		T* add(ref T obj){
-			int num=getEmptyElementNum();
-			assert(num!=-1);
 
-			elements[num]=obj;
-			return &elements[num];
-		}
+	T* add()(ref T obj){
+		int num=getEmptyElementNum();
+		assert(num!=-1);
 
-		T* add(T obj){
-			return add(obj);
-		}
+		elements[num]=obj;
+		return &elements[num];
+	}
+
+	T* add()(T obj){
+		return add(obj);
 	}
 
 	void opOpAssign(string op)(T obj){
