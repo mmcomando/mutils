@@ -7,6 +7,8 @@ struct Vec(T, int dim){
 	static assert(dim>0);
 	enum dimension=dim;
 
+	alias vector this;
+
 	union{
 		T[dim] vector;
 

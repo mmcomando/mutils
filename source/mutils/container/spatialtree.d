@@ -409,26 +409,13 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 	}
 	
 }
+import mutils.linalg.vec;
 
 unittest{
 	import std.meta;
-	struct vec2{
-		float[2] v;
-		alias v this;
-		this(float x, float y){
-			v[0]=x;
-			v[1]=y;
-		}
-	}
-	struct vec3{
-		float[3] v;
-		alias v this;
-		this(float x, float y, float z){
-			v[0]=x;
-			v[1]=y;
-			v[2]=z;
-		}
-	}
+	alias vec2=Vec!(float, 2);
+	alias vec3=Vec!(float, 3);
+
 	int numFound;
 	int numOk;
 	void test0(T)(ref T num){numFound++;numOk+=num.data==0;}
