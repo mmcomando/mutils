@@ -104,8 +104,11 @@ ulong hashInt(ulong x) nothrow @nogc @safe {
 	return x;
 }
 
-struct HashSet(T, alias hashFunc=defaultHashFunc){
+// ADV additional value - used to implement HashMap without unnecessary copies
+struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
+	static assert(ADV.length<=1);// ADV is treated as a optional additional value type
 	static assert(size_t.sizeof==8);// Only 64 bit
+	enum hasValue=ADV.length==1;
 	enum rehashFactor=0.85;
 	enum size_t getIndexEmptyValue=size_t.max;
 
@@ -115,6 +118,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 			ushort8 controlVec;
 		}
 		T[8] elements;
+		static if(hasValue)ADV[0][8] values;
 		
 		// Prevent error in Vector!Group
 		bool opEquals()(auto ref const Group r) const { 
@@ -138,10 +142,19 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		// Get all elements
 		Vector!T allElements;
 		allElements.reserve(groups.length);
-		
-		foreach(ref Control c,ref T el; this){
-			allElements~=el;
-			c=Control.init;
+		static if(hasValue)Vector!(ADV[0]) allValues;
+		static if(hasValue)allValues.reserve(groups.length);
+		static if(hasValue){
+			foreach(ref Control c, ref T el, ref ADV[0] val; this){
+				allElements~=el;
+				allValues~=val;
+				c=Control.init;
+			}
+		}else{
+			foreach(ref Control c, ref T el; this){
+				allElements~=el;
+				c=Control.init;
+			}
 		}
 
 		if(getLoadFactor(addedElements+1)>rehashFactor){// Reallocate
@@ -149,8 +162,12 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		}
 	
 		// Insert elements
-		foreach(el;allElements){
-			add(el);
+		foreach(i, el;allElements){
+			static if(hasValue){
+				add(el, allValues[i]);
+			}else{
+				add(el);
+			}
 		}
 		addedElements=allElements.length;
 		allElements.clear();
@@ -169,6 +186,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		size_t group=index/8;
 		size_t elIndex=index%8;
 		groups[group].control[elIndex]=Control.init;
+		//TODO value destructor
 		return true;
 	}
 
@@ -176,7 +194,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 		assert(tryRemove(el));
 	}
 
-	void add(T el){
+	void add(T el, ADV value){
 		if(isIn(el)){
 			return;
 		}
@@ -194,6 +212,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				if(c.isEmpty){
 					c.set(hash.h);
 					gr.elements[i]=el;
+					static if(hasValue)gr.values[i]=value[0];
 					return;
 				}
 			}
@@ -240,9 +259,13 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 	 int numB;
 	 int numC;*/
 
-	
+
 	size_t getIndex(T el) {
-		mixin(doNotInline);
+		return getIndex(el);
+	}
+
+	size_t getIndex(ref T el) {
+		//mixin(doNotInline);
 		size_t groupsLength=groups.length;
 		if(groupsLength==0){
 			return getIndexEmptyValue;
@@ -282,7 +305,9 @@ struct HashSet(T, alias hashFunc=defaultHashFunc){
 				if(c.isEmpty){
 					continue;
 				}
-				static if( isForeachDelegateWithTypes!(DG, Control, T) ){
+				static if(hasValue && isForeachDelegateWithTypes!(DG, Control, T, ADV[0]) ){
+					result=dg(gr.control[i], gr.elements[i], gr.values[i]);
+				}else static if( isForeachDelegateWithTypes!(DG, Control, T) ){
 					result=dg(gr.control[i], gr.elements[i]);
 				}else static if( isForeachDelegateWithTypes!(DG, T) ){
 					result=dg(gr.elements[i]);
