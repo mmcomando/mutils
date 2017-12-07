@@ -2,7 +2,7 @@
 /// Function in this module use TLS buffer to store string result, so returned strings are valid only to next usage of X->string conversion functions
 module mutils.conv;
 
-import std.traits: Unqual, isPointer, isNumeric, EnumMembers, OriginalType, ForeachType, isSIMDVector, isDynamicArray, isStaticArray;
+import std.traits: Unqual, isPointer, isNumeric, EnumMembers, OriginalType, ForeachType, isSIMDVector, isDynamicArray, isStaticArray, FieldNameTuple, Fields;
 import std.meta: NoDuplicates;
 
 extern(C) int sscanf(scope const char* s, scope const char* format, ...) nothrow @nogc;
@@ -243,13 +243,11 @@ private string getFormatString(T)(){
 	string str;
 
 	static if( is(T==struct) ){
-		T s=void;
-
 		str~=T.stringof~"(";
-		foreach (i, ref a; s.tupleof) {
-			alias Type=typeof(a);
+		alias FieldsTypes=Fields!T;
+		foreach (i, Type; FieldsTypes) {
 			str~=getFormatString!Type;
-			if(i!=s.tupleof.length-1){
+			if(i!=FieldsTypes.length-1){
 				str~=", ";
 			}
 		}
@@ -268,10 +266,10 @@ nothrow @nogc unittest{
 
 private string[] getFullMembersNames(T,string beforeName)(string[] members){	
 	static if( is(T==struct) ){
-		T s=void;
-		foreach (i, ref a; s.tupleof) {
-			alias Type=typeof(a);
-			enum string varName =__traits(identifier, s.tupleof[i]);
+		alias FieldsTypes=Fields!T;
+		alias FieldsNames=FieldNameTuple!T;
+		foreach (i, Type; FieldsTypes) {
+			enum string varName =FieldsNames[i];
 			enum string fullName =beforeName~"."~varName;
 			static if( is(Type==struct) ){
 				members=getFullMembersNames!(Type, fullName)( members);

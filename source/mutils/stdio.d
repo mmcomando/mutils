@@ -16,21 +16,21 @@ static char[1024] gTmpStdioStrBuff;// Own buffer to be independant from mutils.c
  * write is not pure but we will pretend it is to enable write debug
  **/ 
 void write(T...)(auto ref const T el) @trusted {
-	static void writeImpl(T...)(auto ref const T el){
-		foreach(e; el){
-			//write(e)
-			string elStr=to!(string)(e, gTmpStdioStrBuff[]);
-			fwrite(elStr.ptr, 1, elStr.length, stdout);			
-		}
+	static void writeImpl(EL)(auto ref const EL el){
+		string elStr=to!(string)(el, gTmpStdioStrBuff[]);
+		fwrite(elStr.ptr, 1, elStr.length, stdout);		
 	}
 
-	static auto assumePure(T)(auto ref const T t)
-		if (isFunctionPointer!T || isDelegate!T)
+	static auto assumePure(DG)(scope DG t)
+		if (isFunctionPointer!DG || isDelegate!DG)
 	{
-		enum attrs = functionAttributes!T | FunctionAttribute.pure_;
-		return cast(SetFunctionAttributes!(T, functionLinkage!T, attrs)) t;
+		enum attrs = functionAttributes!DG | FunctionAttribute.pure_;
+		return cast(SetFunctionAttributes!(DG, functionLinkage!DG, attrs)) t;
 	}
-	assumePure(   (T ell) => writeImpl(ell)		)(el);
+	assumePure(   () => writeImpl(el[0])		)();
+	static if(T.length>1){
+		write(el[1..$]);
+	}
 }
 
 /// Like write but adds new line at end
@@ -81,6 +81,7 @@ void writefln(T...)(string format, auto ref const T el) {
 private struct TestStruct{
 	@nogc nothrow @safe pure:
 	@disable this();
+	@disable this(this);
 
 	this(int i){}
 	int a;
@@ -104,6 +105,8 @@ private void testMutilsStdio() @nogc nothrow @safe pure{
 	writelns(1,2,3,4,5,6,7,8,9);
 	//  writefln
 	writefln("%s <- this is something | and this is something -> %s", w, 1);
+	//  writeln empty
+	writeln();
 }
 
 unittest{
