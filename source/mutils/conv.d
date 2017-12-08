@@ -2,7 +2,7 @@
 /// Function in this module use TLS buffer to store string result, so returned strings are valid only to next usage of X->string conversion functions
 module mutils.conv;
 
-import std.traits: Unqual, isPointer, isNumeric, EnumMembers, OriginalType, ForeachType, isSIMDVector, isDynamicArray, isStaticArray, FieldNameTuple, Fields;
+import std.traits;
 import std.meta: NoDuplicates;
 
 extern(C) int sscanf(scope const char* s, scope const char* format, ...) nothrow @nogc;
@@ -38,6 +38,10 @@ TO to(TO, FROM)(auto ref const FROM from, char[] buff){
 			return slice2str(from, buff);
 		}else static if( isStaticArray!(FROM) ){
 			return slice2str(from[], buff);
+		}else static if( isDelegate!(FROM) || isFunctionPointer!FROM){
+			return del2str(from, buff);
+		}else static if( is(FROM==class)){
+			return num2str(cast(void*)from, buff);
 		}else{
 			static assert(0, "Type conversion not supported");
 		}
@@ -197,33 +201,42 @@ nothrow @nogc unittest{
 /// If buff.length<=5 null is returned
 /// If there is not enought space in the buffer, function converts as much as it coud with string "...]" at the end 
 string slice2str(T)(auto ref const T slice, char[] buff){
-	alias EL=ForeachType!T;
-	buff[]='K';
+	alias EL=Unqual!(ForeachType!T);
 
 	if(buff.length<=5){
 		return null;
 	}
-	buff[0]='[';
 
-	char[] buffSlice=buff[1..$];
-	foreach(ref el; slice){
-		string elStr=to!(string)(el, buffSlice);
-		if(elStr.length+2>=buffSlice.length){
-			buff[$-4..$]="...]";
-			buffSlice=null;
-			break;
+	static if( is(EL==char) ){
+		buff[$-4..$]="...]";
+		size_t lengthToCopy=min(slice.length, buff.length-2);
+		buff[0]='"';
+		buff[1+lengthToCopy]='"';
+		buff[1..1+lengthToCopy]=slice[0..lengthToCopy];
+		return cast(string)buff[0..lengthToCopy+2];
+	}else{
+		buff[0]='[';
+
+		char[] buffSlice=buff[1..$];
+		foreach(ref el; slice){
+			string elStr=to!(string)(el, buffSlice);
+			if(elStr.length+2>=buffSlice.length){
+				buff[$-4..$]="...]";
+				buffSlice=null;
+				break;
+			}
+			buffSlice[elStr.length]=',';
+			buffSlice[elStr.length+1]=' ';
+			buffSlice=buffSlice[elStr.length+2..$];
 		}
-		buffSlice[elStr.length]=',';
-		buffSlice[elStr.length+1]=' ';
-		buffSlice=buffSlice[elStr.length+2..$];
-	}
-	if(buffSlice.length==0){
-		return cast(string)buff;
-	}
+		if(buffSlice.length==0){
+			return cast(string)buff;
+		}
 
-	size_t size=buff.length-buffSlice.length;
-	buff[size-2]=']';
-	return cast(string)buff[0..size-1];
+		size_t size=buff.length-buffSlice.length;
+		buff[size-2]=']';
+		return cast(string)buff[0..size-1];
+	}
 }
 
 
@@ -235,6 +248,29 @@ nothrow @nogc unittest{
 	assert(slice2str(sl[], bb[])=="[TestS...]");
 }
 
+///////////////////////  Convert delegates and functions
+///
+/// Converts delegate or function to string
+string del2str(FROM)(FROM from, char[] buff){
+	static assert( isDelegate!FROM || isFunctionPointer!FROM, "del2str converts only delegates and functions to string");
+	static if(isDelegate!FROM){
+		int takesCharsNum=snprintf(buff.ptr, buff.length, "delegate(obj: %p, func: %p)", from.ptr, from.funcptr);
+	}else{
+		int takesCharsNum=snprintf(buff.ptr, buff.length, "function(func: %p)", cast(void*)from);
+	}
+	if(takesCharsNum<buff.length){
+		return cast(string)buff[0..takesCharsNum];
+	}else{
+		return cast(string)buff;
+	}
+}
+
+nothrow @nogc unittest{
+	static void func(){}
+	static void del(){}
+	assert(del2str(&func, gTmpStrBuff));
+	assert(del2str(&del, gTmpStrBuff));
+}
 
 ///////////////////////  Convert structs
 ///// Enums are treated as numbers
@@ -252,7 +288,7 @@ private string getFormatString(T)(){
 			}
 		}
 		str~=")";
-	}else static if( isNumeric!T || isPointer!T ){
+	}else static if( worksWithStr2Num!T ){
 		str~="%"~getSpecifier!T;		
 	}
 
@@ -371,7 +407,15 @@ nothrow @nogc unittest{
 
 
 private bool worksWithStr2Num(T)(){
-	return isNumeric!T || isPointer!T || is(Unqual!T==char);
+	return !isSIMDVector!(T) && (isNumeric!T || isPointer!T || is(Unqual!T==char));
+}
+
+unittest{
+	import core.simd: ushort8;
+	static assert(worksWithStr2Num!(int));
+	static assert(worksWithStr2Num!(void*));
+	static assert(worksWithStr2Num!(double));
+	static assert(!worksWithStr2Num!(ushort8));
 }
 
 string getSpecifier(TTT)(){
