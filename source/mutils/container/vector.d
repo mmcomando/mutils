@@ -4,7 +4,10 @@ import core.bitop;
 import core.stdc.stdlib : malloc,free;
 import core.stdc.string : memset,memcpy;
 
-import std.traits:Unqual;
+import std.algorithm: moveEmplace, swap;
+import mutils.stdio;
+
+import std.traits: Unqual, isCopyable, TemplateOf;
 
 @nogc @safe nothrow pure size_t nextPow2(size_t num){
 	return 1<< bsr(num)+1;
@@ -28,6 +31,19 @@ public:
 		assert(numElements>0);
 		extend(numElements);
 	}
+
+	this(this){
+		writeln("C");
+		T[] tmp=array[0..used];
+		array=null;
+		used=0;
+		add(tmp);
+	}
+
+
+	~this() nothrow {
+		clear();
+	}
 	
 	void clear(){
 		removeAll();
@@ -37,7 +53,7 @@ public:
 		if(array !is null){
 			freeData(cast(void[])array);
 		}
-		array=T[].init;
+		array=null;
 		used=0;
 	}
 	
@@ -74,19 +90,21 @@ public:
 	}
 	
 	void extend(size_t newNumOfElements){
-		auto oldArray=manualExtend(newNumOfElements);
+		auto oldArray=manualExtend(array, newNumOfElements);
 		if(oldArray !is null){
 			freeData(oldArray);
 		}
 	}
 	
 	@nogc void freeData(void[] data){
+		writelns("wwwww", T.stringof);
+		writeln(array[0..used]);
 		// 0xFFFFFF probably invalid value for pointers and other types
-		memset(data.ptr,0xFFFFFFFF,data.length);// Makes bugs show up xD 
+		memset(data.ptr,0xFFFFFF0F,data.length);// Makes bugs show up xD 
 		free(data.ptr);
 	}
 	
-	void[] manualExtend(size_t newNumOfElements=0){
+	static void[] manualExtend(ref T[] array, size_t newNumOfElements=0){
 		if(newNumOfElements==0)newNumOfElements=2;
 		T[] oldArray=array;
 		size_t oldSize=oldArray.length*T.sizeof;
@@ -112,7 +130,8 @@ public:
 		if(used>=array.length){
 			extend(nextPow2(used+1));
 		}
-		array[used]=t;
+		t.moveEmplace(array[used]);
+		//array[used]=t;
 		used++;
 	}
 
@@ -123,7 +142,8 @@ public:
 			extend(array.length*2);
 		}
 		foreach_reverse(size_t i;pos..used){
-			array[i+1]=array[i];
+			//array[i+1]=array[i];
+			swap(array[i+1], array[i]);
 		}
 		array[pos]=t;
 		used++;
@@ -134,14 +154,16 @@ public:
 			extend(nextPow2(used+t.length));
 		}
 		foreach(i;0..t.length){
-			array[used+i]=t[i];
+			t[i].moveEmplace(array[used+i]);
+			//array[used+i]=t[i];
 		}
 		used+=t.length;
 	}
 	
 	
 	void remove(size_t elemNum){
-		array[elemNum]=array[used-1];
+		//array[elemNum]=array[used-1];
+		swap(array[elemNum], array[used-1]);
 		used--;
 	}
 	
@@ -198,7 +220,7 @@ public:
 		array.ptr[a..b]=obj;		
 	}
 
-	bool opEquals()(auto ref const Vector!T r) const { 
+	bool opEquals()(auto ref const Vector!(T) r) const { 
 		return used==r.used && array.ptr[0..used]==r.array.ptr[0..r.used];
 	}
 

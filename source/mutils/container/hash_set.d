@@ -136,7 +136,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		}
 		return cast(float)forElementsNum/(groups.length*8);
 	}
-	
+	import mutils.utils;
 	void rehash() {
 		mixin(doNotInline);
 		// Get all elements
@@ -146,7 +146,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		static if(hasValue)allValues.reserve(groups.length);
 		static if(hasValue){
 			foreach(ref Control c, ref T el, ref ADV[0] val; this){
-				allElements~=el;
+				allElements~=el.copy;
 				allValues~=val;
 				c=Control.init;
 			}
@@ -162,7 +162,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		}
 	
 		// Insert elements
-		foreach(i, el;allElements){
+		foreach(i,ref el;allElements){
 			static if(hasValue){
 				add(el, allValues[i]);
 			}else{
@@ -170,7 +170,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 			}
 		}
 		addedElements=allElements.length;
-		allElements.clear();
+		//allElements.clear();
 	}
 	
 	size_t length(){
@@ -195,6 +195,9 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 	}
 
 	void add(T el, ADV value){
+		add(el, value);
+	}
+	void add(ref T el, ADV value){
 		if(isIn(el)){
 			return;
 		}
@@ -249,7 +252,11 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 	int hashMod(size_t hash) nothrow @nogc @system{
 		return cast(int)(hash & (groups.length-1));
 	}
-	
+
+	bool isIn(ref T el){
+		return getIndex(el)!=getIndexEmptyValue;
+	}
+
 	bool isIn(T el){
 		return getIndex(el)!=getIndexEmptyValue;
 	}
@@ -350,20 +357,6 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 }
 
 @nogc unittest{
-	static struct KeyValue{
-		int key;
-		int value;
-		bool opEquals()(auto ref const KeyValue r) @nogc{ 
-			return key==r.key;
-		}
-	}
-	static size_t hashFunc(KeyValue kv){
-		return defaultHashFunc(kv.key);
-	}
-
-	HashSet!(KeyValue, hashFunc) set222;
-	set222.add(KeyValue(1,2));
-
 	HashSet!(int) set;
 	
 	assert(set.isIn(123)==false);
@@ -396,6 +389,8 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		assert(set.isIn(el));
 	}
 }
+
+
 
 
 void benchmarkHashSetInt(){

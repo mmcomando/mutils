@@ -1,9 +1,13 @@
 module mutils.container.buckets_chain;
 
+import std.algorithm: moveEmplace;
+import std.conv: emplace;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.stdio;
 import std.traits;
+import std.traits;
+import std.algorithm: moveEmplaceAll;
 
 import mutils.container.vector;
 
@@ -119,6 +123,7 @@ struct BucketWithBits(T,uint elementsNum=128){
 		int num=getEmptyElementNum();
 		assert(num!=-1);
 
+		//emplace(&
 		elements[num]=obj;
 		return &elements[num];
 	}
@@ -330,11 +335,10 @@ struct BucketsChain(T, uint elementsInBucket=64, bool addGCRange=hasIndirections
 	}
 
 
-	static if(isImplicitlyConvertible!(T, T)){// @disable this(this) don't support this type of add
-		T* add(T obj){
-			return getFreeBucket().add(obj);
-		}
+	T* add()(T obj){
+		return getFreeBucket().add(obj);
 	}
+	
 
 	void opOpAssign(string op)(T obj){
 		static assert(op=="~");
@@ -449,7 +453,13 @@ struct BucketWithList(T,uint elementsNum=128){
 		assert(emptyOne !is null);
 		Element* el=emptyOne;
 		emptyOne=el.next;
-		el.obj=T.init;
+		T ini=T.init;
+		//el.obj=T.init;
+		static if(isArray!T){
+			moveEmplaceAll(ini[], el.obj[]);
+		}else{
+			moveEmplace(ini, el.obj);
+		}
 		return &el.obj;
 	}
 	
@@ -457,7 +467,13 @@ struct BucketWithList(T,uint elementsNum=128){
 		assert(emptyOne !is null);
 		Element* el=emptyOne;
 		emptyOne=el.next;
-		el.obj=obj;
+		//el.obj=obj;
+		//moveEmplace(obj, el.obj);
+		static if(isArray!T){
+			moveEmplaceAll(obj[], el.obj[]);
+		}else{
+			moveEmplace(obj, el.obj);
+		}
 		return &el.obj;
 	}
 

@@ -39,15 +39,15 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 	 */
 	
 	static struct Node{
-		static if(loose){
+		//static if(loose){
 			DataContainer!T dataContainer;
 			Node* child;
-		}else{
+		/*}else{
 			union{
 				DataContainer!T dataContainer;// Used only at lowest level
 				Node* child;
 			}
-		}
+		}*/
 		
 	}
 	

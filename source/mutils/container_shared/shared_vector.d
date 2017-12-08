@@ -93,10 +93,8 @@ public:
 	Vector!T vectorCopyWithReset(){
 		if(array.length==0)return Vector!T();
 		synchronized( this ){
-			Vector!T vec;//=Mallocator.instance.make!(Vector!T)(array.length);
-			vec~=array[];
-			array.reset;
-			return vec;
+			scope(exit)array.reset;
+			return array.copy;
 		}
 	}
 	
