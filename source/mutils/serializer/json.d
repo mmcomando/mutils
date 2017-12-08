@@ -199,7 +199,7 @@ unittest{
 	}
 
 	static struct Test{
-		HashMap!(Vector!char, TestInner) map;
+		HashMap!(Vector!(char), TestInner) map;
 		HashMap!(int, int) mapInt;
 	}
 
@@ -223,6 +223,7 @@ unittest{
 	
 	//load
 	JSONSerializer.instance.serialize!(Load.yes)(test,container[]);
+
 	assert(test.map.get(key1)==TestInner(1, 2));
 	assert(test.map.get(key2)==TestInner(3, 5));
 	assert(test.mapInt.get(100)==10);
@@ -282,8 +283,8 @@ struct JSONLexer{
 	}
 	
 	alias characterTokens=AliasSeq!('[',']','{','}','(',')',',',':');
-	
-	Vector!char code;
+
+	string code;
 	string slice;
 	bool skipUnnecessaryWhiteTokens=true;
 	
@@ -293,13 +294,13 @@ struct JSONLexer{
 	@disable this();
 	
 	this(string code, bool skipWhite, bool skipComments){
-		this.code~=cast(char[])code;
-		slice=cast(string)this.code[];
+		this.code=code;
+		slice=this.code[];
 		skipUnnecessaryWhiteTokens=skipWhite;
 	}	
 	
 	void clear(){
-		code.clear();
+		code=null;
 		line=column=0;
 		slice=null;
 	}	
