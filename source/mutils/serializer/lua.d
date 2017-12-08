@@ -27,7 +27,7 @@ class LuaSerializer{
 				auto tokens=lex.tokenizeAll();				
 				//load
 				__gshared static LuaSerializerToken serializer= new LuaSerializerToken();
-				serializer.serialize!(Load.yes, useMalloc)(var,tokens[]);		
+				serializer.serialize!(Load.yes, useMalloc)(var,tokens[]);	
 				tokens.clear();
 			}else{
 				__gshared static LuaSerializerToken serializer= new LuaSerializerToken();
@@ -151,7 +151,7 @@ struct LuaLexer{
 	
 	alias characterTokens=AliasSeq!('[',']','{','}','(',')',',','=');
 	
-	Vector!char code;
+	string code;
 	string slice;
 	bool skipUnnecessaryWhiteTokens=true;
 	bool skipComments=true;
@@ -162,15 +162,15 @@ struct LuaLexer{
 	@disable this();
 	
 	this(string code, bool skipWhite, bool skipComments){
-		this.code~=cast(char[])code;
-		slice=cast(string)this.code[];
+		this.code~=code;
+		slice=this.code[];
 		skipUnnecessaryWhiteTokens=skipWhite;
 		this.skipComments=skipComments;
 	}
 	
 	
 	void clear(){
-		code.clear();
+		code=null;
 		line=column=0;
 		slice=null;
 	}

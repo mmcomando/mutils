@@ -202,8 +202,8 @@ package:
 			}
 		}else{
 			size_t i;
-			foreach(ref keyValue; &var.byKeyValue){
-				serializeKeyValue!(load)(keyValue.key, keyValue.value, con );
+			foreach(ref k, ref v; &var.byKeyValue){
+				serializeKeyValue!(load)(k, v, con );
 				i++;
 				if(i!=var.length){
 					serializeCharToken!(load)(',',con);
