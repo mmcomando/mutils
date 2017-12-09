@@ -162,7 +162,7 @@ struct LuaLexer{
 	@disable this();
 	
 	this(string code, bool skipWhite, bool skipComments){
-		this.code~=code;
+		this.code=code;
 		slice=this.code[];
 		skipUnnecessaryWhiteTokens=skipWhite;
 		this.skipComments=skipComments;
@@ -315,6 +315,8 @@ import mutils.container.vector;
 // test formating
 // test customVector of char serialization
 unittest{
+	string pa1="aaa aaa";
+	string pa2="ddd";
 	static struct TestStruct{
 		struct Project
 		{
@@ -325,33 +327,28 @@ unittest{
 		Vector!Project projects;
 	}
 	TestStruct test;
+	TestStruct testB;
 	TestStruct.Project p1;
 	TestStruct.Project p2;
 	
-	p1.path~=['a', 'a', 'a', ' ', 'a', 'a', 'a'];
+	p1.path~=cast(char[])pa1;
 	p1.ccc=100;
-	p2.path~=['d', 'd', 'd'];
+	p2.path~=cast(char[])pa2;
 	p2.ccc=200;
 	test.projects~=p1;
 	test.projects~=p2;
 	Vector!TokenData tokens;
-	
 	//save
-	__gshared static LuaSerializerToken serializer= new LuaSerializerToken();
-	serializer.serialize!(Load.no)(test,tokens);
+	LuaSerializerToken.instance.serialize!(Load.no)(test, tokens);// Tokens are valid as long as test is not changed
 	
 	//Vector!char vv;
 	//tokensToCharVectorPreatyPrint!(LuaLexer)(tokens[], vv);
-	//writeln(vv[]);
-	
-	//reset var
-	test=TestStruct.init;
-	
+
 	//load
-	serializer.serialize!(Load.yes)(test,tokens[]);
-	assert(test.projects.length==2);
-	assert(test.projects[0].ccc==100);
-	assert(test.projects[0].path[]==cast(char[])"aaa aaa");
-	assert(test.projects[1].ccc==200);
-	assert(test.projects[1].path[]==cast(char[])"ddd");
+	LuaSerializerToken.instance.serialize!(Load.yes)(testB, tokens[]);
+	assert(testB.projects.length==2);
+	assert(testB.projects[0].ccc==100);
+	assert(testB.projects[0].path[]==cast(char[])"aaa aaa");
+	assert(testB.projects[1].ccc==200);
+	assert(testB.projects[1].path[]==cast(char[])"ddd");
 }
