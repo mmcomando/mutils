@@ -4,7 +4,7 @@ import std.experimental.allocator;
 import std.traits;
 
 /**
- * Vector backed by given allocator
+ * Vector backed by given allocator, it is not releaseing data after destruction, used in lua_json_token to treat dynamic arrays as a custom vector
  **/
 struct VectorAllocator(T, Allocator){
 	static if(hasStaticMember!(Allocator,"instance")){
@@ -15,12 +15,12 @@ struct VectorAllocator(T, Allocator){
 
 	
 	T[] array;
-public:
 
 	this(size_t numElements){
 		assert(numElements>0);
 		setLenght(numElements);
 	}
+
 
 	void clear(){
 		removeAll();
@@ -139,4 +139,6 @@ unittest{
 	vec.remove(3);
 	assert(vec.length==5);
 	assert(vec[]==[0,1,2,5,4]);//unstable remove
+
+	Mallocator.instance.dispose(vec.array);
 }

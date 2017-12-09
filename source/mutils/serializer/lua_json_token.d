@@ -125,8 +125,13 @@ package:
 		static if(is(ElementType==char)){
 			static if (load == Load.yes) {
 				assert(con[0].type==StandardTokens.string_);
-				var=con[0].str;
-				con=con[1..$];
+				import mutils.container.vector_allocator;
+				VectorAllocator!(ElementType, Mallocator) arrData;				
+				serializeCustomVector!(load)(arrData, con);
+				var=cast(T)arrData[];
+
+				//var=con[0].str;
+				//con=con[1..$];
 			} else {
 				TokenData token;
 				token=var;

@@ -356,7 +356,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 	assert(ret==0b0011_1111_1111_1100);	
 }
 
-@nogc unittest{
+unittest{
 	HashSet!(int) set;
 	
 	assert(set.isIn(123)==false);

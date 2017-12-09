@@ -140,10 +140,6 @@ struct EntityManager(Entities...){
 	@disable this(this);
 
 	void initialize(){
-		foreach(ref con;entityContainers){
-			con.initialize;
-		}
-
 		foreach(Comp;UniqueComponents){
 			static if(hasStaticMember!(Comp, "staticInitialize")){
 				Comp.staticInitialize();

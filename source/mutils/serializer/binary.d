@@ -304,6 +304,8 @@ unittest{
 	assert(test.str is null);
 	assert(test.strMalloc=="ab");
 	assert(test.intMalloc==[1,2,3]);
+	Mallocator.instance.dispose(cast(char[])test.strMalloc);
+	Mallocator.instance.dispose(test.intMalloc);
 }
 
 
@@ -335,6 +337,7 @@ unittest{
 	assert(test.ttt is null);
 	assert(test.testClass.a==4);
 	assert(test.testClassNull is null);
+	Mallocator.instance.dispose(test.testClass);
 }
 
 // test pointer
@@ -360,11 +363,14 @@ unittest{
 	assert(container.length==(1+4)+1+(1+16));
 	
 	//reset var
+	Mallocator.instance.dispose(arr);
 	test=TestStruct.init;
 	//load
 	serializer.serialize!(Load.yes)(test,container[]);
 	assert(test.pointer.a==10);
 	assert(test.pointerNull is null);
+	Mallocator.instance.dispose(test.pointer);
+	Mallocator.instance.dispose(test.pointerArr);
 }
 
 
@@ -490,6 +496,7 @@ unittest{
 	assert(container.length==(1+4)+(1+8));
 	
 	//reset var
+	Mallocator.instance.dispose(testClass);
 	test=TestStruct.init;
 	test.b=cast(TestStructB*)123;
 	//skip
@@ -506,4 +513,6 @@ unittest{
 	assert(test.a.a==1);
 	assert(test.b.a==11);
 	assert(test.b.b==22);
+	Mallocator.instance.dispose(test.a);
+	Mallocator.instance.dispose(test.b);
 }

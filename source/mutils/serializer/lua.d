@@ -1,5 +1,7 @@
 ﻿module mutils.serializer.lua;
 
+import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 import std.meta;
 
 public import mutils.serializer.common;
@@ -57,6 +59,9 @@ import mutils.container.vector;
 // test formating
 // test customVector of char serialization
 unittest{
+	string pa1="aaa aaa";
+	string pa2="ddd";
+	string pa3="ccc";
 	static struct TestStruct{
 		struct Project
 		{
@@ -71,12 +76,12 @@ unittest{
 	TestStruct test;
 	TestStruct.Project p1,p2;
 	p1.name~=[];
-	p1.path~=['a', 'a', 'a', ' ', 'a', 'a', 'a'];
+	p1.path~=cast(char[])pa1;
 	p1.texPath~=[];
 	p1.ccc=100;
 
-	p2.name~=['d', 'd', 'd'];
-	p2.path~=['c', 'c', 'c'];
+	p2.name~=cast(char[])pa2;
+	p2.path~=cast(char[])pa3;
 	p2.texPath~=[];
 	p2.ccc=200;
 	test.projects~=p1;
@@ -129,6 +134,7 @@ unittest{
 	assert(test.a==1);
 	assert(test.b==145);
 	assert(test.c=="asdasdas asdasdas asdasd asd");
+	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 

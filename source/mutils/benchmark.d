@@ -136,8 +136,8 @@ unittest{
 import mutils.container.vector;
 import mutils.container.buckets_chain;
 
+static BucketsChain!(PerfData, 64, false) perfDataAlloc;
 struct PerfData{
-	static BucketsChain!(PerfData, 64, false) perfDataAlloc;
 	Vector!(PerfData*) perfs;
 	string funcName;
 	long totalTime;
@@ -249,7 +249,8 @@ struct TimeThis{
 
 }
 
-unittest{
+unittest{	
+	mixin(checkVectorAllocations);
 	void testA(){
 		auto timeThis=TimeThis.time();
 	}
@@ -262,7 +263,8 @@ unittest{
 		testA();
 		testB();
 	}
-
+	perfDataAlloc.clear();
+	TimeThis.timingRoot.perfs.clear();
 	//TimeThis.print();
 }
 

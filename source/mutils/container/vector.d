@@ -287,13 +287,14 @@ private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return
 
 ///////////////////////////////////////////
 
+enum string checkVectorAllocations=`
+//assert(gVectorsCreated==gVectorsDestroyed);
+gVectorsCreated=gVectorsDestroyed=0;
+scope(exit){assert(gVectorsCreated==gVectorsDestroyed, "Vector memory leak");}
+`;
+
 unittest{
-	assert(gVectorsCreated==gVectorsDestroyed);
-	gVectorsCreated=0;
-	gVectorsDestroyed=0;
-	scope(exit){
-		assert(gVectorsCreated==gVectorsDestroyed);
-	}
+	mixin(checkVectorAllocations);
 	Vector!int vecA=Vector!int([0,1,2,3,4,5].s);
 	assert(vecA[]==[0,1,2,3,4,5].s);
 	Vector!int vecB;
@@ -339,13 +340,13 @@ unittest{
 
 unittest{
 	assert(gVectorsCreated==gVectorsDestroyed);
-	string strA="aaa bbb";
-	string strB="ccc";
 	gVectorsCreated=0;
 	gVectorsDestroyed=0;
 	scope(exit){
 		assert(gVectorsCreated==gVectorsDestroyed);
 	}
+	string strA="aaa bbb";
+	string strB="ccc";
 	Vector!(Vector!char) vecA=Vector!(Vector!char)(Vector!char(cast(char[])strA));
 	assert(vecA[0]==Vector!char(cast(char[])strA));
 	Vector!(Vector!char) vecB;

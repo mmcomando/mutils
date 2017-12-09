@@ -1,13 +1,11 @@
 module mutils.container.buckets_chain;
 
-import std.algorithm: moveEmplace;
 import std.conv: emplace;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.stdio;
 import std.traits;
-import std.traits;
-import std.algorithm: moveEmplaceAll;
+import std.algorithm: sort;
 
 import mutils.container.vector;
 
@@ -77,6 +75,9 @@ struct BucketWithBits(T,uint elementsNum=128){
 	BitsArray!(elementsNum) emptyElements;
 
 	void initialize(){
+		foreach(uint i;0..elementsNum){
+			emptyElements.set(i);
+		}
 		clear();
 	}
 
@@ -88,6 +89,10 @@ struct BucketWithBits(T,uint elementsNum=128){
 		foreach(uint i;0..elementsNum){
 			emptyElements.set(i);
 		}
+	}
+
+	~this(){
+		clear();
 	}
 
 	size_t length(){
@@ -113,19 +118,21 @@ struct BucketWithBits(T,uint elementsNum=128){
 	T* add(){
 		int num=getEmptyElementNum();	
 		assert(num!=-1);
+		return emplace(&elements[num]);
 
-		elements[num]=T.init;
+		//elements[num]=T.init;
 
-		return &elements[num];
+		//return &elements[num];
 	}
 
 	T* add()(ref T obj){
 		int num=getEmptyElementNum();
 		assert(num!=-1);
 
+		return emplace(&elements[num], obj);
 		//emplace(&
-		elements[num]=obj;
-		return &elements[num];
+		//elements[num]=obj;
+		//return &elements[num];
 	}
 
 	T* add()(T obj){
@@ -160,8 +167,7 @@ struct BucketWithBits(T,uint elementsNum=128){
 		emptyElements.set(num);
 
 		destroy(*obj);
-
-		elements[num]=T.init;
+		//elements[num]=T.init;
 	}
 
 	bool isIn(T* obj){
@@ -195,7 +201,7 @@ struct BucketWithBits(T,uint elementsNum=128){
 					break;			
 			}
 		}else{
-			//the code is faster when this pice code is inner function
+			//the opApply is faster when this pic of code is in inner function
 			//probably because rare executing code is not inlined (less code in main execution path)
 			void byElementIteration(){
 				mixin(doNotInline);
@@ -286,14 +292,16 @@ struct BucketsChain(T, uint elementsInBucket=64, bool addGCRange=hasIndirections
 
 	@disable this(this);
 
-	void initialize(){
-		//buckets=Mallocator.instance.make!(Vector!(MyBucket*));
-	}
-
 	void clear(){
 		foreach(b;buckets){
 			b.clear();
+			Mallocator.instance.dispose(b);
 		}
+		buckets.clear();
+	}
+
+	~this(){
+		clear();
 	}
 
 	MyBucket* addBucket(){
@@ -402,7 +410,6 @@ struct BucketsChain(T, uint elementsInBucket=64, bool addGCRange=hasIndirections
 
 unittest{
 	BucketsChain!(long,16) vec;
-	vec.initialize();
 	long* ptr;
 	ptr=vec.add(1);
 	foreach(i;0..100){
@@ -444,8 +451,29 @@ struct BucketWithList(T,uint elementsNum=128){
 		elements[elementsNum-1].next=null;
 		emptyOne=&elements[0];
 	}
-	
+
+	void reset(){
+		initialize();
+	}
+
 	void clear(){
+		Element* next=emptyOne;
+		Vector!(Element*) emptyOnes;
+		while(next){
+			emptyOnes~=next;
+			next=next.next;
+		}
+		sort(emptyOnes[]);
+		size_t lastMatched=0;
+	outer:foreach(i,ref el; elements[0..elementsNum-1]){
+			foreach(k, emptyEl; emptyOnes[lastMatched..$]){
+				if(&el==emptyEl){
+					lastMatched=k+1;
+					continue outer;
+				}
+			}
+			destroy(el.obj);
+		}
 		initialize();
 	}
 
@@ -453,13 +481,14 @@ struct BucketWithList(T,uint elementsNum=128){
 		assert(emptyOne !is null);
 		Element* el=emptyOne;
 		emptyOne=el.next;
-		T ini=T.init;
+		//T ini=T.init;
 		//el.obj=T.init;
-		static if(isArray!T){
+		/*static if(isArray!T){
 			moveEmplaceAll(ini[], el.obj[]);
 		}else{
 			moveEmplace(ini, el.obj);
-		}
+		}*/
+		emplace(&el.obj);
 		return &el.obj;
 	}
 	
@@ -469,11 +498,12 @@ struct BucketWithList(T,uint elementsNum=128){
 		emptyOne=el.next;
 		//el.obj=obj;
 		//moveEmplace(obj, el.obj);
-		static if(isArray!T){
+		/*static if(isArray!T){
 			moveEmplaceAll(obj[], el.obj[]);
 		}else{
 			moveEmplace(obj, el.obj);
-		}
+		}*/
+		emplace(&el.obj, obj);
 		return &el.obj;
 	}
 
@@ -512,7 +542,9 @@ struct BucketsListChain(T, uint elementsInBucket=64, bool addGCRange=hasIndirect
 	void clear(){
 		foreach(b;buckets){
 			b.clear();
+			Mallocator.instance.dispose(b);
 		}
+		buckets.clear();
 	}
 
 	

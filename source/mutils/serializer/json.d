@@ -1,5 +1,7 @@
 ﻿module mutils.serializer.json;
 
+import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 import std.meta;
 
 public import mutils.serializer.common;
@@ -52,6 +54,10 @@ class JSONSerializer{
 //-----------------------------------------
 //--- Tests
 //-----------------------------------------
+
+// Helper to avoid GC
+private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return array;}
+
 import mutils.container.vector;
 // test formating
 unittest{
@@ -81,6 +87,7 @@ unittest{
 	assert(test.a==1);
 	assert(test.b==145);
 	assert(test.c=="asdasdas asdasdas asdasd asd");
+	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 // test formating
@@ -137,21 +144,22 @@ unittest{
 	Vector!char container;
 	
 	//save
-	__gshared static JSONSerializer serializer= new JSONSerializer();
-	serializer.serialize!(Load.no)(test,container);
+	JSONSerializer.instance.serialize!(Load.no)(test,container);
 	//writeln(container[]);
 	
 	//reset var
 	test=TestStruct.init;
 	
 	//load
-	serializer.serialize!(Load.yes)(test,container[]);
+	JSONSerializer.instance.serialize!(Load.yes)(test,container[]);
 	assert(test.a==1);
 	assert(test.b==2);
 	assert(test.c=="asdasdasda asd asda");
 	assert(test.aa.a==11);
 	assert(test.aa.c==22);
 	assert(test.aa.b=="xxxxx");
+	Mallocator.instance.dispose(cast(char[])test.aa.b);
+	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 // test arrays
@@ -167,26 +175,29 @@ unittest{
 		float e;
 	}
 	TestStruct test;
-	test.a=[1,2,3];
-	test.b=[11,22,33];
-	test.c~=[1,2,3,4,5,6,7];
-	test.d~=[TestStructB("asddd"),TestStructB("asd12dd"),TestStructB("asddaszdd")];
+	test.a=[1,2,3].s;
+	test.b=[11,22,33].s;
+	test.c~=[1,2,3,4,5,6,7].s;
+	test.d~=[TestStructB("asddd"),TestStructB("asd12dd"),TestStructB("asddaszdd")].s;
 	test.e=32.52f;
 	Vector!char container;
 	
 	//save
-	__gshared static JSONSerializer serializer= new JSONSerializer();
-	serializer.serialize!(Load.no)(test,container);
+	JSONSerializer.instance.serialize!(Load.no)(test,container);
 	
 	//reset var
 	test=TestStruct.init;
 	
 	//load
-	serializer.serialize!(Load.yes)(test,container[]);
+	JSONSerializer.instance.serialize!(Load.yes)(test,container[]);
 	//writeln(test);
-	assert(test.a==[1,2,3]);
-	assert(test.b==[11,22,33]);
-	assert(test.c[]==[1,2,3,4,5,6,7]);
+	assert(test.a==[1,2,3].s);
+	assert(test.b==[11,22,33].s);
+	assert(test.c[]==[1,2,3,4,5,6,7].s);
+	Mallocator.instance.dispose(test.b);
+	Mallocator.instance.dispose(cast(char[])test.d[0].a);
+	Mallocator.instance.dispose(cast(char[])test.d[1].a);
+	Mallocator.instance.dispose(cast(char[])test.d[2].a);
 }
 
 // test map
@@ -491,6 +502,7 @@ unittest{
 	serializer.serialize!(Load.no)(test,tokens);
 	
 	assert(tokens.length==13);
+	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 
@@ -570,12 +582,14 @@ unittest{
 	assert(test.aa.a==11);
 	assert(test.aa.c==22);
 	assert(test.aa.b=="xxxxx");
+	Mallocator.instance.dispose(cast(char[])test.aa.b);
+	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 // test arrays
 unittest{
 	static struct TestStructB{
-		@("malloc") string a=cast(string)"ala";
+		@("malloc") string a="ala";
 	}
 	static struct TestStruct{
 		int[3] a;
@@ -585,27 +599,30 @@ unittest{
 		float e;
 	}
 	TestStruct test;
-	test.a=[1,2,3];
-	test.b=[11,22,33];
-	test.c~=[1,2,3,4,5,6,7];
-	test.d~=[TestStructB(cast(string)"asddd"),TestStructB(cast(string)"asd12dd"),TestStructB(cast(string)"asddaszdd")];
+	test.a=[1,2,3].s;
+	test.b=[11,22,33].s;
+	test.c~=[1,2,3,4,5,6,7].s;
+	test.d~=[TestStructB("asddd"),TestStructB("asd12dd"),TestStructB("asddaszdd")].s;
 	test.e=32.52f;
 	//Vector!char container;
 	Vector!TokenData tokens;
 	
-	
+
 	//save
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	serializer.serialize!(Load.no)(test,tokens);
+	JSONSerializerToken.instance.serialize!(Load.no)(test,tokens);
 	
 	//reset var
 	test=TestStruct.init;
 	
 	//load
-	serializer.serialize!(Load.yes)(test,tokens[]);
-	assert(test.a==[1,2,3]);
-	assert(test.b==[11,22,33]);
-	assert(test.c[]==[1,2,3,4,5,6,7]);
+	JSONSerializerToken.instance.serialize!(Load.yes)(test,tokens[]);
+	assert(test.a==[1,2,3].s);
+	assert(test.b==[11,22,33].s);
+	assert(test.c[]==[1,2,3,4,5,6,7].s);
+	Mallocator.instance.dispose(test.b);
+	Mallocator.instance.dispose(cast(char[])test.d[0].a);
+	Mallocator.instance.dispose(cast(char[])test.d[1].a);
+	Mallocator.instance.dispose(cast(char[])test.d[2].a);
 }
 
 
