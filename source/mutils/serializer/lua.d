@@ -75,29 +75,25 @@ unittest{
 	}
 	TestStruct test;
 	TestStruct.Project p1,p2;
-	p1.name~=[];
 	p1.path~=cast(char[])pa1;
-	p1.texPath~=[];
 	p1.ccc=100;
 
 	p2.name~=cast(char[])pa2;
 	p2.path~=cast(char[])pa3;
-	p2.texPath~=[];
 	p2.ccc=200;
 	test.projects~=p1;
 	test.projects~=p2;
 	Vector!char container;
 	
 	//save
-	__gshared static LuaSerializer serializer= new LuaSerializer();
-	serializer.serialize!(Load.no)(test,container);
+	LuaSerializer.instance.serialize!(Load.no)(test,container);
 	//writeln(container[]);
 	
 	//reset var
 	test=TestStruct.init;
 	
 	//load
-	serializer.serialize!(Load.yes)(test,container[]);
+	LuaSerializer.instance.serialize!(Load.yes)(test,container[]);
 	assert(test.projects.length==2);
 	assert(test.projects[0].name[]=="");
 	assert(test.projects[0].path[]=="aaa aaa");

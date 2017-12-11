@@ -62,16 +62,20 @@ struct View2D(Slice){
 	}
 }
 
+
+// Helper to avoid GC
+private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return array;}
+
 unittest{
-	int[9] arr=[0,1,2,3,4,5,6,7,8];
+	int[9] arr=[0,1,2,3,4,5,6,7,8].s;
 	View2D!(int[]) view;
 	view.slice=arr[];
 	view.columnsNum=3;
 	
 	// opIndex[y]
-	assert(view[0]==[0,1,2]);
-	assert(view[1]==[3,4,5]);
-	assert(view[2]==[6,7,8]);
+	assert(view[0]==[0,1,2].s);
+	assert(view[1]==[3,4,5].s);
+	assert(view[2]==[6,7,8].s);
 	
 	// opIndex[y, x]
 	assert(view[0,0]==0);
@@ -84,14 +88,14 @@ unittest{
 	assert(view[2,1]==7);
 	assert(view[2,2]==8);
 	// opIndex[y,x1..x2]
-	assert(view[0,1..$]==[1,2]);
+	assert(view[0,1..$]==[1,2].s);
 	// opDollar
-	assert(view[$-1]==[6,7,8]);
+	assert(view[$-1]==[6,7,8].s);
 	assert(view[$-1,$-2]==7);
 	// Foreach
 	foreach(row; view){}
 	foreach(i, row; view){
-		assert(row==[i*3+0, i*3+1, i*3+2]);
+		assert(row==[i*3+0, i*3+1, i*3+2].s);
 	}
 	// Assigment
 	view[2,2]=123;

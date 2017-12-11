@@ -383,7 +383,6 @@ struct JSONLexer{
 	
 	
 	static void toChars(Vec)(TokenData token, ref Vec vec){
-		
 		final switch(cast(Token)token.type){
 			case Token.long_:
 			case Token.double_:
@@ -425,10 +424,10 @@ unittest{
 		JSONLexer json=JSONLexer(str, false,false);
 		Vector!TokenData tokens=json.tokenizeAll();
 		
-		JSONLexer json2=JSONLexer([], false,false);
+		JSONLexer json2=JSONLexer(null, false,false);
 		//writeln(tokens[]);
 		//writeln(json2.tokensToString(tokens[0..$-1]),"|\n\n\n",sliceCopy,"|");
-		assert(json2.tokensToString(tokens[0..$-1])==sliceCopy);
+		assert(json2.tokensToString(tokens[0..$-1])[]==cast(char[])sliceCopy);
 		
 	}
 	testOutputTheSame("  12345 ");

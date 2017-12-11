@@ -192,6 +192,9 @@ package:
 //--- Tests
 //-----------------------------------------
 
+// Helper to avoid GC
+private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return array;}
+
 import mutils.container.vector;
 // test basic types + endianness
 unittest{
@@ -240,8 +243,8 @@ unittest{
 	//save
 	BinarySerializer serializer=BinarySerializer.instance;
 	serializer.serialize!(Load.no)(test,container);
-	assert(container[0..4]==[1,0,0,0]);
-	assert(container[4..12]==[2,0,0,0,0,0,0,0]);
+	assert(container[0..4]==[1,0,0,0].s);
+	assert(container[4..12]==[2,0,0,0,0,0,0,0].s);
 	assert(container[12]=='c');
 	assert(container.length==13);
 	
@@ -288,7 +291,7 @@ unittest{
 		@("malloc") string strMalloc;
 		@("malloc") int[] intMalloc;
 	}
-	static TestStruct test=TestStruct("xx", "ab",[1,2,3]);
+	static TestStruct test=TestStruct("xx", "ab",[1,2,3].s);
 	
 	Vector!ubyte container;
 	
@@ -303,7 +306,7 @@ unittest{
 	serializer.serialize!(Load.yes)(test,container[]);
 	assert(test.str is null);
 	assert(test.strMalloc=="ab");
-	assert(test.intMalloc==[1,2,3]);
+	assert(test.intMalloc==[1,2,3].s);
 	Mallocator.instance.dispose(cast(char[])test.strMalloc);
 	Mallocator.instance.dispose(test.intMalloc);
 }
@@ -428,7 +431,7 @@ unittest{
 	//save
 	BinarySerializer serializer=BinarySerializer.instance;
 	serializer.serialize!(Load.no)(test,container);
-	assert(container[]==[10,3,7]);
+	assert(container[]==[10,3,7].s);
 	
 	//reset var
 	test=TestStruct.init;
