@@ -2,6 +2,7 @@
 
 struct Circular(T){
 	T[] range;
+	T defaultValue;
 	size_t currElement;
 
 	this(T[] r){
@@ -10,6 +11,9 @@ struct Circular(T){
 	}
 
 	ref T get(){
+		if(currElement>=range.length){
+			return defaultValue;
+		}
 		return range[currElement];
 	}
 
