@@ -310,6 +310,22 @@ struct TokenData{
 		}
 	}
 
+	bool isAssignableTo(T)()
+		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char) || is(T==bool) )
+	{
+		static if(isIntegral!T || is(T==bool) ){
+			return type==StandardTokens.long_;
+		}else static if(isFloatingPoint!T){
+			return type==StandardTokens.double_ || type==StandardTokens.long_;
+		}else static if( is(T==string) ){
+			return type==StandardTokens.string_;
+		}else static if( is(T==char) ){
+			return type==StandardTokens.character;
+		}else{
+			static assert(0);
+		}
+	}
+
 	bool isType(T)()
 		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(T==char) || is(T==bool) )
 	{
@@ -333,8 +349,13 @@ struct TokenData{
 			assert(type==StandardTokens.long_);
 			return cast(T)long_;
 		}else static if(isFloatingPoint!T){
-			assert(type==StandardTokens.double_);
-			return cast(T)double_;
+			assert(type==StandardTokens.double_ || type==StandardTokens.long_);
+			if(type==StandardTokens.double_){
+				return cast(T)double_;
+			}else if(type==StandardTokens.long_){
+				return cast(T)long_;
+			}
+			return T.init;// For release build stability
 		}else static if( is(T==string) ){
 			assert(type==StandardTokens.string_);
 			return cast(T)str;

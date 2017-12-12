@@ -242,18 +242,36 @@ unittest{
 	Vector!char container;
 	
 	//save
-	__gshared static JSONSerializer serializer= new JSONSerializer();
-	serializer.serialize!(Load.no,true)(test,container);
+	JSONSerializer.instance.serialize!(Load.no,true)(test,container);
 
 	//reset var
 	test=null;
 
 	//load
-	serializer.serialize!(Load.yes,true)(test,container[]);
+	JSONSerializer.instance.serialize!(Load.yes,true)(test,container[]);
 	assert(test.a==11);
 	assert(test.b=='b');
 }
 
+// test float
+unittest{
+	static struct TestStruct{
+		float numA;
+		float numB;
+	}
+	Vector!char container;
+	TestStruct test=TestStruct(1.11, 200);
+	
+	//save
+	JSONSerializer.instance.serialize!(Load.no)(test,container);
+	
+	//reset var
+	test=TestStruct.init;
+	//load
+	JSONSerializer.instance.serialize!(Load.yes)(test,container[]);
+	assert(test.numA>=1.1 && test.numA<=1.2);
+	assert(test.numB==200);
+}
 // test nothing
 unittest{
 	static struct TestStruct{
