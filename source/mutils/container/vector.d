@@ -72,10 +72,15 @@ public:
 	}	
 
 	void length(size_t newLength){
-		assert(newLength>=used);
-		reserve(newLength);
-		foreach(ref el;array[used..newLength]){
-			emplace(&el);
+		if(newLength>used){
+			reserve(newLength);
+			foreach(ref el;array[used..newLength]){
+				emplace(&el);
+			}
+		}else{
+			foreach(ref el;array[newLength..used]){
+				destroy(el);
+			}
 		}
 		used=newLength;
 	}
@@ -152,7 +157,7 @@ public:
 		used++;
 	}
 	
-	void add(T[]  t){
+	void add(X)(X[]  t) if( is(Unqual!X==Unqual!T) ){
 		if(used+t.length>array.length){
 			extend(nextPow2(used+t.length));
 		}
@@ -206,7 +211,7 @@ public:
 		add(obj);
 	}
 	
-	void opOpAssign(string op)(T[] obj){
+	void opOpAssign(string op,X)(X[] obj){
 		static assert(op=="~");
 		add(obj);
 	}
@@ -285,6 +290,18 @@ private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return
 	assert(vec[3]==33);	
 }
 
+@nogc nothrow unittest{
+	Vector!char vec;
+	vec~="abcd";
+	assert(vec[]==cast(char[])"abcd");
+}
+
+@nogc nothrow unittest{
+	Vector!int vec;
+	vec~=[0,1,2,3,4,5].s;
+	vec.length=2;
+	assert(vec[]==[0,1].s);	
+}
 ///////////////////////////////////////////
 
 enum string checkVectorAllocations=`
