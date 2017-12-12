@@ -61,7 +61,7 @@ package:
 			ser.serializeChar!(load)(var, con);
 		}else{
 			static if (load == Load.yes) {
-				check!("Wrong token type")(con[0].isType!T);
+				check!("Wrong token type")(con[0].isAssignableTo!T);
 				var = con[0].get!T();
 				con=con[1..$];
 			} else {
