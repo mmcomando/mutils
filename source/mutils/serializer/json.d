@@ -1,4 +1,4 @@
-﻿module mutils.serializer.json;
+﻿ module mutils.serializer.json;
 
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
@@ -294,6 +294,21 @@ unittest{
 	JSONSerializer.instance.serialize!(Load.no,true)(test, container);
 	//load
 	JSONSerializer.instance.serialize!(Load.yes,true)(test,container[]);
+}
+// test bools as nums
+unittest{
+	
+	static struct TestStruct{
+		bool a;
+		bool b;
+	}
+	TestStruct test;
+	string str=`{"a":123,"b":0}`;
+	test.a=false;
+	test.b=true;
+	JSONSerializer.instance.serialize!(Load.yes)(test, cast(char[])str);
+	assert(test.a==true);
+	assert(test.b==false);
 }
 
 //-----------------------------------------
@@ -656,14 +671,39 @@ unittest{
 	Vector!TokenData tokens;
 	
 	//save
-	__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-	serializer.serialize!(Load.no,true)(test, tokens);
+	JSONSerializerToken.instance.serialize!(Load.no,true)(test, tokens);
 	//reset var
 	test=null;
 	
 	//load
-	serializer.serialize!(Load.yes,true)(test,tokens[]);
+	JSONSerializerToken.instance.serialize!(Load.yes,true)(test,tokens[]);
 	
 	assert(test.a==11);
 	assert(test.b=='b');
+}
+
+
+// test bool
+unittest{
+	
+	static struct TestStruct{
+		bool a;
+		bool b;
+	}
+	TestStruct test;
+	test.a=true;
+	test.b=false;
+	
+	Vector!TokenData tokens;	
+	//save
+	JSONSerializerToken.instance.serialize!(Load.no)(test, tokens);
+	//{a=true,b=false}
+	assert(tokens[3].type==StandardTokens.identifier);
+	assert(tokens[7].type==StandardTokens.identifier);
+	test.a=false;
+	test.b=true;
+	//load
+	JSONSerializerToken.instance.serialize!(Load.yes)(test, tokens[]);
+	assert(test.a==true);
+	assert(test.b==false);
 }

@@ -58,7 +58,9 @@ package:
 	void serializeBasicVar(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(isBasicType!T);
 		static if (is(T==char)) {
-			ser.serializeChar!(load)(var, con);
+			serializeChar!(load)(var, con);
+		}else static if (is(T==bool)) {
+			serializeBoolToken!(load)(var, con);
 		}else{
 			static if (load == Load.yes) {
 				check!("Wrong token type")(con[0].isAssignableTo!T);
@@ -333,6 +335,8 @@ package:
 		void serializeName(Load load,  ContainerOrSlice)(ref string name,ref ContainerOrSlice con){
 			
 			static if (load == Load.yes) {
+				if(con[0].type!=StandardTokens.string_)
+				//writelnTokens(con[0..10]);
 				assert(con[0].type==StandardTokens.string_);
 				name=con[0].getUnescapedString;
 				con=con[1..$];
