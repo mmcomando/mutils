@@ -6,7 +6,7 @@ module mutils.job_manager.shared_utils;
 public import std.experimental.allocator:make,makeArray,dispose;
 
 import core.cpuid : threadsPerCPU;
-import core.thread;
+import mutils.thread: Thread;
 
 import std.conv : to;
 import std.experimental.allocator.building_blocks;

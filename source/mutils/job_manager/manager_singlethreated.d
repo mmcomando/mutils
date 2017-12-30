@@ -4,7 +4,7 @@ Rather for debugging than for anything else.
  */
 module mutils.job_manager.manager_singlethreated;
 
-import core.thread : Fiber;
+import mutils.thread : Fiber;
 
 import std.functional : toDelegate;
 import std.stdio : write,writeln,writefln;

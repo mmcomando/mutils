@@ -36,8 +36,8 @@ private:
 	align (64) shared LockType producerLock;//atomic
 	
 	
-	alias Allocator=BucketAllocator!(Node.sizeof);
-	//alias Allocator=MyMallcoator;
+	//alias Allocator=BucketAllocator!(Node.sizeof);
+	alias Allocator=MyMallocator;
 	//alias Allocator=MyGcAllcoator;
 	Allocator allocator;
 	
@@ -60,7 +60,7 @@ public:
 		Node* tmp = allocator.make!(Node)( t );
 		while( !cas(&producerLock,cast(LockType)false,cast(LockType)true )){ } 	// acquire exclusivity
 		last.next = tmp;		 		// publish to consumers
-		last = tmp;		 		// swing last forward
+		last = tmp;		 		// swing last forwardz
 		atomicStore(producerLock,false);		// release exclusivity
 		atomicOp!"+="(elementsAdded,1);
 		

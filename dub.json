@@ -3,6 +3,8 @@
 	"authors": [
 		"Michał Masiukiewicz"
 	],
+	"lflags": ["-L."],
+	"libs": ["coro" ],
 	"description": "Marvelous utilities for everything and nothing",
 	"copyright": "Copyright © 2017, Michał Masiukiewicz",
 	"license": "proprietary",

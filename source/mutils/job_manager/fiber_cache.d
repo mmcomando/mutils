@@ -8,17 +8,19 @@ module mutils.job_manager.fiber_cache;
 import core.stdc.stdlib:malloc,free;
 import core.stdc.string:memset,memcpy;
 import core.atomic;
-import core.thread:Fiber,Thread,PAGESIZE;
+import mutils.thread: Fiber, Thread, PAGESIZE;
+import mutils.container.vector;
+import mutils.job_manager.manager_utils;
 import core.memory;
 
 import mutils.job_manager.shared_utils;
 
+import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 //only one warning about GC
 Fiber newFiber(){
-	static void dummy(){}
-	Fiber fiber = new Fiber(&dummy,PAGESIZE * 32u);
-	GC.addRoot(cast(void*)fiber);	
-	fiber.call();
+	Fiber fiber = Mallocator.instance.make!(Fiber)(PAGESIZE * 32u);
+	fiber.state=Fiber.State.TERM;
 	return fiber;
 }
 
@@ -60,8 +62,10 @@ class FiberOneCache{
 	}
 }
 
-import mutils.container.vector;
-static Vector!Fiber array;
+static Vector!Fiber[100] arr;
+ref Vector!Fiber array(){
+	return arr[jobManagerThreadNum];
+}
 static uint used=0;
 
 void initializeFiberCache(){

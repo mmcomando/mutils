@@ -7,7 +7,7 @@ module mutils.job_manager.manager_multithreated;
 
 import core.atomic;
 import core.cpuid : threadsPerCPU;
-import core.thread : Thread,ThreadID,Fiber;
+import mutils.thread : Thread,Fiber;
 import core.runtime;
 
 import std.conv : to;
@@ -23,6 +23,8 @@ import mutils.job_manager.manager_utils;
 import mutils.container_shared.shared_queue;
 import mutils.job_manager.shared_utils;
 
+
+import core.sys.posix.stdlib;
 
 alias JobVector=LowLockQueue!(JobDelegate*,bool);
 //alias JobVector=LockedVector!(JobDelegate*);
@@ -138,7 +140,7 @@ class JobManager{
 					wait=false;
 				}
 			}
-			Thread.sleep(10.msecs);
+			//Thread.sleep(10);
 		}while(wait);
 	}
 	void end(){
@@ -161,7 +163,7 @@ class JobManager{
 		debugHelper.fibersAddedAdd();
 		waitingFibers[fiberData.threadNum].add(fiberData);//range violation??
 	}
-	//Only for debug and there it ma cause bugs
+
 	void addThisFiberAndYield(FiberData thisFiber){
 		addFiber(thisFiber);//We add running fiber and
 		Fiber.yield();//wish that it wont be called before this yield
@@ -200,32 +202,40 @@ class JobManager{
 		fibersCache.removeData(fiber,jobManagerThreadNum,cast(uint)threadPool.length);
 	}
 	void runNextJob(){
+		//printf("threadRunFunction %d\n", jobManagerThreadNum);
 		static int dummySink;
 		static int nothingToDoNum;
-		
+
+
 		Fiber fiber;
 		FiberData fd=waitingFibers[jobManagerThreadNum].pop;
 		if(fd!=FiberData.init){
+			//printf("continue fiber %d\n", jobManagerThreadNum);
 			fiber=fd.fiber;
 			debugHelper.fibersDoneAdd();
 		}else if( !waitingJobs.empty ){
 			JobDelegate* job;
 			job=waitingJobs.pop();
+			//printf("are jobs %d\n", jobManagerThreadNum);
 			if(job !is null){
+				//printf("call new job %d\n", jobManagerThreadNum);
 				debugHelper.jobsDoneAdd();
 				fiber=allocateFiber(*job);
 			}	
 		}
 		//nothing to do
 		if(fiber is null ){
+			//printf("no fiber\n");
 			nothingToDoNum++;
-			if(nothingToDoNum>50){
-				Thread.sleep(10.usecs);
+			if(nothingToDoNum>5){
+				Thread.sleep(1);
+				nothingToDoNum=0;
 			}else{
-				foreach(i;0..uniform(0,20))dummySink+=uniform(1,2);//backoff
+				foreach(i;0..random()%20)dummySink+=random()%2;//backoff
 			}
 			return;
 		}
+		//printf("call fiber %d\n", jobManagerThreadNum);
 		//do the job
 		nothingToDoNum=0;
 		assert(fiber.state==Fiber.State.HOLD);
@@ -244,6 +254,7 @@ class JobManager{
 		initializeDebugData();
 		DebugSink.initialize();
 		initializeFiberCache();
+		printf("threadRunFunction %d\n", jobManagerThreadNum);
 		while(!exit){
 			runNextJob();
 		}
@@ -253,4 +264,5 @@ class JobManager{
 	
 }
 
+import core.stdc.stdio;
 

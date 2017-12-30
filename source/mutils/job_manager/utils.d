@@ -29,6 +29,7 @@ void assertM(A,B,string file=__FILE__,uint line=__LINE__)(A a,B b){
 version(linux){
 	import std.conv;
 	import std.demangle;
+	import core.stdc.string;
 	private static struct  Dl_info {
 		const char *dli_fname; 
 		void       *dli_fbase;  
@@ -40,7 +41,8 @@ version(linux){
 	string functionName(void* addr){
 		Dl_info info;
 		int ret=dladdr(addr,&info);
-		return info.dli_sname.to!(string).demangle;
+		return cast(string)info.dli_sname[0..strlen(info.dli_sname)];
+		//return info.dli_sname.to!(string).demangle;
 	}
 }else{
 	string functionName(void* addr){

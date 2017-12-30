@@ -4,7 +4,7 @@ import core.stdc.signal;
 import core.sync.condition;
 import core.sync.mutex;
 import core.sync.semaphore;
-import core.thread;
+import mutils.thread;
 
 
 import std.experimental.allocator;
