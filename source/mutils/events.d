@@ -228,18 +228,22 @@ struct Events{
 		
 		switch (event.type) {
 			case SDL_KEYDOWN:
-				specialKeysImpl(event.key.keysym.sym, false);
-				if (event.key.keysym.sym < 256) {
-					downKeys[event.key.keysym.sym] = true;
-					pressedKeys[event.key.keysym.sym] = true;
+				auto sym=event.key.keysym.sym;
+				specialKeysImpl(sym, false);
+				int toUpper=(keyDown(Key.shift) && sym>='a' && sym <='z' )?'A'-'a':0;
+				if (sym < 256) {
+					downKeys[toUpper+sym] = true;
+					pressedKeys[toUpper+sym] = true;
 				}
 				
 				break;
 			case SDL_KEYUP:
-				specialKeysImpl(event.key.keysym.sym, true);
-				if (event.key.keysym.sym < 256) {
-					downKeys[event.key.keysym.sym] = false;
-					releasedKeys[event.key.keysym.sym] = true;
+				auto sym=event.key.keysym.sym;
+				specialKeysImpl(sym, true);
+				int toUpper=(keyDown(Key.shift) && sym>='a' && sym <='z' )?'A'-'a':0;
+				if (sym < 256) {
+					downKeys[toUpper+sym] = false;
+					releasedKeys[toUpper+sym] = true;
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
