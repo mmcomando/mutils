@@ -22,11 +22,11 @@ struct Vector(T){
 	size_t used;
 public:
 
-	this(T t){
+	this()(T t){
 		add(t);
 	}
 
-	this(T[] t){
+	this()(T[] t){
 		add(t);
 	}
 
@@ -35,13 +35,17 @@ public:
 		extend(numElements);
 	}
 
-	//@disable this(this);
-	this(this){
-		T[] tmp=array[0..used];
-		array=null;
-		used=0;
-		add(tmp);
+	static if(isCopyable!T){
+		this(this){
+			T[] tmp=array[0..used];
+			array=null;
+			used=0;
+			add(tmp);
+		}
+	}else{
+		@disable this(this);
 	}
+
 
 	~this(){
 		clear();
@@ -125,7 +129,7 @@ public:
 		return cast(void[])oldArray;		
 	}
 	
-	Vector!T copy(){
+	Vector!T copy()(){
 		Vector!T duplicate;
 		duplicate.reserve(used);
 		duplicate~=array[0..used];
@@ -136,7 +140,7 @@ public:
 		return used+elemNum<=array.length;
 	}
 	
-	void add(T  t) {
+	void add()(T  t) {
 		if(used>=array.length){
 			extend(nextPow2(used+1));
 		}
@@ -145,7 +149,7 @@ public:
 	}
 
 	/// Add element at given position moving others
-	void add(T t, size_t pos){
+	void add()(T t, size_t pos){
 		assert(pos<=used);
 		if(used>=array.length){
 			extend(array.length*2);
@@ -174,7 +178,7 @@ public:
 		used--;
 	}
 	
-	bool tryRemoveElement(T elem){
+	bool tryRemoveElement()(T elem){
 		foreach(i,ref el;array[0..used]){
 			if(el==elem){
 				remove(i);
@@ -184,8 +188,9 @@ public:
 		return false;
 	}
 	
-	void removeElement(T elem){
-		assert(tryRemoveElement(elem));
+	void removeElement()(T elem){
+		bool ok=tryRemoveElement(elem);
+		assert(ok);
 	}
 	
 	ref T opIndex(size_t elemNum){
@@ -216,12 +221,12 @@ public:
 		add(obj);
 	}
 	
-	void opIndexAssign(T obj, size_t elemNum){
+	void opIndexAssign()(T obj, size_t elemNum){
 		assert(elemNum<used, "Range viloation");
 		array[elemNum]=obj;		
 	}
 
-	void opSliceAssign(T obj, size_t a, size_t b){
+	void opSliceAssign()(T obj, size_t a, size_t b){
 		assert(b<used && a<=b, "Range viloation");
 		array.ptr[a..b]=obj;		
 	}
@@ -373,4 +378,13 @@ unittest{
 	assert(vecB.used==vecA.used);
 	assert(vecB[0].array.ptr!=vecA[0].array.ptr);
 	assert(vecB[0].used==vecA[0].used);
+}
+
+
+unittest{
+	static struct Test{
+		int num;
+		@disable this(this);
+	}
+	Vector!Test test;
 }
