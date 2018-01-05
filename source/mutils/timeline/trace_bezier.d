@@ -82,10 +82,19 @@ struct TraceBezier(T, alias mixFun=mix){
 	void computeAll(){
 		assert(data.length>=3);
 		data[0].suppVec=computeSupportingPoint(data[0],data[0],data[1]);
-		foreach(i;1..data.length-1){
-			data[i].suppVec=computeSupportingPoint(data[i-1],data[i],data[i+1]);
+		//writeln(data.length);
+		//foreach(i;1..data.length-1){
+		for(int i=1;i<data.length-1;i++){
+			//writeln(i);
+			//writeln(data[i-1]);
+			//writeln(data[i]);
+			//writeln(data[i+1]);
+			//data[i].suppVec=computeSupportingPoint(data[i-1],data[i],data[i+1]);
 		}
-		data[$-1].suppVec=computeSupportingPoint(data[$-2],data[$-1],data[$-1]);
+		//data[$-1].suppVec=computeSupportingPoint(data[$-2],data[$-1],data[$-1]);
+		//writeln(data[$-2]);
+		//writeln(data[$-1]);
+		//writeln(data[$-1]);
 	}
 
 	float totalLength(){
@@ -151,6 +160,12 @@ struct TraceBezier(T, alias mixFun=mix){
 
 
 unittest{
+	//assert(gVectorsCreated==gVectorsDestroyed);
+	/*gVectorsCreated=0;
+	gVectorsDestroyed=0;
+	scope(exit){
+		assert(gVectorsCreated==gVectorsDestroyed);
+	}*/
 	import mutils.linalg.vec;
 	alias vec=Vec!(float,2);
 	alias TraceVec=TraceBezier!(vec);
@@ -159,6 +174,7 @@ unittest{
 	trace.add(vec(0,1),1);
 	trace.add(vec(1,1),2);
 	trace.add(vec(1,0),3);
+	//writeln(gVectorsCreated," ",gVectorsDestroyed);
 	
 	trace.computeAll();	
 	trace.addAndRecompute(vec(0.5,1.5),1.5);

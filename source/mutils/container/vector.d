@@ -4,12 +4,18 @@ import core.bitop;
 import core.stdc.stdlib : malloc,free;
 import core.stdc.string : memset,memcpy;
 
-import std.traits:Unqual;
+import std.algorithm:  swap;
+import std.conv: emplace;
+import mutils.stdio;
+
+import std.traits: Unqual, isCopyable, TemplateOf, hasMember;
 
 @nogc @safe nothrow pure size_t nextPow2(size_t num){
 	return 1<< bsr(num)+1;
 }
 
+__gshared size_t gVectorsCreated=0;
+__gshared size_t gVectorsDestroyed=0;
 
 struct Vector(T){
 	T[] array;
@@ -28,6 +34,18 @@ public:
 		assert(numElements>0);
 		extend(numElements);
 	}
+
+	//@disable this(this);
+	this(this){
+		T[] tmp=array[0..used];
+		array=null;
+		used=0;
+		add(tmp);
+	}
+
+	~this(){
+		clear();
+	}
 	
 	void clear(){
 		removeAll();
@@ -35,9 +53,13 @@ public:
 	
 	void removeAll(){
 		if(array !is null){
+			foreach(ref el; array[0..used]){
+				destroy(el);
+			}
 			freeData(cast(void[])array);
+			gVectorsDestroyed++;
 		}
-		array=T[].init;
+		array=null;
 		used=0;
 	}
 	
@@ -50,10 +72,15 @@ public:
 	}	
 
 	void length(size_t newLength){
-		assert(newLength>=used);
-		reserve(newLength);
-		foreach(ref el;array[used..newLength]){
-			el=T.init;
+		if(newLength>used){
+			reserve(newLength);
+			foreach(ref el;array[used..newLength]){
+				emplace(&el);
+			}
+		}else{
+			foreach(ref el;array[newLength..used]){
+				destroy(el);
+			}
 		}
 		used=newLength;
 	}
@@ -74,20 +101,21 @@ public:
 	}
 	
 	void extend(size_t newNumOfElements){
-		auto oldArray=manualExtend(newNumOfElements);
+		auto oldArray=manualExtend(array, newNumOfElements);
 		if(oldArray !is null){
 			freeData(oldArray);
 		}
 	}
 	
 	@nogc void freeData(void[] data){
-		// 0xFFFFFF probably invalid value for pointers and other types
-		memset(data.ptr,0xFFFFFFFF,data.length);// Makes bugs show up xD 
+		// 0x0F probably invalid value for pointers and other types
+		memset(data.ptr,0x0F,data.length);// Makes bugs show up xD 
 		free(data.ptr);
 	}
 	
-	void[] manualExtend(size_t newNumOfElements=0){
+	static void[] manualExtend(ref T[] array, size_t newNumOfElements=0){
 		if(newNumOfElements==0)newNumOfElements=2;
+		if(array.length==0)gVectorsCreated++;
 		T[] oldArray=array;
 		size_t oldSize=oldArray.length*T.sizeof;
 		size_t newSize=newNumOfElements*T.sizeof;
@@ -112,7 +140,7 @@ public:
 		if(used>=array.length){
 			extend(nextPow2(used+1));
 		}
-		array[used]=t;
+		emplace(&array[used], t);
 		used++;
 	}
 
@@ -123,25 +151,26 @@ public:
 			extend(array.length*2);
 		}
 		foreach_reverse(size_t i;pos..used){
-			array[i+1]=array[i];
+			swap(array[i+1], array[i]);
 		}
-		array[pos]=t;
+		emplace(&array[pos], t);
 		used++;
 	}
 	
-	void add(T[]  t){
+	void add(X)(X[]  t) if( is(Unqual!X==Unqual!T) ){
 		if(used+t.length>array.length){
 			extend(nextPow2(used+t.length));
 		}
 		foreach(i;0..t.length){
-			array[used+i]=t[i];
+			emplace(&array[used+i], t[i]);
 		}
 		used+=t.length;
 	}
 	
 	
 	void remove(size_t elemNum){
-		array[elemNum]=array[used-1];
+		destroy(array[elemNum]);
+		swap(array[elemNum], array[used-1]);
 		used--;
 	}
 	
@@ -160,8 +189,7 @@ public:
 	}
 	
 	ref T opIndex(size_t elemNum){
-		pragma(inline, true);
-		assert(elemNum<used);
+		assert(elemNum<used, "Range violation [index]");
 		return array.ptr[elemNum];
 	}
 	
@@ -177,13 +205,13 @@ public:
 	size_t opDollar(){
 		return used;
 	}
-	
+
 	void opOpAssign(string op)(T obj){
 		static assert(op=="~");
 		add(obj);
 	}
 	
-	void opOpAssign(string op)(T[] obj){
+	void opOpAssign(string op,X)(X[] obj){
 		static assert(op=="~");
 		add(obj);
 	}
@@ -198,7 +226,7 @@ public:
 		array.ptr[a..b]=obj;		
 	}
 
-	bool opEquals()(auto ref const Vector!T r) const { 
+	bool opEquals()(auto ref const Vector!(T) r) const { 
 		return used==r.used && array.ptr[0..used]==r.array.ptr[0..r.used];
 	}
 
@@ -241,7 +269,6 @@ private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return
 	vec.remove(3);
 	assert(vec.length==5);
 	assert(vec[]==[0,1,2,5,4].s);//unstable remove
-	
 }
 
 @nogc nothrow unittest{
@@ -260,6 +287,90 @@ private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return
 	Vector!int vec;
 	vec~=[0,1,2,3,4,5].s;
 	vec[3]=33;
-	assert(vec[3]==33);
-	
+	assert(vec[3]==33);	
+}
+
+@nogc nothrow unittest{
+	Vector!char vec;
+	vec~="abcd";
+	assert(vec[]==cast(char[])"abcd");
+}
+
+@nogc nothrow unittest{
+	Vector!int vec;
+	vec~=[0,1,2,3,4,5].s;
+	vec.length=2;
+	assert(vec[]==[0,1].s);	
+}
+///////////////////////////////////////////
+
+enum string checkVectorAllocations=`
+//assert(gVectorsCreated==gVectorsDestroyed);
+gVectorsCreated=gVectorsDestroyed=0;
+scope(exit){assert(gVectorsCreated==gVectorsDestroyed, "Vector memory leak");}
+`;
+
+unittest{
+	mixin(checkVectorAllocations);
+	Vector!int vecA=Vector!int([0,1,2,3,4,5].s);
+	assert(vecA[]==[0,1,2,3,4,5].s);
+	Vector!int vecB;
+	vecB=vecA;
+	assert(vecB[]==[0,1,2,3,4,5].s);
+	assert(vecB.array.ptr!=vecA.array.ptr);
+	assert(vecB.used==vecA.used);
+	Vector!int vecC=vecA;
+	assert(vecC[]==[0,1,2,3,4,5].s);
+	assert(vecC.array.ptr!=vecA.array.ptr);
+	assert(vecC.used==vecA.used);
+	Vector!int vecD=vecA.init;
+}
+
+unittest{
+	static int numInit=0;
+	static int numDestroy=0;
+	scope(exit){
+		assert(numInit==numDestroy);
+	}
+	static struct CheckDestructor{
+		int num=1;
+
+		this(this){
+			numInit++;			
+		}
+
+		this(int n){
+			num=n;
+			numInit++;
+
+		}
+		~this(){
+			numDestroy++;
+		}
+	}
+	CheckDestructor[2] arr=[CheckDestructor(1), CheckDestructor(1)];
+	Vector!CheckDestructor vec;
+	vec~=CheckDestructor(1);
+	vec~=arr;
+	vec.remove(1);
+}
+
+unittest{
+	assert(gVectorsCreated==gVectorsDestroyed);
+	gVectorsCreated=0;
+	gVectorsDestroyed=0;
+	scope(exit){
+		assert(gVectorsCreated==gVectorsDestroyed);
+	}
+	string strA="aaa bbb";
+	string strB="ccc";
+	Vector!(Vector!char) vecA=Vector!(Vector!char)(Vector!char(cast(char[])strA));
+	assert(vecA[0]==Vector!char(cast(char[])strA));
+	Vector!(Vector!char) vecB;
+	vecB=vecA;
+	assert(vecB[0]==Vector!char(cast(char[])strA));
+	assert(vecA.array.ptr!=vecB.array.ptr);
+	assert(vecB.used==vecA.used);
+	assert(vecB[0].array.ptr!=vecA[0].array.ptr);
+	assert(vecB[0].used==vecA[0].used);
 }

@@ -45,7 +45,8 @@ void serializeWhiteTokens(bool load, Container)(ref TokenData token, ref Contain
 
 void serializeCommentMultiline(bool load, Container)(ref TokenData token, ref Container con){
 	static if(load==true){
-		assert(con[0..2]==['/','*']);
+		char[2] slst=['/','*'];
+		assert(con[0..2]==slst[]);
 		con=con[2..$];
 		foreach(i, ch;con){
 			if (ch=='*' && i!=con.length-1 && con[i+1]=='/'){
@@ -76,7 +77,8 @@ unittest{
 
 void serializeCommentLine(bool load, Container)(ref TokenData token, ref Container con){
 	static if(load==true){
-		assert(con[0..2]==['/','/']);
+		char[2] slsl=['/','/'];
+		assert(con[0..2]==slsl[]);
 		con=con[2..$];
 		foreach(i, ch;con){
 			if (ch=='\n'){
@@ -415,8 +417,8 @@ TokenDataVector tokenizeAll(Lexer)(ref Lexer lex){
 
 
 
-string tokensToString(Lexer)(ref Lexer lex,TokenData[] tokens){
-	string code;
+Vector!char tokensToString(Lexer)(ref Lexer lex,TokenData[] tokens){
+	Vector!char code;
 	foreach(tk;tokens)
 		lex.toChars(tk, code);
 	return code;

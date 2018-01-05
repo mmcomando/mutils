@@ -58,7 +58,9 @@ package:
 	void serializeBasicVar(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(isBasicType!T);
 		static if (is(T==char)) {
-			ser.serializeChar!(load)(var, con);
+			serializeChar!(load)(var, con);
+		}else static if (is(T==bool)) {
+			serializeBoolToken!(load)(var, con);
 		}else{
 			static if (load == Load.yes) {
 				check!("Wrong token type")(con[0].isAssignableTo!T);
@@ -125,8 +127,13 @@ package:
 		static if(is(ElementType==char)){
 			static if (load == Load.yes) {
 				assert(con[0].type==StandardTokens.string_);
-				var=con[0].str;
-				con=con[1..$];
+				import mutils.container.vector_allocator;
+				VectorAllocator!(ElementType, Mallocator) arrData;				
+				serializeCustomVector!(load)(arrData, con);
+				var=cast(T)arrData[];
+
+				//var=con[0].str;
+				//con=con[1..$];
 			} else {
 				TokenData token;
 				token=var;
@@ -328,6 +335,8 @@ package:
 		void serializeName(Load load,  ContainerOrSlice)(ref string name,ref ContainerOrSlice con){
 			
 			static if (load == Load.yes) {
+				if(con[0].type!=StandardTokens.string_)
+				//writelnTokens(con[0..10]);
 				assert(con[0].type==StandardTokens.string_);
 				name=con[0].getUnescapedString;
 				con=con[1..$];

@@ -153,7 +153,7 @@ struct NoGcSlice(T){
 			return slice[start..end];
 		}
 
-
+		
 		size_t opDollar() { return slice.length; }
 	}
 }
@@ -244,12 +244,39 @@ void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var, ref 
 
 void serializeCharToken(Load load, ContainerOrSlice)(char ch,ref ContainerOrSlice con){
 	static if (load == Load.yes) {
-		//writelnTokens(con);
 		check(con[0].type==StandardTokens.character && con[0].isChar(ch));
 		con=con[1..$];
 	} else {
 		TokenData token;
 		token=ch;
+		con ~= token;
+	}
+}
+
+void serializeBoolToken(Load load, ContainerOrSlice)(ref bool var, ref ContainerOrSlice con){
+	static if (load == Load.yes) {
+		check(con[0].type==StandardTokens.identifier || con[0].type==StandardTokens.long_);
+		if(con[0].type==StandardTokens.identifier){
+			if(con[0].str=="true"){
+				var=true;
+			}else if(con[0].str=="false"){
+				var=false;
+			}else{
+				check(false);
+			}
+		}else{
+			if(con[0].long_==0){
+				var=false;
+			}else{
+				var=true;
+			}
+		}
+
+		con=con[1..$];
+	} else {
+		TokenData token;
+		token.type=StandardTokens.identifier;
+		token.str=(var)?"true":"false";
 		con ~= token;
 	}
 }
@@ -279,7 +306,6 @@ void ignoreBraces(Load load, ContainerOrSlice)(ref ContainerOrSlice con, char br
 void ignoreToMatchingComma(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
 	static assert(load==Load.yes );
 	int nestageLevel=0;
-	//writelnTokens(con);
 	//scope(exit)writelnTokens(con);
 	while(con.length>0){
 		TokenData token=con[0];
@@ -292,8 +318,8 @@ void ignoreToMatchingComma(Load load, ContainerOrSlice)(ref ContainerOrSlice con
 		}else if(token.isChar(']') || token.isChar('}')){
 			nestageLevel--;
 		}
-		
-		if(nestageLevel==0 && token.isChar(',')){
+
+		if( nestageLevel<0 || (nestageLevel==0 && token.isChar(',')) ){
 			break;
 		}else{
 			con=con[1..$];

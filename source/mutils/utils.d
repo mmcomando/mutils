@@ -46,3 +46,12 @@ bool removeElementInPlace(R, N)(ref R arr, N obj)
 	}
 	return false;
 }
+
+import std.traits: hasMember;
+auto copy(T)(auto ref const T v){
+	static if(hasMember!(T, "copy")){
+		return v.copy;
+	}else{
+		return v;
+	}
+}

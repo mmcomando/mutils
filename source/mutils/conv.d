@@ -115,7 +115,6 @@ NUM str2num(NUM)(string from){
 	NUM ret=NUM.init;
 	string sp=getSpecifier!(NUM);
 	char[32] format;
-	format[]='K';
 	format[0]='%';
 	int takesCharsNum=snprintf(format.ptr+1, format.length, "%d", cast(int)from.length);
 	foreach(i, c; sp)format.ptr[1+takesCharsNum+i]=c;

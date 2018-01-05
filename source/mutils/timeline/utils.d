@@ -89,6 +89,9 @@ struct TimeIndexGetter{
 	}
 }
 
+// Helper to avoid GC
+private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return array;}
+
 unittest{
 	import std.algorithm: equal;
 	struct Data{
@@ -96,14 +99,13 @@ unittest{
 	}
 
 	TimeIndexGetter getter;
-	Data[] data;
-	data~=[Data(0), Data(1), Data(2), Data(3), Data(4)];
+	Data[5] data=[Data(0), Data(1), Data(2), Data(3), Data(4)];
 	//Check index
-	assert(getter.index(data, 0)==[0, 0]);
-	assert(getter.index(data, 5)==[4, 4]);
-	assert(getter.index(data, 1)==[0, 1]);
-	assert(getter.index(data, 4)==[3, 4]);
-	assert(getter.index(data, -5)==[0, 0]);
+	assert(getter.index(data, 0)==[0, 0].s);
+	assert(getter.index(data, 5)==[4, 4].s);
+	assert(getter.index(data, 1)==[0, 1].s);
+	assert(getter.index(data, 4)==[3, 4].s);
+	assert(getter.index(data, -5)==[0, 0].s);
 	//Check passedFromLast
 	assert(getter.passedFromLast(data, 0)==null);
 	assert(getter.passedFromLast(data, 0.5)==data[0..1]);
@@ -116,10 +118,10 @@ unittest{
 	assert(getter.passedFromLast(data, -10)==null);
 	assert(getter.passedFromLast(data, 10)==data);
 	//Check index after passedFromLast
-	assert(getter.index(data, 15)==[4, 4]);
+	assert(getter.index(data, 15)==[4, 4].s);
 	//Check set
 	getter.set(data, 1.5);
-	assert(getter.index(data, 1.7)==[1, 2]);
+	assert(getter.index(data, 1.7)==[1, 2].s);
 	assert(getter.lastIndex==1);
 	assert(getter.passedFromLast(data, 2.5)==data[2..3]);
 	//Reset

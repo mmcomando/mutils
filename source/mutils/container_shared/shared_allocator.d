@@ -104,7 +104,7 @@ class BucketAllocator(uint bucketSize){
 			if(oldData !is null){
 				bucketArrays.freeData(oldData);//free on next alloc, noone should use the old array
 			}
-			oldData=bucketArrays.manualExtend();
+			oldData=bucketArrays.manualExtend(bucketArrays.array);
 		}
 		bucketArrays~=arr;
 	}

@@ -103,16 +103,19 @@ struct SortedVector(T, alias less="a < b")
 	}
 }
 
+// Helper to avoid GC
+private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe{return array;}
+
 unittest{
 	SortedVector!int vector;
 	assert(vector.add(5)==0);
 	assert(vector.add(3)==0);
 	assert(vector.add(6)==2);
-	assert(vector[]==[3,5,6]);
+	assert(vector[]==[3,5,6].s);
 
-	vector.add([2,4,7]);
-	assert(vector[]==[2,3,4,5,6,7]);
+	vector.add([2,4,7].s);
+	assert(vector[]==[2,3,4,5,6,7].s);
 	vector.add(vector[]);
 	vector.add(vector[]);
-	assert(vector[]==[2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7]);
+	assert(vector[]==[2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7].s);
 }

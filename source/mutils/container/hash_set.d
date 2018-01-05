@@ -156,7 +156,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		static if(hasValue)allValues.reserve(groups.length);
 		static if(hasValue){
 			foreach(ref Control c, ref T el, ref ADV[0] val; this){
-				allElements~=el;
+				allElements~=el.copy;
 				allValues~=val;
 				c=Control.init;
 			}

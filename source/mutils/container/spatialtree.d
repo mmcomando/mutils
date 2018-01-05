@@ -39,21 +39,25 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 	 */
 	
 	static struct Node{
-		static if(loose){
+		//static if(loose){
 			DataContainer!T dataContainer;
 			Node* child;
-		}else{
+		/*}else{
 			union{
 				DataContainer!T dataContainer;// Used only at lowest level
 				Node* child;
 			}
-		}
+		}*/
 		
 	}
 	
 	Node root;
 	
 	void initialize(){}
+
+	~this(){
+		clear();
+	}
 	
 	void clear(){
 		root.child=null;
@@ -409,10 +413,11 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 	}
 	
 }
-import mutils.linalg.vec;
-
 unittest{
-	import std.meta;
+	import mutils.container.vector;
+	mixin(checkVectorAllocations);
+
+	import mutils.linalg.vec;
 	alias vec2=Vec!(float, 2);
 	alias vec3=Vec!(float, 3);
 
