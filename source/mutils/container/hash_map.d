@@ -19,6 +19,14 @@ struct HashMap(Key, T){
 			set.groups[group].values[elIndex]=v;
 		}
 	}
+
+	void clear(){
+		set.clear();
+	}
+	
+	void reset(){
+		set.reset();
+	}
 	
 	size_t length(){
 		return set.length;
