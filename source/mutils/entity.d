@@ -167,6 +167,8 @@ struct EntityManager(Entities...){
 		foreach(ref con;entityContainers){
 			con.clear();
 		}
+		entityIdToStableId.clear();
+		stableIdToEntityId.clear();
 	}
 
 	ref auto getContainer(EntityType)(){
@@ -208,16 +210,23 @@ struct EntityManager(Entities...){
 	}
 
 	void remove(EntityType)(EntityType* entity){
+		EntityId* entId=entityToEntityId(entity);
 		entity.destroy();
-		getContainer!(EntityType).remove(cast(EntityData!(EntityType)*)(cast(void*)entity-8));		
+		getContainer!(EntityType).remove(cast(EntityData!(EntityType)*)(cast(void*)entity-8));
+		long stableId=entityIdToStableId.getDefault(entId, -1);	
+		if(stableId==-1){
+			return;
+		}
+		entityIdToStableId.remove(entId);
+		stableIdToEntityId.remove(stableId);
+
 	}
 
 	void remove(EntityId* entityId){
 		foreach(i,Entity;Entities){
 			if(entityId.type==i){
 				Entity* ent=entityId.get!Entity;
-				ent.destroy();
-				getContainer!(Entity).remove(cast(EntityData!(Entity)*)(entityId));	
+				remove(ent);
 				return;
 			}
 		}
@@ -271,6 +280,31 @@ struct EntityManager(Entities...){
 		assert(0);
 	}
 
+	long lastStableId=0;
+
+	long getUniqueStableId(){
+		lastStableId++;
+		return lastStableId;
+	}
+
+	import mutils.container.hash_map;
+	HashMap!(long, EntityId*) stableIdToEntityId;
+	HashMap!(EntityId*, long) entityIdToStableId;
+
+
+	// When (id == 0 && makeDefault !is null ) new id is assigned and Entity is created by makeDefault function
+	EntityId* getEntityByStableId(ref long id, EntityId* function() makeDefault=null){
+		EntityId* ent=stableIdToEntityId.getDefault(id, null);
+		if(ent==null && makeDefault !is null){
+			ent=makeDefault();
+			if(id==0){
+				id=getUniqueStableId();
+			}
+			stableIdToEntityId.add(id, ent);
+			entityIdToStableId.add(ent, id);
+		}
+		return ent;
+	}
 	
 	auto getRange(Entity)(size_t start, size_t end){
 		auto container=&getContainer!Entity();

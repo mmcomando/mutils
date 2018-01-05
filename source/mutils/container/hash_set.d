@@ -126,6 +126,16 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		}
 	}
 
+	void clear(){
+		groups.clear();
+		addedElements=0;
+	}
+
+	void reset(){
+		groups.reset();
+		addedElements=0;
+	}
+
 	
 	Vector!Group groups;// Length should be always power of 2
 	size_t addedElements;// Used to compute loadFactor
@@ -146,7 +156,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		static if(hasValue)allValues.reserve(groups.length);
 		static if(hasValue){
 			foreach(ref Control c, ref T el, ref ADV[0] val; this){
-				allElements~=el.copy;
+				allElements~=el;
 				allValues~=val;
 				c=Control.init;
 			}
@@ -191,7 +201,8 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 	}
 
 	void remove(T el) {
-		assert(tryRemove(el));
+		bool ok=tryRemove(el);
+		assert(ok);
 	}
 
 	void add(T el, ADV value){
