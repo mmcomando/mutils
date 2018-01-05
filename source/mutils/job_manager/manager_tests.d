@@ -4,20 +4,18 @@
 module mutils.job_manager.manager_tests;
 
 import core.atomic;
-import core.memory;
+//import core.memory;
 import core.simd;
 import mutils.thread : Thread,Fiber;
 
 import std.algorithm : sum;
 import std.functional : toDelegate;
-import std.random : uniform;
-import std.stdio : write,writeln,writefln;
 
 import mutils.benchmark;
-import mutils.job_manager.debug_sink;
 import mutils.job_manager.manager;
-import mutils.job_manager.shared_utils;
 import mutils.job_manager.utils;
+import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 
 
 /// One Job and one Fiber.yield
@@ -30,10 +28,10 @@ void simpleYield(){
 
 
 void activeSleep(uint u_seconds){
-	//StopWatch sw;
-	//sw.start();
-	//while(sw.usecs<u_seconds){}//for 10us will iterate ~120 tiems
-	//sw.stop();
+	StopWatch sw;
+	sw.start();
+	while(sw.usecs<u_seconds){}//for 10us will iterate ~120 tiems
+	sw.stop();
 	
 }
 
@@ -54,12 +52,12 @@ void makeTestJobsFrom(JobDelegate deleg,uint num){
 }
 
 void testFiberLockingToThread(){
-	//ThreadID id=Thread.getThis.id;
-	//auto fiberData=getFiberData();
-	//foreach(i;0..1000){
-	//	jobManager.addThisFiberAndYield(fiberData);
-	//	assert(id==Thread.getThis.id);
-	//}
+	auto id=Thread.getThisThreadNum();
+	auto fiberData=getFiberData();
+	foreach(i;0..1000){
+		jobManager.addThisFiberAndYield(fiberData);
+		assert(id==Thread.getThisThreadNum());
+	}
 }
 
 //returns how many jobs it have spawned
@@ -69,7 +67,7 @@ int randomRecursionJobs(int deepLevel){
 		simpleYield();
 		return 0;
 	}
-	int randNum=uniform(1,10);
+	int randNum=7;
 	//randNum=10;
 	
 	alias ddd=typeof(&randomRecursionJobs);
@@ -105,9 +103,7 @@ void testPerformance(){
 	}
 	//int[] pp=	new int[100];
 	foreach(uint i;0..iterations){
-		//printf("it start-------------------------- %d\n", i);
 		group.callAndWait();
-		//printf("it end %d\n", i);
 	}
 
 	
@@ -116,19 +112,22 @@ void testPerformance(){
 	assertM(jobManager.debugHelper.fibersAdded,iterations*packetSize+iterations);
 	assertM(jobManager.debugHelper.fibersDone ,iterations*packetSize+iterations);
 	sw.stop();  
-	writefln( "Benchmark: %s*%s : %s[ms], %s[it/ms]",iterations,packetSize,sw.msecs,iterations*packetSize/sw.msecs);
+	long perMs=iterations*packetSize/sw.msecs;
+	printf("Performacnce performacnce: %dms, perMs: %d\n", cast(int)(sw.msecs), cast(int)(perMs));	
+
 }
 
 shared int myCounter;
 void testUnique(){	
+	import mutils.job_manager.debug_sink;
 	myCounter=0;
 	static void localYield(){
 		auto fiberData=getFiberData();
-		DebugSink.add(atomicOp!"+="(myCounter,1));
+		//DebugSink.add(atomicOp!"+="(myCounter,1));
 		jobManager.addThisFiberAndYield(fiberData);
 	}
 	jobManager.debugHelper.resetCounters();
-	DebugSink.reset();	
+	//DebugSink.reset();
 	uint packetSize=1000;
 
 	alias ddd=typeof(&localYield);
@@ -142,7 +141,7 @@ void testUnique(){
 	assertM(jobManager.debugHelper.jobsDone ,packetSize);
 	assertM(jobManager.debugHelper.fibersAdded,packetSize+1);
 	assertM(jobManager.debugHelper.fibersDone ,packetSize+1);	
-	DebugSink.verifyUnique(packetSize);
+	//DebugSink.verifyUnique(packetSize);
 }
 
 
@@ -167,7 +166,6 @@ void testPerformanceSleep(){
 	sw.stop();  
 	result=cast(float)iterations*u_secs/sw.usecs;
 	
-	writefln( "BenchmarkSleep: %s*%s : %s[us], %s[it/us]  %s",iterations,u_secs,sw.usecs,cast(float)iterations*u_secs/sw.usecs,result/base);
 }
 
 
@@ -215,10 +213,9 @@ void testPerformanceMatrix(){
 		group.callAndWait();
 	}
 	
-	
 	sw.stop();  
 	result=cast(float)iterations*matricesNum/sw.usecs;
-	writefln( "BenchmarkMatrix: %s*%s : %s[us], %s[it/us] %s",iterations,matricesNum,sw.usecs,cast(float)iterations*matricesNum/sw.usecs,result/base);
+	printf("Performacnce matrix: %dms\n", cast(int)(sw.msecs));	
 }
 
 void testForeach(){
@@ -236,7 +233,6 @@ void testForeach(){
 
 void testGroupStart(){
 	if(jobManager.threadsNum==1){
-		writeln("Can not have background job while there is only one thread in threadPool.");
 		return;
 	}
 	uint partsNum=100;
@@ -255,21 +251,21 @@ void testGroupStart(){
 }
 import core.stdc.stdio;
 void test(uint threadsNum=16){
-	
+	import core.memory;
+	GC.disable();
 	static void startTest(){
 		foreach(i;0..1){
 			printf("test start------------------------------------------\n");
 			alias UnDel=void delegate();
-			//testForeach();
-			//makeTestJobsFrom(&testFiberLockingToThread,100);
-			//callAndWait!(UnDel)((&testUnique).toDelegate);
+			testForeach();
+			makeTestJobsFrom(&testFiberLockingToThread,1000);
+			callAndWait!(UnDel)((&testUnique).toDelegate);
 			callAndWait!(UnDel)((&testPerformance).toDelegate);
-			printf("test end-----------------------------------\n");		
-			//callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
-			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);
-			//callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
-			//int[] pp=	new int[1000];//Make some garbage so GC would trigger
+			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
+			printf("test end-----------------------------------\n");		
 		}
 
 	}
@@ -287,5 +283,5 @@ void testScalability(){
 
 
 unittest{
-	test(4);
+	test(32);
 }

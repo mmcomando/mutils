@@ -11,34 +11,7 @@ import std.experimental.allocator.mallocator;
 import mutils.job_manager.shared_utils;
 import mutils.job_manager.utils;
 import mutils.container.vector;
-
-
-class MyMallocator{
-	shared Mallocator allocator;
-	this(){
-		allocator=Mallocator.instance;
-	}
-	auto make(T,Args...)(auto ref Args args){
-		return allocator.make!T(args);
-	}
-	void dispose(T)(ref T* obj){
-		allocator.dispose(obj);
-		//obj=T.init;
-	}
-}
-class MyGcAllcoator{
-	auto make(T,Args...)(auto ref Args args){
-		auto var=new T(args);
-		import core.memory;
-		GC.addRoot(var);
-		return var;
-	}
-	void dispose(T)(ref T* obj){
-		import core.memory;
-		GC.removeRoot(obj);
-		//obj=T.init;
-	}
-}
+import mutils.container_shared.shared_allocator;
 
 import core.atomic;
 import std.random:uniform;
@@ -165,7 +138,6 @@ class BucketAllocator(uint bucketSize){
 			}while(!cas(&bucketsArray.empty,emptyBucket,bucket));
 			return;
 		}
-		writelnng(data.ptr);
 		assert(0);
 	}
 	

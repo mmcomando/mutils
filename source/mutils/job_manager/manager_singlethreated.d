@@ -43,9 +43,7 @@ class JobManager{
 	}
 
 	DebugHelper debugHelper;
-	void initialize(uint threadsCount=0){
-		fibersCache=Mallocator.instance.make!CacheVector();
-	}
+	void initialize(uint threadsCount=0){}
 
 	void start(){}	
 	void waitForEnd(ref shared bool end){}

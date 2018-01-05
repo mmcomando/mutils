@@ -13,7 +13,6 @@ import mutils.container.vector;
 import mutils.job_manager.manager_utils;
 import core.memory;
 
-import mutils.job_manager.shared_utils;
 
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
@@ -24,57 +23,14 @@ Fiber newFiber(){
 	return fiber;
 }
 
-class FiberNoCache{
 
-	Fiber getData(uint,uint){
-		Fiber fiber = newFiber();		
-		return fiber;
-	}
 
-	void removeData(Fiber obj,uint,uint){
-		GC.removeRoot(cast(void*)obj);
-	}
+Vector!Fiber array;
 
-}
+uint used=0;
 
-class FiberOneCache{
-	static void dummy(){}
-	
-	static Fiber lastFreeFiber;//1 element tls cache
-	
-	Fiber getData(uint,uint){
-		Fiber fiber;
-		if(lastFreeFiber is null){
-			fiber = newFiber();
-		}else{
-			fiber=lastFreeFiber;
-			lastFreeFiber=null;
-		}
-		return fiber;
-	}
+struct FiberTLSCache{
 
-	void removeData(Fiber obj,uint,uint){
-		if(lastFreeFiber !is null){
-			GC.removeRoot(cast(void*)lastFreeFiber);
-			Mallocator.instance.dispose(lastFreeFiber);
-		}
-		lastFreeFiber=obj;
-	}
-}
-
-static Vector!Fiber[100] arr;
-ref Vector!Fiber array(){
-	return arr[jobManagerThreadNum];
-}
-static uint used=0;
-
-void initializeFiberCache(){
-	array.reserve(16);
-}
-
-class FiberTLSCache{
-
-	this(){}
 	
 	Fiber getData(uint,uint){
 		Fiber fiber;
@@ -91,7 +47,7 @@ class FiberTLSCache{
 
 	void removeData(Fiber obj,uint,uint){
 		foreach(i,fiber;array){
-			if(obj == fiber){
+			if(cast(void*)obj == cast(void*)fiber){
 				array[i]=array[used-1];
 				array[used-1]=obj;
 				used--;

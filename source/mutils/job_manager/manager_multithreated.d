@@ -6,25 +6,21 @@ Fibers are bound to one thread due to TLS issues and performance reasons.
 module mutils.job_manager.manager_multithreated;
 
 import core.atomic;
-import core.cpuid : threadsPerCPU;
+import core.stdc.stdio;
+import core.sys.posix.stdlib: random;
+
+
 import mutils.thread : Thread,Fiber;
-import core.runtime;
 
-import std.conv : to;
-import std.datetime;
 import std.functional : toDelegate;
-import std.random : uniform;
-import std.stdio : write,writeln,writefln;
 
-import mutils.job_manager.debug_data;
-import mutils.job_manager.debug_sink;
 import mutils.job_manager.fiber_cache;
 import mutils.job_manager.manager_utils;
 import mutils.container_shared.shared_queue;
-import mutils.job_manager.shared_utils;
 
 
-import core.sys.posix.stdlib;
+enum threadsPerCPU=4;
+
 
 alias JobVector=LowLockQueue!(JobDelegate*,bool);
 //alias JobVector=LockedVector!(JobDelegate*);
@@ -41,9 +37,9 @@ alias FiberVector=LowLockQueue!(FiberData,bool);
 alias CacheVector=FiberTLSCache;
 
 
-__gshared JobManager jobManager=new JobManager;
+__gshared JobManager jobManager;
 
-class JobManager{
+struct JobManager{
 	struct DebugHelper{
 		align(64)shared uint jobsAdded;
 		align(64)shared uint jobsDone;
@@ -70,32 +66,27 @@ class JobManager{
 
 	//jobs managment
 	private JobVector waitingJobs;
+	enum uint threadsCountT=32;
 	//fibers managment
-	private FiberVector[] waitingFibers;
+	private FiberVector[threadsCountT] waitingFibers;
 	//thread managment
-	private Thread[] threadPool;
+	private Thread[threadsCountT] threadPool;
 	bool exit;
 
 
 	private void initialize(uint threadsCount=0){
-		if(threadsCount==0)threadsCount=threadsPerCPU;
-		if(threadsCount==0)threadsCount=4;
-		waitingFibers=Mallocator.instance.makeArray!(FiberVector)(threadsCount);
-		foreach(ref f;waitingFibers)f=Mallocator.instance.make!FiberVector;
-		threadPool=Mallocator.instance.makeArray!(Thread)(threadsCount);
-		foreach(i;0..threadsCount){
-			Thread th=Mallocator.instance.make!Thread(&threadRunFunction);
-			//th.name=i.to!string;
-			threadPool[i]=th;
+		assert(threadsCountT==threadsCount);
+		foreach(ref f;waitingFibers)f.initialize();
+		foreach(uint i;0..threadsCount){
+			threadPool[i].threadNum=i;
+			threadPool[i].setDg(&threadRunFunction);
 		}
 
-		waitingJobs=Mallocator.instance.make!JobVector();
-		fibersCache=Mallocator.instance.make!CacheVector();
-		DebugSink.initializeShared();
+		waitingJobs.initialize();
 		version(Android)rt_init();
 	}
 	void start(){
-		foreach(thread;threadPool){
+		foreach(ref thread;threadPool){
 			thread.start();
 		}
 	}
@@ -104,7 +95,7 @@ class JobManager{
 	}
 	void startMainLoop(JobDelegate mainLoop,uint threadsCount=0){
 		
-		shared bool endLoop=false;
+		align(64) shared bool endLoop=false;
 		static struct NoGcDelegateHelper
 		{
 			JobDelegate del;
@@ -120,6 +111,7 @@ class JobManager{
 				atomicStore(*endPointer,true);			
 			}
 		}
+
 		NoGcDelegateHelper helper=NoGcDelegateHelper(mainLoop,endLoop);
 		initialize(threadsCount);
 		auto del=&helper.call;
@@ -135,17 +127,17 @@ class JobManager{
 		bool wait=true;
 		do{
 			wait= !atomicLoad(end);
-			foreach(th;threadPool){
+			foreach(ref th; threadPool){
 				if(!th.isRunning){
 					wait=false;
 				}
 			}
-			//Thread.sleep(10);
+			Thread.sleep(10);
 		}while(wait);
 	}
 	void end(){
 		exit=true;
-		foreach(thread;threadPool){
+		foreach(ref thread;threadPool){
 			thread.join;
 		}
 		version(Android)rt_close();
@@ -159,14 +151,15 @@ class JobManager{
 	
 	void addFiber(FiberData fiberData){
 		assert(waitingFibers.length==threadPool.length);
-		assert(fiberData.fiber.state!=Fiber.State.TERM );//&& fiberData.fiber.state!=Fiber.State.EXEC
+		assert(fiberData.fiber.state!=Fiber.State.TERM);//  && fiberData.fiber.state!=Fiber.State.EXEC - cannot be added because addThisFiberAndYield violates this assertion
 		debugHelper.fibersAddedAdd();
-		waitingFibers[fiberData.threadNum].add(fiberData);//range violation??
+		waitingFibers[fiberData.threadNum].add(fiberData);
 	}
 
+	// Only for tests
 	void addThisFiberAndYield(FiberData thisFiber){
-		addFiber(thisFiber);//We add running fiber and
-		Fiber.yield();//wish that it wont be called before this yield
+		addFiber(thisFiber);
+		Fiber.yield();
 	}
 
 	void addJob(JobDelegate* del){
@@ -194,22 +187,23 @@ class JobManager{
 		Fiber fiber;
 		fiber=fibersCache.getData(jobManagerThreadNum,cast(uint)threadPool.length);
 		assert(fiber.state==Fiber.State.TERM);
+		assert(fiber.myThreadNum==jobManagerThreadNum);
 		fiber.reset(del);
 		fibersMade++;
 		return fiber;
 	}
 	void deallocateFiber(Fiber fiber){
+		//fiber.threadStart=null;
 		fibersCache.removeData(fiber,jobManagerThreadNum,cast(uint)threadPool.length);
 	}
 	void runNextJob(){
 		//printf("threadRunFunction %d\n", jobManagerThreadNum);
-		static int dummySink;
-		static int nothingToDoNum;
-
-
+		static int nothingToDoNum=0;
+		static int dummySink=0;
 		Fiber fiber;
 		FiberData fd=waitingFibers[jobManagerThreadNum].pop;
-		if(fd!=FiberData.init){
+		FiberData varInit;
+		if(fd!=varInit){
 			//printf("continue fiber %d\n", jobManagerThreadNum);
 			fiber=fd.fiber;
 			debugHelper.fibersDoneAdd();
@@ -226,13 +220,14 @@ class JobManager{
 		//nothing to do
 		if(fiber is null ){
 			//printf("no fiber\n");
-			nothingToDoNum++;
-			if(nothingToDoNum>5){
-				Thread.sleep(1);
-				nothingToDoNum=0;
-			}else{
-				foreach(i;0..random()%20)dummySink+=random()%2;//backoff
-			}
+						nothingToDoNum++;
+						if(nothingToDoNum>5){
+								Thread.sleep(1);
+				//foreach(i;0..random()%2000)dummySink+=random()%2;//backoff
+								nothingToDoNum=0;
+							}else{
+								foreach(i;0..random()%20)dummySink+=random()%2;//backoff
+							}
 			return;
 		}
 		//printf("call fiber %d\n", jobManagerThreadNum);
@@ -249,20 +244,12 @@ class JobManager{
 
 
 	void threadRunFunction(){
-		shared static int threadNumGenerator=-1;
-		jobManagerThreadNum=atomicOp!"+="(threadNumGenerator,1);
-		initializeDebugData();
-		DebugSink.initialize();
-		initializeFiberCache();
-		printf("threadRunFunction %d\n", jobManagerThreadNum);
+		Fiber.initializeStatic();
 		while(!exit){
 			runNextJob();
 		}
-		deinitializeDebugData();
-		DebugSink.deinitialize();
 	}
 	
 }
 
-import core.stdc.stdio;
 
