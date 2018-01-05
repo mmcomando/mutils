@@ -4,18 +4,18 @@
 module mutils.job_manager.manager_tests;
 
 import core.atomic;
-//import core.memory;
 import core.simd;
-import mutils.thread : Thread,Fiber;
+import core.stdc.stdio;
 
 import std.algorithm : sum;
+import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 import std.functional : toDelegate;
 
 import mutils.benchmark;
 import mutils.job_manager.manager;
 import mutils.job_manager.utils;
-import std.experimental.allocator;
-import std.experimental.allocator.mallocator;
+import mutils.thread : Thread,Fiber;
 
 
 /// One Job and one Fiber.yield
@@ -35,9 +35,6 @@ void activeSleep(uint u_seconds){
 	
 }
 
-void veryDummy(){
-	//foreach(i;0..10)writeln("asdasd");
-}
 
 void makeTestJobsFrom(void function() fn,uint num){
 	makeTestJobsFrom(fn.toDelegate,num);
@@ -68,7 +65,6 @@ int randomRecursionJobs(int deepLevel){
 		return 0;
 	}
 	int randNum=7;
-	//randNum=10;
 	
 	alias ddd=typeof(&randomRecursionJobs);
 	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(randNum);
@@ -148,8 +144,7 @@ void testUnique(){
 void testPerformanceSleep(){	
 	uint partsNum=1000;
 	uint iterations=60;
-	uint u_secs=13;
-	
+	uint u_secs=13;	
 	
 	alias ddd=typeof(&activeSleep);
 	UniversalJobGroup!ddd group=UniversalJobGroup!ddd(partsNum);
@@ -173,7 +168,6 @@ void testPerformanceSleep(){
 
 
 alias mat4=float[16];
-//import gl3n.linalg;
 void mulMat(mat4[] mA,mat4[] mB,mat4[] mC){
 	assert(mA.length==mB.length && mB.length==mC.length);
 	foreach(i;0..mA.length){
@@ -221,13 +215,13 @@ void testPerformanceMatrix(){
 void testForeach(){
 	int[200] ints;
 	shared uint sum=0;
-	foreach(ref int el;ints.multithreated){
+	foreach(ref int el; ints.multithreated){
 		atomicOp!"+="(sum,1);
 		activeSleep(100);//simulate load for 100us
 	}
-	//foreach(ref int el;ints.multithreated){
-	//	activeSleep(100);
-	//}
+	foreach(ref int el;ints.multithreated){
+		activeSleep(100);
+	}
 	assert(sum==200);
 }
 
@@ -249,39 +243,33 @@ void testGroupStart(){
 	assert(group.areJobsDone);
 
 }
-import core.stdc.stdio;
 void test(uint threadsNum=16){
 	import core.memory;
 	GC.disable();
 	static void startTest(){
-		foreach(i;0..1){
-			printf("test start------------------------------------------\n");
+		foreach(i;0..100){
 			alias UnDel=void delegate();
 			testForeach();
-			makeTestJobsFrom(&testFiberLockingToThread,1000);
+			makeTestJobsFrom(&testFiberLockingToThread, 100);
 			callAndWait!(UnDel)((&testUnique).toDelegate);
 			callAndWait!(UnDel)((&testPerformance).toDelegate);
 			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
 			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
-			//callAndWait!(UnDel)((&testGroupStart).toDelegate);
+			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
 			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
-			printf("test end-----------------------------------\n");		
 		}
 
 	}
 	jobManager.startMainLoop(&startTest,threadsNum);
 }
 void testScalability(){
-	//foreach(i;3..4){
-	//	jobManager=Mallocator.instance.make!JobManager;
-	//	scope(exit)Mallocator.instance.dispose(jobManager);
-	//	write(i+1," ");
-	test(4);
-	//if(i==0)base=result;
-	//}
+	foreach(int i;1..32){
+		printf(" %d ",i);
+		test(i);
+	}
 }
 
 
 unittest{
-	test(32);
+	//test(4);
 }

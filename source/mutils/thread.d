@@ -43,7 +43,7 @@ extern(C) void* threadRunFunction(void* threadVoid){
 	Thread* th=cast(Thread*)threadVoid;
 
 	lock.lock();// Not sure if locks are required
-	//auto stdThread=thread_attachThis();
+	//auto stdThread=thread_attachThis();// Crashes program at the end of execution
 	rt_moduleTlsCtor();
 	lock.unlock();
 
@@ -56,7 +56,6 @@ extern(C) void* threadRunFunction(void* threadVoid){
 	rt_moduleTlsDtor();
 	lock.unlock();
 
-	printf(" thhh: %d\n", th.threadNum);
 	th.reset();
 	pthread_exit(null);
 	return null;

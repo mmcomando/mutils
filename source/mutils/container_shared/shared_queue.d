@@ -23,8 +23,7 @@ struct MyMallocator{
 //By Herb Sutter
 
 //Maybe the fastest for not contested resource
-//lock type is mainly used to distinguish operations in profiler (different function names if not inlined)
-struct LowLockQueue(T,LockType=bool) {
+struct LowLockQueue(T) {
 	@disable this(this);
 private:
 	static struct Node {
@@ -45,7 +44,6 @@ private:
 	// for one producer at a time
 	align (64)  Node* last; 
 	// shared among producers
-	//align (64) shared LockType producerLock;//atomic
 	MutexSpinLock producerLock;
 	
 	
@@ -87,7 +85,9 @@ public:
 		
 	}
 	void add( T[]  t ) {
-		
+		if(t.length==0){
+			return;
+		}
 		Node* firstInChain;
 		Node* lastInChain;
 		Node* tmp = allocator.make!(Node)( t[0] );
