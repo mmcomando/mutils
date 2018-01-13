@@ -131,7 +131,7 @@ nothrow @nogc unittest{
 	assert("asdaf".str2num!ubyte==0);
 	assert(str2num!int(cast(string)noEnd[0..2])==12);
 
-
+	
 	assert("10".str2num!ubyte==10);
 	assert("10".str2num!ushort==10);
 	assert("+10".str2num!uint==10);
@@ -359,18 +359,44 @@ nothrow @nogc unittest{
 /// Elements which cannot be converted are skipped
 string struct2str(T)(auto ref const T s, char[] buff){
 	static assert( is(T==struct) , "T must be a struct");
+	if(buff.length<3){
+		return null;
+	}
+	char[] sl=buff;
+	enum name=T.stringof;
+	size_t namePart=min(name.length, buff.length);
+	sl[0..namePart]=name[0..namePart];
+	sl=sl[namePart..$];
+	if(sl.length>1){
+		sl[0]='(';
+		sl=sl[1..$];
+	}
 
-	enum string format=getFormatString!T;
-	enum string[] fullMembersNames=getFullMembersNames!(T, "s")([]);
-
-	int takesCharsNum;
-	mixin( generate_snprintf_call("takesCharsNum", "buff", format, fullMembersNames) );
-	return cast(string)buff[0..min(takesCharsNum, buff.length)];
+	foreach (i, ref var; s.tupleof) {
+		if(sl.length<=3){
+			break;
+		}
+		string str=to!string(var, sl);
+		sl=sl[str.length..$];
+		if(sl.length<2){
+			break;
+		}
+		if(i!=s.tupleof.length-1){
+			sl[0]=',';
+			sl[1]=' ';
+			sl=sl[2..$];
+		}
+	}
+	if(sl.length>1){
+		sl[0]=')';
+		sl=sl[1..$];
+	}
+	return cast(string)buff[0..buff.length-sl.length];
 }
 
 nothrow @nogc unittest{
 	TestStructB test=TestStructB(2);
-	assert(struct2str(test, gTmpStrBuff)=="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, 50)");
+	assert(struct2str(test, gTmpStrBuff)=="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, a)");
 }
 /// Converts string to struct
 /// string format is very strict, returns 0 initialized variable if string is bad
@@ -466,4 +492,3 @@ private struct TestStructB{
 	long b=long.max;
 	TestEnum en;
 }
-
