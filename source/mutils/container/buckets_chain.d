@@ -3,7 +3,6 @@ module mutils.container.buckets_chain;
 import std.conv: emplace;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import std.stdio;
 import std.traits;
 import std.algorithm: sort;
 
@@ -366,15 +365,6 @@ struct BucketsChain(T, uint elementsInBucket=64, bool addGCRange=hasIndirections
 				b.remove(obj);
 				return;
 			}
-		}
-		writeln("---");
-		writeln(obj);
-		writeln();
-		foreach(b;buckets){
-			writeln();
-			writeln(b.elements.ptr);
-			writeln(&b.elements[$-1]);
-
 		}
 		assert(0);
 	}

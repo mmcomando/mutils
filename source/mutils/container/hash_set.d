@@ -3,7 +3,6 @@
 import core.bitop;
 import core.simd: ushort8;
 import std.meta;
-import std.stdio;
 import std.traits;
 
 import mutils.benchmark;

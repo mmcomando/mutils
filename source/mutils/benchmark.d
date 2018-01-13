@@ -1,16 +1,13 @@
 module mutils.benchmark;
 
-import std.stdio: writeln, writefln, File;
+import std.stdio: File;
 import std.format: format;
-import core.time;
-import core.sys.posix.sys.time;
-import std.file;
 import std.conv:to;
 
 enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
 void doNotOptimize(Args...)(ref Args args) { asm { naked;ret; } }// function call overhead
 
-private alias Clock=MonoTimeImpl!(ClockType.precise);
+import mutils.time;
 
 struct BenchmarkData(uint testsNum, uint iterationsNum){
 	long[iterationsNum][testsNum] times;
@@ -20,11 +17,11 @@ struct BenchmarkData(uint testsNum, uint iterationsNum){
 	}
 
 	void start(size_t testNum)(size_t iterationNum){
-		times[testNum][iterationNum]=Clock.currTime.ticks();
+		times[testNum][iterationNum]=useconds();
 	}
 
 	void end(size_t testNum)(size_t iterationNum){
-		long end=Clock.currTime.ticks();
+		long end=useconds();
 		times[testNum][iterationNum]=end-times[testNum][iterationNum];
 	}
 
@@ -33,7 +30,7 @@ struct BenchmarkData(uint testsNum, uint iterationsNum){
 	}
 
 	void writeToCsvFile(string outputFileName, string[testsNum] testNames){
-		float to_ms=1000.0/Clock.ticksPerSecond;
+		float to_ms=1000.0/1_000_000;
 		auto f = File(outputFileName, "w");	
 		scope(exit)f.close();
 
@@ -60,6 +57,7 @@ struct BenchmarkData(uint testsNum, uint iterationsNum){
 	}
 
 	void plotUsingGnuplot(string outputFileName, string[testsNum] testNames){
+		import std.file;
 		string temDir=tempDir();
 		string tmpOutputFileCsv=temDir~"/tmp_bench.csv";
 		writeToCsvFile(tmpOutputFileCsv, testNames);
@@ -145,7 +143,7 @@ struct PerfData{
 	int calls;
 
 	float totalTimeToFloat(){
-		return cast(float)totalTime/Clock.ticksPerSecond();
+		return cast(float)totalTime/1_000_000;
 	}
 
 	void reset(){
@@ -173,7 +171,7 @@ struct PerfData{
 		lvl++;
 		string str;
 		str~=format("%s%s \n", lvl, funcName);
-		str~=format("%s%s %s %.*s \n", lvl, totalTime, calls, cast(long)(totalTime/10000000), "###################################################################");
+		str~=format("%s%s %s %.*s \n", lvl, totalTime, calls, cast(long)(totalTime/10_000_000), "###################################################################");
 		foreach(p; perfs){
 			str~=p.toString();
 		}
@@ -212,7 +210,7 @@ struct TimeThis{
 		if(!enableTiming){
 			return;
 		}
-		long timeEnd=Clock.currTime.ticks();
+		long timeEnd=useconds();
 		long dt=timeEnd-timeStart;
 
 		currentTiming.totalTime+=dt;
@@ -223,12 +221,12 @@ struct TimeThis{
 	
 
 	static TimeThis time(string funcName=__FUNCTION__){
-		return TimeThis(funcName, Clock.currTime.ticks());
+		return TimeThis(funcName, useconds());
 	}
 
 	static void print(){
 		foreach(p; timingRoot.perfs){
-			writeln(*p);
+			//writeln(*p);
 		}
 	}
 
@@ -267,44 +265,4 @@ unittest{
 	perfDataAlloc.clear();
 	TimeThis.timingRoot.perfs.clear();
 	//TimeThis.print();
-}
-
-// Replacement for deprecated std.datetime StopWatch, used mainly in benchmark tests
-struct StopWatch{
-	long begin;
-	long end;
-
-	long getTime() // in us
-	{
-		timeval t;
-		
-		gettimeofday(&t, null);
-		
-		return t.tv_sec * 1000_000 + t.tv_usec ;
-	}
-
-	void start(){
-
-
-		begin=getTime();
-	}
-
-	void stop(){
-		end=getTime();
-	}
-
-	long secs(){
-		return (end-begin)/1000_000;
-	}
-
-	long msecs(){
-		long endTime=(end==0)?getTime:end;
-		return (endTime-begin)/1000;
-	}
-
-	long usecs(){
-		long endTime=(end==0)?getTime:end;
-		return (endTime-begin);
-	}
-
 }

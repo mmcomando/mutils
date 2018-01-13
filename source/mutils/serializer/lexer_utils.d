@@ -1,6 +1,5 @@
 ﻿module mutils.serializer.lexer_utils;
 
-import std.stdio;
 import mutils.container.ct_map;
 import std.traits;
 import std.algorithm:canFind;

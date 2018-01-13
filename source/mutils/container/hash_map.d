@@ -1,6 +1,5 @@
 ﻿module mutils.container.hash_map;
 
-import std.stdio;
 import mutils.container.hash_set;
 
 struct HashMap(Key, T){

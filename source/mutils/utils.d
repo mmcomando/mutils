@@ -3,22 +3,6 @@ module mutils.utils;
  * Some random functions
  */
 
-import std.stdio : writeln, writefln;
-
-
-
-void printException(Exception e, int maxStack = 4) {
-	writeln("Exception message: ", e.msg);
-	writeln("File: ", e.file, " Line Number: ", e.line);
-	writeln("Call stack:");
-	foreach (i, b; e.info) {
-		writeln(b, "\n");
-		if (i >= maxStack)
-			break;
-	}
-	writeln("--------------");
-}
-
 const(char)* getTmpSmallCString(string str) {
 	assert(str.length<256);
 	static char[256] tmpStr;

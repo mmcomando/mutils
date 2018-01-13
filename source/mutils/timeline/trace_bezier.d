@@ -1,7 +1,5 @@
 module mutils.timeline.trace_bezier;
 
-import std.stdio;
-
 import mutils.container.sorted_vector;
 import mutils.container.vector;
 import mutils.linalg.algorithm;

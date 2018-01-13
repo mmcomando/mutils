@@ -1,6 +1,6 @@
 module mutils.events;
 
-import core.time;
+import mutils.time;
 
 Events gEvents;
 
@@ -38,7 +38,6 @@ struct Events{
 	int[2] _mousePos = [100,100];
 	int[2] _mouseWheel;
 
-	alias Clock=MonoTimeImpl!(ClockType.precise);
 	float dtf;
 	float fps = 0;
 	float minTime = 0;
@@ -48,7 +47,7 @@ struct Events{
 	bool quit = false;
 
 	void initialzie(){
-		newTime = Clock.currTime.ticks();
+		newTime = useconds();
 	}
 
 	long getFrameTimeMsecs(){
@@ -75,9 +74,9 @@ struct Events{
 
 		frames++;
 		oldTime = newTime;
-		newTime = Clock.currTime.ticks();
+		newTime = useconds();
 		dt = newTime - oldTime;
-		dtf = cast(float) dt/ Clock.ticksPerSecond;
+		dtf = cast(float) dt/ 1_000_000;
 		fpsTimer += dtf;
 		if (miTime > dtf)
 			miTime = dtf;

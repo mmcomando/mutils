@@ -1,10 +1,6 @@
 ﻿module mutils.timeline.utils;
 
-
 import std.traits;
-
-import std.stdio;
-
 
 struct TimeIndexGetter{
 	uint lastIndex=0;

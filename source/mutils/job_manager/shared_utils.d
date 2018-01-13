@@ -10,7 +10,6 @@ import mutils.thread: Thread;
 
 import std.conv : to;
 import std.experimental.allocator.building_blocks;
-import std.stdio : writeln,writefln;
 
 public import std.experimental.allocator.mallocator;
 

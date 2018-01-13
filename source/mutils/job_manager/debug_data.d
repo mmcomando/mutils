@@ -6,8 +6,8 @@ Data should be retrived by only one thread.
 */
 module mutils.job_manager.debug_data;
 
-//import std.datetime;
-import core.time;
+import mutils.time;
+
 import mutils.container.vector;
 import mutils.container_shared.shared_vector;
 import std.experimental.allocator;
@@ -63,15 +63,16 @@ struct Execution{
 	long endTime;
 	this(void* funcAddr){
 		this.funcAddr=funcAddr;
-		startTime=MonoTime.currTime.ticks;
+		startTime=useconds();
 	}
 	void end(){
-		endTime=MonoTime.currTime.ticks;
+		endTime=useconds();
 	}
 	long dt(){
 		return endTime-startTime;
 	}
+
 	long ticksPerSecond(){
-		return MonoTime.ticksPerSecond;
+		return 1_000_000;
 	}
 }

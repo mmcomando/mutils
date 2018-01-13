@@ -293,8 +293,6 @@ final class Fiber{
 }
 
 unittest{
-	import core.memory;
-	GC.disable();
 	Fiber fb;
 	enum nestageLevelMax=10;
 	int nestageLevel=0;
@@ -304,7 +302,8 @@ unittest{
 			return;
 		}
 		nestageLevel++;
-		Fiber f=new Fiber(&testNest, PAGESIZE*32u);
+		Fiber f=Mallocator.instance.make!Fiber(&testNest, PAGESIZE*32u);
+		scope(exit)Mallocator.instance.dispose(f);
 		f.call();
 	}
 
@@ -318,13 +317,16 @@ unittest{
 		assert(Fiber.getThis().lastFiber!=Fiber.getThis());
 		assert(Fiber.getThis().lastFiber==fb);	
 
-		Fiber f=new Fiber(&testNest, PAGESIZE*32u);
+		Fiber f=Mallocator.instance.make!Fiber(&testNest, PAGESIZE*32u);
+		scope(exit)Mallocator.instance.dispose(f);
 		f.call();
 	}
 
 	void mainFiber(){
 		assert(Fiber.getThis()==fb);
-		Fiber f=new Fiber(&testFunc, PAGESIZE*32u);
+		Fiber f=Mallocator.instance.make!Fiber(&testFunc, PAGESIZE*32u);
+		scope(exit)Mallocator.instance.dispose(f);
+
 		assert(f.state==Fiber.State.HOLD);
 		f.call();
 		assert(f.state==Fiber.State.HOLD);
@@ -337,7 +339,9 @@ unittest{
 
 	void threadStart(){
 		Fiber.initializeStatic();
-		fb=new Fiber(&mainFiber, PAGESIZE*32u);
+		fb=Mallocator.instance.make!Fiber(&mainFiber, PAGESIZE*32u);
+		scope(exit)Mallocator.instance.dispose(fb);
+
 		assert(fb.state==Fiber.State.HOLD);
 		fb.call();
 		assert(fb.state==Fiber.State.TERM);

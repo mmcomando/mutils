@@ -3,7 +3,6 @@
 import std.algorithm : stripLeft;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import std.stdio;
 import std.string : indexOf;
 import std.traits;
 
@@ -183,6 +182,7 @@ void commonSerializePointer(Load load,bool useMalloc, Serializer, T, ContainerOr
 
 
 void writelnTokens(TokenData[] tokens){
+	import mutils.stdio: writeln;
 	writeln("--------");
 	foreach(tk;tokens){
 		writeln(tk);

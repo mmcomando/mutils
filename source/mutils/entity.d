@@ -1,7 +1,6 @@
 module mutils.entity;
 
 import std.format;
-import std.stdio;
 import std.traits;
 import std.meta;
 

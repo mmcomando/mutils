@@ -7,7 +7,6 @@ module mutils.job_manager.manager_singlethreated;
 import mutils.thread : Fiber;
 
 import std.functional : toDelegate;
-import std.stdio : write,writeln,writefln;
 
 import mutils.job_manager.fiber_cache;
 import mutils.job_manager.manager_utils;

@@ -3,7 +3,6 @@
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.meta;
-import std.stdio : writeln;
 import std.traits;
 
 public import mutils.serializer.common;

@@ -12,7 +12,7 @@ import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.functional : toDelegate;
 
-import mutils.benchmark;
+import mutils.time;
 import mutils.job_manager.manager;
 import mutils.job_manager.utils;
 import mutils.thread : Thread,Fiber;
@@ -247,7 +247,7 @@ void test(uint threadsNum=16){
 	import core.memory;
 	GC.disable();
 	static void startTest(){
-		foreach(i;0..100){
+		foreach(i;0..1){
 			alias UnDel=void delegate();
 			testForeach();
 			makeTestJobsFrom(&testFiberLockingToThread, 100);

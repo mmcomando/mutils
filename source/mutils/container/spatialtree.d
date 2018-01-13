@@ -1,6 +1,5 @@
 module mutils.container.spatialtree;
 
-import std.stdio;
 import std.traits : ForeachType,hasMember;
 
 import mutils.container.buckets_chain;

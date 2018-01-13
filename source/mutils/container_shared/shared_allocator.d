@@ -3,7 +3,6 @@ Module  contains multithreated allcoators. Few of them with similar interface.
  */
 module mutils.container_shared.shared_allocator;
 
-import std.stdio;
 import std.conv:emplace;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
@@ -171,7 +170,7 @@ void ttt(){
 	}
 	
 }
-import mutils.benchmark;
+import mutils.time;
 void testAL(){
 	BucketAllocator!(64) allocator=Mallocator.instance.make!(BucketAllocator!(64));
 	scope(exit)Mallocator.instance.dispose(allocator);
@@ -202,7 +201,7 @@ void testAL(){
 		sw.start();
 		testMultithreaded(&test,16);
 		sw.stop();  	
-		writefln( "Benchmark: %s %s[ms], %s[it/ms]",sum,sw.msecs,sum/sw.msecs);
+		//writefln( "Benchmark: %s %s[ms], %s[it/ms]",sum,sw.msecs,sum/sw.msecs);
 		
 		assert(allocator.usedSlots==0);
 	}
