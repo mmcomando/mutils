@@ -250,15 +250,27 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 			ushort num=cast(ushort)(vv[0]+vv[4]*256);
 		}else version(LDC){
 			import ldc.simd;
-			import ldc.gccbuiltins_x86;
 			ushort8 ok = equalMask!ushort8(control, v);
-			ushort num=cast(ushort)__builtin_ia32_pmovmskb128(ok);
+			version(X86){
+				import ldc.gccbuiltins_x86;
+				ushort num=cast(ushort)__builtin_ia32_pmovmskb128(ok);
+			}else version(X86_64){
+				import ldc.gccbuiltins_x86;
+				ushort num=cast(ushort)__builtin_ia32_pmovmskb128(ok);
+			}else{
+				ushort num=0;
+				foreach(i; 0..8){
+					if(control.ptr[i]==check){
+						num|=(0b11<<i*2);
+					}
+				}
+			}
 		}else{
 			static assert(0);
 		}
 		return num;
 	}
-	// Division is expensive use lookuptable
+	// Division is expensive but groups.length is power of two so use trick
 	int hashMod(size_t hash) nothrow @nogc @system{
 		return cast(int)(hash & (groups.length-1));
 	}
