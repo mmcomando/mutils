@@ -9,18 +9,20 @@ module mutils.job_manager.manager_utils;
 
 import core.atomic;
 import core.stdc.string : memset,memcpy;
-import core.thread : Fiber;
+import core.stdc.stdio;
+import mutils.thread : Fiber;
 
 import std.algorithm : map;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import std.format : format;
 import std.traits : Parameters;
 
 import mutils.job_manager.manager;
 import mutils.job_manager.utils;
+import mutils.thread;
 
-uint jobManagerThreadNum;//thread local var
+alias jobManagerThreadNum=Thread.getThisThreadNum;//thread local var
+
 alias JobDelegate=void delegate();
 
 struct FiberData{
@@ -30,6 +32,7 @@ struct FiberData{
 
 FiberData getFiberData(){
 	Fiber fiber=Fiber.getThis();
+	//printf("getFiberData fiber: %p\n", fiber);
 	assert(fiber !is null);
 	return FiberData(fiber,jobManagerThreadNum);
 }

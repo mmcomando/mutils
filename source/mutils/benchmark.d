@@ -3,6 +3,7 @@ module mutils.benchmark;
 import std.stdio: writeln, writefln, File;
 import std.format: format;
 import core.time;
+import core.sys.posix.sys.time;
 import std.file;
 import std.conv:to;
 
@@ -273,26 +274,37 @@ struct StopWatch{
 	long begin;
 	long end;
 
+	long getTime() // in us
+	{
+		timeval t;
+		
+		gettimeofday(&t, null);
+		
+		return t.tv_sec * 1000_000 + t.tv_usec ;
+	}
+
 	void start(){
-		begin=Clock.currTime.ticks();
+
+
+		begin=getTime();
 	}
 
 	void stop(){
-		end=Clock.currTime.ticks();
+		end=getTime();
 	}
 
 	long secs(){
-		return (end-begin)/Clock.ticksPerSecond;
+		return (end-begin)/1000_000;
 	}
 
 	long msecs(){
-		long endTime=(end==0)?Clock.currTime.ticks():end;
-		return (endTime-begin)*1000/Clock.ticksPerSecond;
+		long endTime=(end==0)?getTime:end;
+		return (endTime-begin)/1000;
 	}
 
 	long usecs(){
-		long endTime=(end==0)?Clock.currTime.ticks():end;
-		return (endTime-begin)*1000_000/Clock.ticksPerSecond;
+		long endTime=(end==0)?getTime:end;
+		return (endTime-begin);
 	}
 
 }

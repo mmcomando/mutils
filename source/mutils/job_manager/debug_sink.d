@@ -64,14 +64,21 @@ class DebugSink{
 
 	static verifyUnique(int expectedNum){
 		import std.algorithm;
-		import std.array;
 		auto all=DebugSink.getAll()[];
 		auto oneRange=all.map!((a) => (*a)[]).joiner;
-		int[] allocated=oneRange.array;
-		allocated.sort();
-		assertM(allocated.length,expectedNum);
-		allocated= allocated[0..allocated.length-allocated.uniq().copy(allocated).length];
-		assertM(allocated.length,expectedNum);
+		Vector!int allocated;
+		foreach(int num; oneRange){
+			allocated~=num;
+		}
+		allocated[].sort();
+		assertM(allocated.length, expectedNum);
+		Vector!int allocatedCopy;
+
+		foreach(int num; allocated[].uniq()){
+			allocatedCopy~=num;
+		}
+		size_t dt=allocated.length-allocatedCopy.length;
+		assertM(allocatedCopy.length ,expectedNum);
 	}
 }
 

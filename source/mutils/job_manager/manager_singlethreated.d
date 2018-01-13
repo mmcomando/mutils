@@ -4,7 +4,7 @@ Rather for debugging than for anything else.
  */
 module mutils.job_manager.manager_singlethreated;
 
-import core.thread : Fiber;
+import mutils.thread : Fiber;
 
 import std.functional : toDelegate;
 import std.stdio : write,writeln,writefln;
@@ -43,9 +43,7 @@ class JobManager{
 	}
 
 	DebugHelper debugHelper;
-	void initialize(uint threadsCount=0){
-		fibersCache=Mallocator.instance.make!CacheVector();
-	}
+	void initialize(uint threadsCount=0){}
 
 	void start(){}	
 	void waitForEnd(ref shared bool end){}
