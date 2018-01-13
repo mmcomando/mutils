@@ -318,7 +318,8 @@ private string[] getFullMembersNames(T,string beforeName)(string[] members){
 
 nothrow @nogc unittest{
 	enum string[] fullMembersNames=getFullMembersNames!(TestStructA, "s")([]);
-	assert(fullMembersNames==["s.a", "s.b"]);
+	assert(fullMembersNames[0]=="s.a");
+	assert(fullMembersNames[1]=="s.b");
 }
 
 private string generate_snprintf_call(string returnValueName, string bufferName, string formatSpecifier, string[] fullMembers){	

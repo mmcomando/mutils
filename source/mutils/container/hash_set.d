@@ -24,7 +24,7 @@ version(DigitalMars){
 
 enum ushort emptyMask=1;
 enum ushort neverUsedMask=2;
-enum ushort hashMask=~emptyMask;
+enum ushort hashMask=ushort.max-1;
 // lower 15 bits - part of hash, last bit - isEmpty
 struct Control{	
 	nothrow @nogc @safe:
