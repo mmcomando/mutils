@@ -46,17 +46,33 @@ TO to(TO, FROM)(auto ref const FROM from, char[] buff){
 			static assert(0, "Type conversion not supported");
 		}
 	}else static if( is(FROM==string) ){
+		FROM frm=from;
 		static if( is(TO==enum)){
-			return str2enum!(TO)(from);
+			return str2enum!(TO)(frm);
 		}else static if( worksWithStr2Num!TO ){
-			return str2num!(TO)(from);
+			return str2num!(TO)(frm);
 		}else static if( is(TO==struct)){
-			return str2num!(TO)(from);
+			return str2struct!(TO)(frm);
 		}else{
 			static assert(0, "Type conversion not supported");
 		}
 	}
 
+}
+
+/// Converts part of from string to TO variable
+TO parse(TO)(auto ref string from){
+	static if( is(TO==enum)){
+		return str2enum!(TO)(from);
+	}else static if( worksWithStr2Num!TO ){
+		return str2num!(TO)(from);
+	}else static if( is(TO==struct)){
+		return str2struct!(TO)(from);
+	}else{
+		static assert(0, "Type conversion not supported");
+	}
+
+	
 }
 
 nothrow @nogc unittest{
@@ -107,7 +123,7 @@ nothrow @nogc unittest{
 
 /// Converts string to numeric type NUM
 /// If string is malformed NUM.init is returned
-NUM str2num(NUM)(string from){
+NUM str2num(NUM)(auto ref string from){
 	static assert( worksWithStr2Num!NUM, "str2num converts string to numeric or pointer type");
 	if(from.length==0){
 		return NUM.init;
@@ -118,8 +134,12 @@ NUM str2num(NUM)(string from){
 	format[0]='%';
 	int takesCharsNum=snprintf(format.ptr+1, format.length, "%d", cast(int)from.length);
 	foreach(i, c; sp)format.ptr[1+takesCharsNum+i]=c;
-	format.ptr[1+takesCharsNum+sp.length]='\0';
-	sscanf(from.ptr, format.ptr, &ret);
+	format.ptr[1+takesCharsNum+sp.length]='%';
+	format.ptr[2+takesCharsNum+sp.length]='n';
+	format.ptr[3+takesCharsNum+sp.length]='\0';
+	int charsScanned=0;
+	sscanf(from.ptr, format.ptr, &ret, &charsScanned);
+	from=from[charsScanned..$];
 	return ret;
 }
 
@@ -172,19 +192,18 @@ nothrow @nogc unittest{
 
 /// Converts string to enum
 /// If wrong string is specified max enum base type is returned ex. for: enum:ubyte E{} will return 255
-T str2enum(T)(string str){
+T str2enum(T)(auto ref string str){
 	static assert( is(T==enum) , "T must be an enum");
-	T en;
-	switch(str){
-		foreach (i, e; NoDuplicates!(EnumMembers!T) ){
-			enum name = __traits(allMembers, T)[i];
-			case name:
+
+	foreach (i, e; NoDuplicates!(EnumMembers!T) ){
+		enum name = __traits(allMembers, T)[i];
+		if(str.length>=name.length && str[0..name.length]==name){
+			str=str[name.length..$];
 			return e;
 		}
-		default:
-			return cast(TestEnum)(OriginalType!T).max;// Probably invalid enum
-			
 	}
+	return cast(TestEnum)(OriginalType!T).max;// Probably invalid enum
+
 }
 
 nothrow @nogc unittest{
@@ -272,87 +291,6 @@ nothrow @nogc unittest{
 }
 
 ///////////////////////  Convert structs
-///// Enums are treated as numbers
-
-private string getFormatString(T)(){
-	string str;
-
-	static if( is(T==struct) ){
-		str~=T.stringof~"(";
-		alias FieldsTypes=Fields!T;
-		foreach (i, Type; FieldsTypes) {
-			str~=getFormatString!Type;
-			if(i!=FieldsTypes.length-1){
-				str~=", ";
-			}
-		}
-		str~=")";
-	}else static if( worksWithStr2Num!T ){
-		str~="%"~getSpecifier!T;		
-	}
-
-	return str;
-}
-
-nothrow @nogc unittest{
-	enum string format=getFormatString!(TestStructB);
-	assert(format=="TestStructB(TestStructA(%d, %hhu), %d, %lld, %hhd)");
-}
-
-private string[] getFullMembersNames(T,string beforeName)(string[] members){	
-	static if( is(T==struct) ){
-		alias FieldsTypes=Fields!T;
-		alias FieldsNames=FieldNameTuple!T;
-		foreach (i, Type; FieldsTypes) {
-			enum string varName =FieldsNames[i];
-			enum string fullName =beforeName~"."~varName;
-			static if( is(Type==struct) ){
-				members=getFullMembersNames!(Type, fullName)( members);
-			}else static if( worksWithStr2Num!Type ){
-				members~=fullName;
-			}
-		}
-	}	
-	return members;
-}
-
-nothrow @nogc unittest{
-	enum string[] fullMembersNames=getFullMembersNames!(TestStructA, "s")([]);
-	assert(fullMembersNames[0]=="s.a");
-	assert(fullMembersNames[1]=="s.b");
-}
-
-private string generate_snprintf_call(string returnValueName, string bufferName, string formatSpecifier, string[] fullMembers){	
-	import std.format;
-	string str;
-	str~=format("%s=snprintf(%s.ptr, %s.length, \"%s\"",returnValueName, bufferName, bufferName, formatSpecifier);
-	foreach(memb; fullMembers){
-		str~=", "~memb;
-	}
-	str~=");";
-	return str;
-}
-
-nothrow @nogc unittest{
-	enum string call=generate_snprintf_call("ret", "buff", "%d", ["s.a"]);
-	assert(call=="ret=snprintf(buff.ptr, buff.length, \"%d\", s.a);");
-}
-
-private string generate_sscanf_call( string stringName, string formatSpecifier, string[] fullMembers){	
-	import std.format;
-	string str;
-	str~=format("sscanf(%s.ptr, \"%s\"", stringName, formatSpecifier);
-	foreach(memb; fullMembers){
-		str~=", &"~memb;
-	}
-	str~=");";
-	return str;
-}
-
-nothrow @nogc unittest{
-	enum string call=generate_sscanf_call("str",  "%d", ["s.a"]);
-	assert(call=="sscanf(str.ptr, \"%d\", &s.a);");
-}
 
 /// Converts structs to strings
 /// Function is not using to!string so inner elements might be displayed differently ex. enums (they are displayeed as numbers)
@@ -373,18 +311,21 @@ string struct2str(T)(auto ref const T s, char[] buff){
 	}
 
 	foreach (i, ref var; s.tupleof) {
-		if(sl.length<=3){
-			break;
-		}
-		string str=to!string(var, sl);
-		sl=sl[str.length..$];
-		if(sl.length<2){
-			break;
-		}
-		if(i!=s.tupleof.length-1){
-			sl[0]=',';
-			sl[1]=' ';
-			sl=sl[2..$];
+		alias Type=typeof(var);
+		static if( is(Type==struct) || worksWithStr2Num!Type){		
+			if(sl.length<=3){
+				break;
+			}
+			string str=to!string(var, sl);
+			sl=sl[str.length..$];
+			if(sl.length<2){
+				break;
+			}
+			if(i!=s.tupleof.length-1){
+				sl[0]=',';
+				sl[1]=' ';
+				sl=sl[2..$];
+			}
 		}
 	}
 	if(sl.length>1){
@@ -398,10 +339,11 @@ nothrow @nogc unittest{
 	TestStructB test=TestStructB(2);
 	assert(struct2str(test, gTmpStrBuff)=="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, a)");
 }
+
 /// Converts string to struct
 /// string format is very strict, returns 0 initialized variable if string is bad
 /// Works like struct2str but opposite
-T str2struct(T)(string str){
+T str2struct(T)(auto ref string str){
 	static assert( is(T==struct) , "T must be a struct");
 
 	union ZeroInit{// Init for @disable this() structs
@@ -414,15 +356,30 @@ T str2struct(T)(string str){
 		return var.s;
 	}
 
-	enum string format=getFormatString!T;
-	enum string[] fullMembersNames=getFullMembersNames!(T, "var.s")([]);
-	enum string sscanf_call=generate_sscanf_call("str", format, fullMembersNames);
-	mixin(sscanf_call);
+	string sl=str;
+	enum name=T.stringof;
+	assert(sl[0..name.length]==name);
+	sl=sl[name.length..$];
+	assert(sl[0]=='(');
+	sl=sl[1..$];
+	
+	foreach (i, ref v; var.s.tupleof) {
+		alias Type=typeof(v);
+		static if( is(Type==struct) || worksWithStr2Num!Type ){	
+			v=parse!Type(sl);
+			if(i!=var.s.tupleof.length-1){
+				sl=sl[2..$];
+			}
+		}
+	}
+	assert(sl[0]==')');
+	sl=sl[1..$];
+	str=sl;
 	return var.s;
 }
 
 nothrow @nogc unittest{
-	string loadFrom="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, 100)";
+	string loadFrom="TestStructB(TestStructA(1, 255), 2, 9223372036854775807, b)";
 	TestStructB test=str2struct!(TestStructB)(loadFrom);
 	assert(test.a==2);
 	assert(test.b==9223372036854775807);
