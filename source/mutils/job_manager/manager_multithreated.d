@@ -76,6 +76,12 @@ struct JobManager{
 		version(Android)rt_init();
 	}
 
+	void clear(){
+		waitingJobs.clear();
+		waitingFibers.clear();
+		threadPool.clear();
+	}
+
 	void start(){
 		foreach(ref thread;threadPool){
 			thread.start();
@@ -237,6 +243,7 @@ struct JobManager{
 		while(!exit){
 			runNextJob();
 		}
+		fibersCache.clear();
 	}
 	
 }

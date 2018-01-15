@@ -49,20 +49,21 @@ private:
 	
 	//alias Allocator=BucketAllocator!(Node.sizeof);
 	alias Allocator=MyMallocator;
-	//alias Allocator=MyGcAllcoator;
 	Allocator allocator;
 	
 public:
 	void initialize(){
-		//allocator=Mallocator.instance.make!Allocator();
 		first = last =  allocator.make!(Node)( T.init );		
-		//producerLock = consumerLock = false;
-		//pthread_mutex_init(&mutex, null);
 		consumerLock.initialzie();
 		producerLock.initialzie();
 	}
+
+	void clear(){
+		assert(empty==true);
+	}
+
 	~this(){
-		//Mallocator.instance.dispose(allocator);
+		clear();
 	}
 	
 	
@@ -78,8 +79,8 @@ public:
 		Node* tmp = allocator.make!(Node)( t );
 
 		producerLock.lock();
-		last.next = tmp;		 		// publish to consumers
-		last = tmp;		 		// swing last forwardz
+		last.next = tmp;
+		last = tmp;
 		producerLock.unlock();
 		atomicOp!"+="(elementsAdded,1);
 		
@@ -100,8 +101,8 @@ public:
 		}
 
 		producerLock.lock();
-		last.next = firstInChain;		 		// publish to consumers
-		last = lastInChain;		 		// swing last forward
+		last.next = firstInChain;
+		last = lastInChain;	
 		producerLock.unlock();
 		atomicOp!"+="(elementsAdded,t.length);
 		
@@ -115,19 +116,19 @@ public:
 		T varInit;
 		Node* theFirst = first;
 		Node* theNext = first.next;
-		if( theNext != null ) { // if queue is nonempty
-			T result = theNext.value;	 	       	// take it out
-			theNext.value = varInit; 	       	// of the Node
-			first = theNext;		 	       	// swing first forward
+		if( theNext != null ) {
+			T result = theNext.value;
+			theNext.value = varInit;
+			first = theNext;
 			consumerLock.unlock();
 			atomicOp!"+="(elementsPopped,1);
 			
 			allocator.dispose(theFirst);
-			return result;	 		// and report success
+			return result;
 		}
 
 		consumerLock.unlock();
-		return varInit; 	// report queue was empty
+		return varInit;
 	}
 }
 

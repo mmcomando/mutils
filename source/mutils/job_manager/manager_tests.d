@@ -261,6 +261,7 @@ void test(uint threadsNum=16){
 
 	}
 	jobManager.startMainLoop(&startTest,threadsNum);
+	jobManager.clear();
 }
 void testScalability(){
 	foreach(int i;1..32){
@@ -271,5 +272,5 @@ void testScalability(){
 
 
 unittest{
-	//test(4);
+	test(4);
 }

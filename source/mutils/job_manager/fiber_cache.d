@@ -26,12 +26,15 @@ Fiber newFiber(){
 
 
 Vector!Fiber array;
-
 uint used=0;
 
-struct FiberTLSCache{
-
+struct FiberTLSCache{	
 	
+	void clear(){
+		array.clear();
+		used=0;
+	}
+
 	Fiber getData(uint,uint){
 		Fiber fiber;
 		if(array.length<=used){
