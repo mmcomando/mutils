@@ -48,7 +48,7 @@ long useconds(){
 			long frequency;
 			bool ok=QueryPerformanceFrequency(&frequency);
 			assert(ok);
-			mul=1.0/frequency;
+			mul=1_000_000.0/frequency;
 		}
 		long ticks;
 		bool ok=QueryPerformanceCounter(&ticks);
