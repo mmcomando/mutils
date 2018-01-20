@@ -3,10 +3,32 @@
 	"authors": [
 		"Michał Masiukiewicz"
 	],
-	"lflags": ["-L."],
-	"libs": ["coro" ],
 	"description": "Marvelous utilities for everything and nothing",
-	"copyright": "Copyright © 2017, Michał Masiukiewicz",
+	"copyright": "Copyright © 2017-2018, Michał Masiukiewicz",
 	"license": "proprietary",
+	"configurations": [
+		{
+			"name": "lib",
+			"targetType":"library"
+		},
+		{
+			"name": "simple",
+			"lflags": ["-L."],
+			"libs": ["coro" ]
+		},
+		{
+			"name": "unittest",
+			"mainSourceFile": "source/app.d",
+			"lflags": ["-L."],
+			"libs": ["coro" ]
+		},
+		{
+			"name": "unittest-optimize",
+			"targetType":"executable",
+			"lflags": ["-L."],
+			"libs": ["coro" ],
+			"dflags_dub_warnings": [ "-unittest", "-g", "-O", "-boundscheck=off" ]
+		}
+	],
 	"dependencies": {}
 }
