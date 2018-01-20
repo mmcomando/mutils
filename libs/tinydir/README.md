@@ -1,0 +1,1 @@
+To produce static library file name of tinydir.h is changed to tinydir.c

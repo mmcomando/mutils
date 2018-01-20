@@ -1,0 +1,1 @@
+To produce static library with stable api for D language some macros are made functions.
