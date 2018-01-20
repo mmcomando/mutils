@@ -239,17 +239,20 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 	// Sets bits in ushort where value in control matches check value
 	// Ex. control=[0,1,2,3,4,5,6,7], check=2, return=0b0000_0000_0011_0000
 	static auto matchSIMD(ushort8 control, ushort check) @nogc {
-		ushort8 v=ushort8(check);
-		version(DigitalMars){
+		// DMD has bug in release mode
+	    // https://issues.dlang.org/show_bug.cgi?id=18034
+		/*version(DigitalMars){
 			import core.simd: __simd, ubyte16, XMM;
+			ushort8 v=ushort8(check);
 			ubyte16 ok=__simd(XMM.PCMPEQW, control, v);
 			ubyte16 bitsMask=[1,2,4,8,16,32,64,128,1,2,4,8,16,32,64,128];
 			ubyte16 bits=bitsMask&ok;
 			ubyte16 zeros=0;
 			ushort8 vv=__simd(XMM.PSADBW, bits, zeros);
-			ushort num=cast(ushort)(vv[0]+vv[4]*256);
-		}else version(LDC){
+			ushort num=cast(ushort)(vv[0]+vv[4]*256);		
+		}else*/ version(LDC){
 			import ldc.simd;
+			ushort8 v=ushort8(check);
 			ushort8 ok = equalMask!ushort8(control, v);
 			version(X86){
 				import ldc.gccbuiltins_x86;
@@ -266,7 +269,12 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 				}
 			}
 		}else{
-			static assert(0);
+			ushort num=0;
+			foreach(i; 0..8){
+				if(control.ptr[i]==check){
+					num|=(0b11<<i*2);
+				}
+			}
 		}
 		return num;
 	}
