@@ -2,9 +2,7 @@
 
 import core.stdc.time;
 
-version(Windows){}else{
-	static assert(0);
-}
+version(Windows):
 extern(C):
 // From header file:  ftp://sourceware.org/pub/pthreads-win32/dll-latest/include/
 
