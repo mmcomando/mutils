@@ -21,7 +21,8 @@ struct coro_stack{
 	int valgrind_id;
 }
 
-unittest{
+// Does not work on Windows
+version(Posix) unittest{
 	
 	__gshared static coro_context ctx, mainctx;
 	__gshared static coro_stack stack;

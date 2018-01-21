@@ -41,7 +41,7 @@ long useconds(){
 	version(Posix){
 		timeval t;		
 		gettimeofday(&t, null);		
-		return t.tv_sec * 1000_000 + t.tv_usec ;
+		return t.tv_sec * 1_000_000 + t.tv_usec ;
 	}else version(Windows){
 		__gshared double mul=-1;
 		if(mul<0){
@@ -61,8 +61,8 @@ long useconds(){
 
 
 unittest{
+	import std.stdio;
 	long ticks=useconds();
 	assert(ticks>0);
-	assert(useconds()>ticks);
 }
 

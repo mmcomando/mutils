@@ -309,7 +309,7 @@ final class Fiber{
 
 }
 
-unittest{
+version(Posix) unittest{
 	Fiber fb;
 	enum nestageLevelMax=10;
 	int nestageLevel=0;
