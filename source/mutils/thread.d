@@ -2,7 +2,6 @@
 
 import core.atomic;
 import core.stdc.stdio;
-import core.sys.posix.pthread;
 
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
@@ -10,9 +9,27 @@ import std.experimental.allocator.mallocator;
 import mutils.bindings.libcoro;
 import mutils.container.vector;
 
+
+
+version(Posix){
+	import core.sys.posix.pthread;
+}else version(Windows){
+	import mutils.bindings.pthreads_windows;
+}else{
+	static assert(0);
+}
+
+
 void msleep(int msecs){
-	import core.sys.posix.unistd;
-	usleep(msecs*1000);
+	version(Posix){
+		import core.sys.posix.unistd;
+		usleep(msecs*1000);
+	}else version(Windows){
+		import core.sys.windows.windows;
+		Sleep(msecs);
+	}else{
+		static assert(0);
+	}
 }
 
 struct Mutex{

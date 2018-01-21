@@ -13,20 +13,24 @@
 		},
 		{
 			"name": "simple",
-			"lflags": ["-L."],
-			"libs": ["coro" ]
+			"targetType":"executable",
+			"lflags-posix": ["-L."],
+			"libs-windowss": ["pthreadVC2" ],
+			"libss": ["coro" ]
 		},
 		{
 			"name": "unittest",
 			"mainSourceFile": "source/app.d",
-			"lflags": ["-L."],
-			"libs": ["coro" ]
+			"lflags-posix": ["-L."],
+			"libs": ["coro" ],
+			"libs-windows": ["pthreadVC2" ]
 		},
 		{
 			"name": "unittest-optimize",
 			"targetType":"executable",
-			"lflags": ["-L."],
+			"lflags-posix": ["-L."],
 			"libs": ["coro" ],
+			"libs-windows": ["pthreadVC2" ],
 			"dflags_dub_warnings": [ "-unittest", "-g", "-O", "-boundscheck=off" ]
 		}
 	],

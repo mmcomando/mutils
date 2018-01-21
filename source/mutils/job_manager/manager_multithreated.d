@@ -7,7 +7,7 @@ module mutils.job_manager.manager_multithreated;
 
 import core.atomic;
 import core.stdc.stdio;
-import core.sys.posix.stdlib: random;
+import core.stdc.stdlib: rand;
 
 import std.functional : toDelegate;
 
@@ -222,7 +222,7 @@ struct JobManager{
 				//foreach(i;0..random()%2000)dummySink+=random()%2;//backoff
 								nothingToDoNum=0;
 							}else{
-								foreach(i;0..random()%20)dummySink+=random()%2;//backoff
+								foreach(i;0..rand()%20)dummySink+=rand()%2;//backoff
 							}
 			return;
 		}

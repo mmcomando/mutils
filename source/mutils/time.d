@@ -46,12 +46,12 @@ long useconds(){
 		__gshared double mul=-1;
 		if(mul<0){
 			long frequency;
-			bool ok=QueryPerformanceFrequency(&frequency);
+			int ok=QueryPerformanceFrequency(&frequency);
 			assert(ok);
 			mul=1_000_000.0/frequency;
 		}
 		long ticks;
-		bool ok=QueryPerformanceCounter(&ticks);
+		int ok=QueryPerformanceCounter(&ticks);
 		assert(ok);
 		return cast(long)(ticks*mul);
 	}else{

@@ -81,6 +81,10 @@ static coro_func coro_init_func;
 static void *coro_init_arg;
 static coro_context *new_coro, *create_coro;
 
+void coro_transfer(coro_context *prev, coro_context *next){
+	coro_transfer__(prev, next);
+}
+
 static void
 coro_init (void)
 {
