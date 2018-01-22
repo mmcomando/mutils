@@ -44,7 +44,7 @@ struct HashMap(Key, T){
 		return index!=set.getIndexEmptyValue;		
 	}
 
-	T get(Key k){
+	ref T get(Key k){
 		size_t index=set.getIndex(k);
 		assert(index!=set.getIndexEmptyValue);
 		size_t group=index/8;
@@ -61,20 +61,31 @@ struct HashMap(Key, T){
 			size_t group=index/8;
 			size_t elIndex=index%8;
 			return set.groups[group].values[elIndex];
-		}
-		
+		}		
 	}
 
-	T getInsertDefault(Key k, T defaultValue){		
+	ref T getDefault(Key k, ref T defaultValue){
 		size_t index=set.getIndex(k);
 		if(index==set.getIndexEmptyValue){
-			set.add(k, defaultValue);
 			return defaultValue;
 		}else{
 			size_t group=index/8;
 			size_t elIndex=index%8;
 			return set.groups[group].values[elIndex];
 		}		
+	}
+
+	ref T getInsertDefault(Key k, T defaultValue){		
+		size_t index=set.getIndex(k);
+		if(index==set.getIndexEmptyValue){
+			set.add(k, defaultValue);
+		}
+		index=set.getIndex(k);
+		assert(index!=set.getIndexEmptyValue);
+		size_t group=index/8;
+		size_t elIndex=index%8;
+		return set.groups[group].values[elIndex];
+				
 	}
 
 	int byKey(scope int delegate(KeyType k) dg){
