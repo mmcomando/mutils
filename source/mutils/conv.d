@@ -26,7 +26,9 @@ TO to(TO, FROM)(auto ref const FROM from, char[] buff){
 	static if( is(TO==FROM) ){
 		return from;
 	}else static if( is(TO==string) ){
-		static if( is(FROM==enum)){
+		static if( is(FROM==bool)){
+			return bool2str(from, buff);
+		}else static if( is(FROM==enum)){
 			return enum2str(from, buff);
 		}else static if( isSIMDVector!FROM ){
 			return slice2str(from.array, buff);
@@ -163,6 +165,21 @@ nothrow @nogc unittest{
 	assert("-10".str2num!long==-10);
 }
 
+
+///////////////////////  Convert bools
+
+/// Converts enum to string
+string bool2str(T)(auto ref const T bbb, char[] buff){
+	static assert( is(T==bool) , "T must be a boolean");
+	enum string[2] strs=["false", "true"];
+	string name=strs[bbb];
+	long toCopy=min(name.length, buff.length);
+
+	foreach(i, char c; name[0..toCopy]){
+		buff[i]=c;
+	}
+	return cast(string)buff[0..toCopy];
+}
 ///////////////////////  Convert enums
 
 /// Converts enum to string

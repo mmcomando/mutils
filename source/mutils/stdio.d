@@ -91,6 +91,8 @@ private struct TestStruct{
 // Function because we dont want to prit something during tests
 private void testMutilsStdio() @nogc nothrow @safe pure{
 	TestStruct w=TestStruct(3);
+	writeln(true);
+	writeln(false);
 	write("__text__ ");
 	writeln(w, " <- this is struct");
 	// arrays
