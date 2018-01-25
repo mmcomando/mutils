@@ -55,23 +55,17 @@ extern (C) void rt_moduleTlsCtor();
 extern(C) void rt_moduleTlsDtor();
 
 extern(C) void* threadRunFunction(void* threadVoid){
-	static __gshared MutexSpinLock lock;
 	import core.thread: thread_attachThis, thread_detachThis;
 	Thread* th=cast(Thread*)threadVoid;
 
-	lock.lock();// Not sure if locks are required
-	//auto stdThread=thread_attachThis();// Crashes program at the end of execution
+	auto stdThread=thread_attachThis();
 	rt_moduleTlsCtor();
-	lock.unlock();
 
 	Thread.thisThreadd=th;
 	th.threadStart();
 
-
-	lock.lock();
-	//thread_detachThis();
+	thread_detachThis();
 	rt_moduleTlsDtor();
-	lock.unlock();
 
 	th.reset();
 	pthread_exit(null);

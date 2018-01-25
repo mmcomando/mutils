@@ -15,8 +15,8 @@
 			"name": "simple",
 			"targetType":"executable",
 			"lflags-posix": ["-L."],
-			"libs-windowss": ["pthreadVC2" ],
-			"libss": ["coro" ]
+			"libs": ["coro" ],
+			"libs-windowss": ["pthreadVC2" ]
 		},
 		{
 			"name": "unittest",
