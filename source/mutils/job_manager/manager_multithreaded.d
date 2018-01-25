@@ -1,9 +1,9 @@
 ﻿/**
-Module implements multithreated job manager with fibers (coroutines).
+Module implements multithreaded job manager with fibers (coroutines).
 Thanks to fibers any task can be stopped in the middle of execution and started again by this manager.
 Fibers are bound to one thread due to TLS issues and performance reasons.
  */
-module mutils.job_manager.manager_multithreated;
+module mutils.job_manager.manager_multithreaded;
 
 import core.atomic;
 import core.stdc.stdio;

@@ -1,5 +1,5 @@
 ﻿/**
-Module  contains multithreated allcoators. Few of them with similar interface.
+Module  contains multithreaded allcoators. Few of them with similar interface.
  */
 module mutils.container_shared.shared_allocator;
 

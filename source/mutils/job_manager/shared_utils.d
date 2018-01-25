@@ -1,5 +1,5 @@
 ﻿/**
-Module with helper functions for multithreated modules
+Module with helper functions for multithreaded modules
  */
 module mutils.job_manager.shared_utils;
 

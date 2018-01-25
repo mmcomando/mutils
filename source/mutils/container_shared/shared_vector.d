@@ -1,5 +1,5 @@
 ﻿/**
-Module with multithreated vectors.
+Module with multithreaded vectors.
  */
 module mutils.container_shared.shared_vector;
 

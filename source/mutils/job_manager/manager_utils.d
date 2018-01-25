@@ -3,7 +3,7 @@
  It also contains structures/functions which extens functionality of job manager like:
  - UniversalJob - job with parameters and return value
  - UniversalJobGroup - group of jobs 
- - multithreated - makes foreach execute in parallel
+ - multithreaded - makes foreach execute in parallel
  */
 module mutils.job_manager.manager_utils;
 
@@ -75,7 +75,7 @@ struct UniversalJob(Delegate){
 	void runWithCounter(){
 		assert(counter !is null);
 		unDel.callAndSaveReturn();
-		static if(multithreatedManagerON)counter.decrement();
+		static if(multithreadedManagerON)counter.decrement();
 	}
 	//had to be allcoated my Mallocator
 	void runAndDeleteMyself(){
@@ -208,7 +208,7 @@ auto callAndNothing(Delegate)(Delegate del,Parameters!(Delegate) args){
 	jobManager.addJob(&unJob.runDel);
 }
 
-auto multithreated(T)(T[] slice){
+auto multithreaded(T)(T[] slice){
 	
 	static struct Tmp {
 		import std.traits:ParameterTypeTuple;
@@ -231,7 +231,7 @@ auto multithreated(T)(T[] slice){
 						}else{
 							int result=del(element);
 						}
-						assert(result==0,"Cant use break, continue, itp in multithreated foreach");
+						assert(result==0,"Cant use break, continue, itp in multithreaded foreach");
 					}	
 				}
 			}
@@ -243,7 +243,7 @@ auto multithreated(T)(T[] slice){
 					}else{
 						int result=dg(element);
 					}
-					assert(result==0,"Cant use break, continue, itp in multithreated foreach");
+					assert(result==0,"Cant use break, continue, itp in multithreaded foreach");
 					
 				}
 			}else{

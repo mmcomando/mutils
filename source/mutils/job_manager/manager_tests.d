@@ -215,11 +215,11 @@ void testPerformanceMatrix(){
 void testForeach(){
 	int[200] ints;
 	shared uint sum=0;
-	foreach(ref int el; ints.multithreated){
+	foreach(ref int el; ints.multithreaded){
 		atomicOp!"+="(sum,1);
 		activeSleep(100);//simulate load for 100us
 	}
-	foreach(ref int el;ints.multithreated){
+	foreach(ref int el;ints.multithreaded){
 		activeSleep(100);
 	}
 	assert(sum==200);

@@ -1,13 +1,13 @@
 ﻿/**
-Module selects manager singlethreated/multithreated
+Module selects manager singlethreated/multithreaded
  */
 module mutils.job_manager.manager;
 
 static if(1){
-	enum multithreatedManagerON=1;
-	public import mutils.job_manager.manager_multithreated;
+	enum multithreadedManagerON=1;
+	public import mutils.job_manager.manager_multithreaded;
 }else{
-	enum multithreatedManagerON=0;
+	enum multithreadedManagerON=0;
 	public import mutils.job_manager.manager_singlethreated;
 }
 public import mutils.job_manager.manager_utils; 
