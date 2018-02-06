@@ -107,7 +107,7 @@ struct EntityManager(Entities...){
 					return mutils.entity.hasComponent!(Entity, Components);
 				}
 			}
-			assert(0);
+			assert(0, "There is no entity represented by this EntityId enum.");
 		}
 
 	}
