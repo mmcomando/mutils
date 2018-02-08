@@ -13,7 +13,21 @@ import mutils.serializer.lexer_utils;
  * Serializer to save data in json format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
-class JSONSerializer{
+final class JSONSerializer{
+	JSONLexer lex;
+	__gshared static JSONSerializerToken tokenSerializer= new JSONSerializerToken();
+
+	void beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
+		tokenSerializer.beginObject!(load)(con);
+	}
+	
+	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
+		tokenSerializer.endObject!(load)(con);
+	}
+	
+	void serializeWithName(Load load,bool useMalloc=false, string name, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
+		tokenSerializer.beginObject!(load, useMalloc, name)(var, con);
+	}
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
@@ -24,16 +38,15 @@ class JSONSerializer{
 	void serialize(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		try{
 			static if(load==Load.yes){
-				JSONLexer lex=JSONLexer(cast(string)con, true, true);
+				lex=JSONLexer(cast(string)con, true, true);
 				auto tokens=lex.tokenizeAll();				
 				//load
-				__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
-				serializer.serialize!(Load.yes, useMalloc)(var,tokens[]);		
+				tokenSerializer.serialize!(Load.yes, useMalloc)(var,tokens[]);		
 				tokens.clear();
 			}else{
-				__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
+				//__gshared static JSONSerializerToken serializer= new JSONSerializerToken();
 				TokenDataVector tokens;
-				serializer.serialize!(Load.no, useMalloc)(var,tokens);
+				tokenSerializer.serialize!(Load.no, useMalloc)(var,tokens);
 				tokensToCharVectorPreatyPrint!(JSONLexer)(tokens[],con);
 				tokens.clear();
 			}
@@ -110,7 +123,7 @@ unittest{
 	"xxxxx":{},
 	"bbb":13,
 	"www":{}
-
+}
 `;
 	
 	//load
@@ -208,17 +221,17 @@ unittest{
 		int a;
 		ubyte b;
 	}
-
+	
 	static struct Test{
 		HashMap!(Vector!(char), TestInner) map;
 		HashMap!(int, int) mapInt;
 	}
-
+	
 	Vector!char key1;
 	Vector!char key2;
 	key1~=cast(char[])"aaaaaaAA";
 	key2~=cast(char[])"BBBBbbbb";
-
+	
 	Test test;
 	test.map.add(key1, TestInner(1, 2));
 	test.map.add(key2, TestInner(3, 5));
@@ -228,18 +241,98 @@ unittest{
 	
 	//save
 	JSONSerializer.instance.serialize!(Load.no)(test,container);
-
+	
 	//reset var
 	test=test.init;
 	
 	//load
 	JSONSerializer.instance.serialize!(Load.yes)(test,container[]);
-
+	
 	assert(test.map.get(key1)==TestInner(1, 2));
 	assert(test.map.get(key2)==TestInner(3, 5));
 	assert(test.mapInt.get(100)==10);
 	assert(test.mapInt.get(200)==20);
 }
+
+
+// test customSerialize
+unittest{
+
+	static struct TestStructA{
+		int a;
+		int b;
+		int c;
+		
+		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer, ref ContainerOrSlice con){
+			serializer.beginObject!(load)(con);
+			
+			serializer.serializeWithName!(load, false, "vvvA")(a, con);
+			serializer.serializeWithName!(load, false, "vvvB")(b, con);
+			serializer.serializeWithName!(load, false, "vvvC")(c, con);
+			
+			serializer.endObject!(load)(con);
+		}
+	}
+
+	static struct TestStruct{
+		int a;
+		TestStructA innerA;
+		int b;
+		int c;
+
+		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer, ref ContainerOrSlice con){
+			serializer.beginObject!(load)(con);
+
+			serializer.serializeWithName!(load, false, "someVarA")(a, con);
+			serializer.serializeWithName!(load, false, "someInner")(innerA, con);
+			serializer.serializeWithName!(load, false, "someVarB")(b, con);
+			serializer.serializeWithName!(load, false, "someVarC")(c, con);
+
+			serializer.endObject!(load)(con);
+		}
+	}
+	TestStruct test=TestStruct(1,TestStructA(10, 20, 30), 2, 3);
+	Vector!char container;
+		//save
+	JSONSerializer.instance.serialize!(Load.no)(test,container);
+	//reset var
+	test=test.init;
+	//load
+	JSONSerializer.instance.serialize!(Load.yes)(test, container[]);
+
+	assert(test.a==1);
+	assert(test.innerA.a==10);
+	assert(test.innerA.b==20);
+	assert(test.innerA.c==30);
+	assert(test.b==2);
+	assert(test.c==3);
+
+
+	string testJson=`{
+    "someVarB":2,
+    "someInner":{
+        "vvvC":30,
+        "vvvA":10,
+        "vvvB":20
+        
+    },
+    "someVarC":3,
+    "someVarA":55,
+    
+}`;
+	
+	//load
+	JSONSerializer.instance.serialize!(Load.yes)(test, testJson);
+	
+	assert(test.a==55);
+	assert(test.innerA.a==10);
+	assert(test.innerA.b==20);
+	assert(test.innerA.c==30);
+	assert(test.b==2);
+	assert(test.c==3);
+
+}
+
 
 // test class
 unittest{
@@ -335,7 +428,7 @@ struct JSONLexer{
 	uint line;
 	uint column;
 	
-	@disable this();
+	//@disable this();
 	
 	this(string code, bool skipWhite, bool skipComments){
 		this.code=code;

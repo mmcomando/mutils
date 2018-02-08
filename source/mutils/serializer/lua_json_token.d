@@ -11,7 +11,61 @@ import mutils.serializer.lexer_utils;
  * Serializer to save data in json|lua tokens format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
-class JSON_Lua_SerializerToken(bool isJson){
+final class JSON_Lua_SerializerToken(bool isJson){
+
+	void beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
+		serializeCharToken!(load)('{' ,con);
+	}
+
+	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
+		serializeCharToken!(load)('}' ,con);
+	}
+
+	void serializeWithName(Load load,bool useMalloc=false, string name, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
+		static if(load==Load.yes){
+			auto conBegin=con;
+			scope(exit)con=conBegin;//revert slice
+
+			foreach(iii; 0..1000){
+				string varNa;
+				serializeName!(load)(varNa,con);
+				bool loaded=false;
+
+				if(name==varNa){
+					try{
+						auto tmpCon=con;
+						scope(failure)con=tmpCon;//revert slice
+						serializeImpl!(load,useMalloc)(var, con);
+						loaded=true;
+						break;
+					}catch(Exception e){}
+				}
+				//scope(exit)Mallocator.instance.dispose(cast(string)varNa);
+				if(!loaded){
+					ignoreToMatchingComma!(load)(con);
+				}
+				
+				if(con[0].isChar(',')){
+					con=con[1..$];
+				}
+				if(con[0].isChar('}')){
+					break;
+				}		
+			}
+
+		}else{
+
+			static string tmpName=name;
+			serializeName!(load)(tmpName, con);
+			assert(tmpName==name);
+			serialize!(load, useMalloc)(var, con);
+			serializeCharToken!(load)(',' ,con);
+			
+
+		}
+
+		
+	}
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
@@ -295,10 +349,10 @@ package:
 			
 			if(con[0].isChar(',')){
 				con=con[1..$];
-			}else{
+			}
+			if(con[0].isChar('}')){
 				break;
 			}
-			
 			
 			
 		}
@@ -335,8 +389,8 @@ package:
 			
 			static if (load == Load.yes) {
 				if(con[0].type!=StandardTokens.string_)
-				//writelnTokens(con[0..10]);
-				assert(con[0].type==StandardTokens.string_);
+					//writelnTokens(con[0..10]);
+					assert(con[0].type==StandardTokens.string_);
 				name=con[0].getUnescapedString;
 				con=con[1..$];
 			} else {
