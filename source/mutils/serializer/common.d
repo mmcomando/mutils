@@ -232,6 +232,7 @@ void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var, ref 
 	static assert(is(ElementType==char));
 	
 	static if(load==Load.yes){
+		var.reset();
 		var~=cast(char[])con[0].getUnescapedString;
 		con=con[1..$];
 	}else{

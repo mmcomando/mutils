@@ -17,17 +17,6 @@ final class JSONSerializer{
 	JSONLexer lex;
 	__gshared static JSONSerializerToken tokenSerializer= new JSONSerializerToken();
 
-	void beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
-		tokenSerializer.beginObject!(load)(con);
-	}
-	
-	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){
-		tokenSerializer.endObject!(load)(con);
-	}
-	
-	void serializeWithName(Load load,bool useMalloc=false, string name, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
-		tokenSerializer.beginObject!(load, useMalloc, name)(var, con);
-	}
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator

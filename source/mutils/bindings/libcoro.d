@@ -22,7 +22,7 @@ struct coro_stack{
 }
 
 // Does not work on Windows
-version(Posix) unittest{
+/*version(Posix) unittest{
 	
 	__gshared static coro_context ctx, mainctx;
 	__gshared static coro_stack stack;
@@ -49,4 +49,4 @@ version(Posix) unittest{
 	num=2;
 	coro_transfer(&mainctx, &ctx);
 	assert(num==3);
-}
+}*/

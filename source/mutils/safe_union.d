@@ -107,12 +107,17 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 * Support for serialization
 	 */
 	void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,ref ContainerOrSlice con){
-		serializer.serialize!(load)(currentType,con);
+
+		serializer.beginObject!(load)(con);
+		serializer.serializeWithName!(load, false, "type")(currentType, con);
+
+		//serializer.serialize!(load)(currentType,con);
 		final switch(currentType){
-			mixin(getCaseCode("serializer.serialize!(load)(_%1$s,con);break;")); 
+			mixin(getCaseCode(`serializer.serializeWithName!(load, false, FromTypes[%1$s].stringof)(_%1$s,con);break;`)); 
 			case Types.none:
 				break;
 		}
+		serializer.endObject!(load)(con);
 	}
 
 	import std.range:put;
@@ -125,7 +130,7 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 		put(sink, "SafeUnion(");
 		
 		final switch(currentType){
-			mixin(getCaseCode("formatValue(sink, _%1$s, fmt);break;")); 
+			mixin(getCaseCode("formatValue(sink, %1$s, fmt);break;")); 
 			case Types.none:
 				put(sink, "none");
 				break;

@@ -21,7 +21,7 @@ final class JSON_Lua_SerializerToken(bool isJson){
 		serializeCharToken!(load)('}' ,con);
 	}
 
-	void serializeWithName(Load load,bool useMalloc=false, string name, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
+	bool serializeWithName(Load load,bool useMalloc=false, string name, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
 		static if(load==Load.yes){
 			auto conBegin=con;
 			scope(exit)con=conBegin;//revert slice
@@ -37,8 +37,8 @@ final class JSON_Lua_SerializerToken(bool isJson){
 						scope(failure)con=tmpCon;//revert slice
 						serializeImpl!(load,useMalloc)(var, con);
 						loaded=true;
-						break;
 					}catch(Exception e){}
+					return true;
 				}
 				//scope(exit)Mallocator.instance.dispose(cast(string)varNa);
 				if(!loaded){
@@ -52,6 +52,7 @@ final class JSON_Lua_SerializerToken(bool isJson){
 					break;
 				}		
 			}
+			return false;
 
 		}else{
 
@@ -60,6 +61,7 @@ final class JSON_Lua_SerializerToken(bool isJson){
 			assert(tmpName==name);
 			serialize!(load, useMalloc)(var, con);
 			serializeCharToken!(load)(',' ,con);
+			return true;
 			
 
 		}
@@ -219,6 +221,10 @@ package:
 			static if(load==Load.yes){
 				static if(hasMember!(T,"initialize")){
 					var.initialize();
+				}
+
+				static if(hasMember!(T,"reset")){
+					var.reset();
 				}
 				
 				while(!con[0].isChar(']')){
