@@ -526,3 +526,76 @@ unittest{
 	Mallocator.instance.dispose(test.a);
 	Mallocator.instance.dispose(test.b);
 }
+
+
+
+struct TypeData{
+	string name;
+	uint level;
+	uint offsetOf;
+	bool serialize;
+	bool hasMallocUda;
+	bool hasNoSerializeUda;
+	bool isBeginObject;
+	bool isEndObject;
+}
+
+struct TypeDataWithType(TyppePar){
+	alias Type=TypePar;
+	TypeData data;
+}
+
+struct BeginObject{}
+struct EndObject{}
+struct PlaceName{}
+import std.algorithm: count, sum;
+TypeData[fullNames.length] generateTypeDataFromType(string[] fullNames, T)(){
+	TypeData[fullNames.length] data;
+	alias iii= aliasSeqOf!([0, 1, 2, 3, 4, 5, 6, 7]);
+	foreach(i; iii[0..fullNames.length]){
+		enum fullName=fullNames[i];
+		enum uint dots=count(fullName, '.');	
+		enum lastDot=lasDotIndex(fullName);
+		mixin("alias TP = AliasSeq!(__traits(getAttributes, "~fullName~"));");
+		data[i].name=fullName[lastDot+1..$];
+		data[i].level=dots;
+		data[i].offsetOf=getOffsetOf!(T, fullName);
+		data[i].hasNoSerializeUda=hasNoserializeUda!(TP);
+		data[i].hasMallocUda=hasMallocUda!(TP);
+	}
+	return data;
+}
+
+size_t lasDotIndex(string str){
+	foreach_reverse(i, c; str){
+		if(c=='.')return i;
+	}
+	assert(0);
+}
+
+import std.array: split, join;
+uint getOffsetOf(T, string fullName)(){
+	enum parts=split(fullName, '.');
+	
+	uint[parts.length-1] offsets;
+	alias iii= aliasSeqOf!([0, 1, 2, 3, 4, 5, 6, 7]);
+	foreach(i; iii[1..parts.length]){
+		enum name=join(parts[0..i+1], '.');
+		mixin("offsets[i-1]="~name~".offsetof;");
+		
+	}
+	return sum(offsets[]);
+}
+
+struct CCC{
+	int a;
+	EEE e;
+}
+struct EEE{
+	@("aaa") int a;
+	int b;
+}
+pragma(msg ,  getBasicVariablesFullNames!(CCC)("T") );
+pragma(msg , generateTypeDataFromType!(getBasicVariablesFullNames!(CCC)("T"), CCC) );
+
+import mutils.meta;
