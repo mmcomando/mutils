@@ -1,6 +1,7 @@
 ﻿module mutils.meta;
 
 import std.meta;
+import std.traits;
 
 template removeEven(Arr...){
 	static if(Arr.length>2){
@@ -39,4 +40,19 @@ template getType(alias T){
 
 unittest{
 	static assert(is(getType!(6)==int));
+}
+
+string[] getBasicVariablesFullNames(T)(string begin){
+	string[] fullNames;
+	
+	alias fields=Fields!T;
+	alias names=FieldNameTuple!T;
+	foreach (i, name; names) {
+		static if( is(fields[i]==struct) ){
+			fullNames~=getBasicVariablesFullNames!(fields[i])(begin~"."~name);
+		}else{
+			fullNames~=begin~"."~name;
+		}
+	}
+	return fullNames;
 }

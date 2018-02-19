@@ -89,6 +89,8 @@ struct EntityManager(Entities...){
 		}
 		
 		Component* getComponent(Component)(){
+			static assert(staticIndexOf!(Component, UniqueComponents)!=-1, "No entity has such component");
+
 			foreach(i,Entity;Entities){
 				enum componentNum=staticIndexOf!(Component,Fields!Entity);
 				static if(componentNum!=-1){
@@ -102,12 +104,16 @@ struct EntityManager(Entities...){
 		}
 		
 		auto hasComponent(Components...)(){
-			foreach(i,Entity;Entities){
+			foreach(C; Components){
+				static assert(staticIndexOf!(C, UniqueComponents)!=-1, "No entity has such component");
+			}
+			foreach(i,Entity; Entities){
 				if(type==i){
 					return mutils.entity.hasComponent!(Entity, Components);
 				}
 			}
-			assert(0);
+
+			assert(0, "There is no entity represented by this EntityId enum.");
 		}
 
 	}

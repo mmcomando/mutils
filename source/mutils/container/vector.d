@@ -211,6 +211,11 @@ public:
 		return used;
 	}
 
+	void opAssign(X)(X[] slice){
+		reset();
+		this~=slice;
+	}
+
 	void opOpAssign(string op)(T obj){
 		static assert(op=="~");
 		add(obj);

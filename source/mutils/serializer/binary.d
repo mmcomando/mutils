@@ -12,6 +12,14 @@ public import mutils.serializer.common;
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
 class BinarySerializer{
+
+	void beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){}
+	
+	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con){}
+	
+	void serializeWithName(Load load,bool useMalloc=false, string name, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
+		serialize!(load, useMalloc)(var, con);
+	}
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator (there is exception, if vairable is not null it won't be allocated)
