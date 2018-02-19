@@ -191,10 +191,10 @@ void writelnTokens(TokenData[] tokens){
 
 
 void tokensToCharVectorPreatyPrint(Lexer,Vec)(TokenData[] tokens, ref Vec vec){
-	__gshared static string spaces="                                                   ";
 	int level=0;
 	void addSpaces(){
-		vec~=cast(char[])spaces[0..level*4];
+		foreach(i; 0..level)
+		vec~=cast(char[])"    ";
 	}                                                                       
 	
 	foreach(tk;tokens){
