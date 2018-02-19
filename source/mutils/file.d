@@ -1,9 +1,10 @@
 ﻿module mutils.file;
 
+import std.algorithm: canFind;
+
 import mutils.string;
 import mutils.container.hash_map;
 import mutils.container.vector;
-
 
 struct File{
 	static long getModificationTimestamp(string path){
@@ -47,7 +48,9 @@ struct FileWatcher{
 		long timestamp=File.getModificationTimestamp(path);
 		WatchedFileInfo* info=&watchedFiles.getInsertDefault( Vector!(char)(cast(char[])path), WatchedFileInfo(timestamp) );
 		info.timestamp=timestamp;
-		info.dels~=del;
+		if( !canFind(info.dels[], del) ){
+			info.dels~=del;
+		}
 		return timestamp!=-1;
 	}
 
@@ -85,6 +88,9 @@ struct FileWatcher{
 unittest{
 	void watch(string path, const ref FileWatcher.WatchedFileInfo info){}
 	FileWatcher.instance.watchFile("source/app.d", &watch);
+	FileWatcher.instance.watchFile("source/app.d", &watch);
+	FileWatcher.instance.watchFile("source/app.d", &watch);
+	assert(FileWatcher.instance.watchedFiles.get(Vector!(char)(cast(char[])"source/app.d")).dels.length==1);
 	FileWatcher.instance.update();
 	FileWatcher.instance.removeFileFromWatch("source/app.d", &watch);
 	FileWatcher.instance.removeFileFromWatch("source/app.d");
