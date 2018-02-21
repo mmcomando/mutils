@@ -4,7 +4,7 @@ import std.stdio: File;
 import std.format: format;
 import std.conv:to;
 
-enum doNotInline="pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
+enum doNotInline="version(DigitalMars)pragma(inline,false);version(LDC)pragma(LDC_never_inline);";
 void doNotOptimize(Args...)(ref Args args) { asm { naked;ret; } }// function call overhead
 
 import mutils.time;
