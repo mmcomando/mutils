@@ -53,14 +53,6 @@ struct HashMap(Key, T){
 
 	}
 
-	T get(Key k, T defaultValue){
-		return getDefault(k, defaultValue);
-	}
-
-	ref T get(Key k, ref T defaultValue){
-		return getDefault(k, defaultValue);
-	}
-
 	T getDefault(Key k, T defaultValue){
 		size_t index=set.getIndex(k);
 		if(index==set.getIndexEmptyValue){

@@ -1,14 +1,10 @@
 ﻿module mutils.container.hash_map2;
 
-//import std.meta;
 import std.traits;
 
 import mutils.benchmark;
 import mutils.container.vector;
 import mutils.traits;
-
-
-import std.stdio: writefln, writeln;
 
 private enum HASH_EMPTY = 0;
 private enum HASH_DELETED = 0x1;
@@ -31,12 +27,12 @@ ulong hashInt(ulong x) nothrow @nogc @safe {
 }
 
 
-struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
+struct HashMap(Key, Value, alias hashFunc=defaultHashFunc){
 	enum rehashFactor=0.75;
 	enum size_t getIndexEmptyValue=size_t.max;
 
 	static struct KeyVal{
-		T key;
+		Key key;
 		Value value;
 	}
 
@@ -48,28 +44,31 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 	
 	Vector!Bucket elements;// Length should be always power of 2
 	size_t length;// Used to compute loadFactor
+	size_t markerdDeleted;
 
 
 	void clear(){
 		elements.clear();
 		length=0;
+		markerdDeleted=0;
 	}
 
 	void reset(){
 		elements.reset();
 		length=0;
+		markerdDeleted=0;
 	}
 
 
-	bool isIn(ref T el){
+	bool isIn(ref Key el){
 		return getIndex(el)!=getIndexEmptyValue;
 	}
 
-	bool isIn(T el){
+	bool isIn(Key el){
 		return getIndex(el)!=getIndexEmptyValue;
 	}
 
-	ref T get()(auto ref T k){
+	ref Value get()(auto ref Key k){
 		size_t index=getIndex(k);
 		assert(index!=getIndexEmptyValue);
 		return elements[index].keyValue.value;
@@ -77,11 +76,11 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 	}
 
 	deprecated("Use get with second parameter.")
-	auto ref T getDefault()(auto ref T k, auto ref Value defaultValue){
+	auto ref Value getDefault()(auto ref Key k, auto ref Value defaultValue){
 		return get(k, defaultValue);
 	}
 
-	auto ref T get()(auto ref T k, auto ref Value defaultValue){
+	auto ref Value get()(auto ref Key k, auto ref Value defaultValue){
 		size_t index=getIndex(k);
 		if(index==getIndexEmptyValue){
 			return defaultValue;
@@ -90,7 +89,7 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		}		
 	}
 	
-	ref T getInsertDefault()(auto ref T k, auto ref Value defaultValue){		
+	ref Value getInsertDefault()(auto ref Key k, auto ref Value defaultValue){		
 		size_t index=getIndex(k);
 		if(index==getIndexEmptyValue){
 			add(k, defaultValue);
@@ -101,28 +100,36 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		
 	}
 	
-	bool tryRemove(T el) {
+	bool tryRemove(Key el) {
 		size_t index=getIndex(el);
 		if(index==getIndexEmptyValue){
 			return false;
 		}
 		length--;
 		elements[index].hash=HASH_DELETED;
+		markerdDeleted++;
 		return true;
 	}
 	
-	void remove(T el) {
+	void remove(Key el) {
 		bool ok=tryRemove(el);
 		assert(ok);
 	}
 
+	ref Value opIndex()(auto ref Key key) {
+		return get(key); 
+	}
 
-	void add()(auto ref T el, auto ref Value value){
+	void opIndexAssign()(auto ref Value value, auto ref Key key){
+		add(key, value);
+	}
+
+	void add()(auto ref Key el, auto ref Value value){
 		if(isIn(el)){
 			return;
 		}
 		
-		if(getLoadFactor(length+1)>rehashFactor){
+		if(getLoadFactor(length+1)>rehashFactor || getLoadFactor(length+markerdDeleted)>rehashFactor){
 			rehash();
 		}
 		length++;
@@ -134,6 +141,9 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		while(true){
 			Bucket* gr=&elements[index];
 			if( (gr.hash & HASH_FILLED_MARK) == 0 ){
+				if(gr.hash==HASH_DELETED){
+					markerdDeleted--;
+				}
 				gr.hash=hash;
 				gr.keyValue.key=el;
 				gr.keyValue.value=value;
@@ -149,11 +159,11 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 	//int numA;
 	//int numB;
 
-	size_t getIndex(T el) {
+	size_t getIndex(Key el) {
 		return getIndex(el);
 	}
 
-	size_t getIndex(ref T el) {
+	size_t getIndex(ref Key el) {
 		mixin(doNotInline);
 
 		immutable size_t groupsLength=elements.length;
@@ -207,7 +217,7 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		}
 		
 		if(getLoadFactor(length+1)>rehashFactor){// Reallocate
-			elements.length=(elements.length?elements.length:2)<<1;// Power of two, initially 8 elements
+			elements.length=(elements.length?elements.length:4)<<1;// Power of two, initially 8 elements
 		}
 		
 		// Insert elements
@@ -215,6 +225,7 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 			add(el.key, el.value);
 		}
 		length=allElements.length;
+		markerdDeleted=0;
 	}
 
 
@@ -225,11 +236,11 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 			if( (gr.hash & HASH_FILLED_MARK)==0 ){
 				continue;
 			}
-			static if(isForeachDelegateWithTypes!(DG, T) ){
+			static if(isForeachDelegateWithTypes!(DG, Key) ){
 				result=dg(gr.keyValue.key);
 			}else static if( isForeachDelegateWithTypes!(DG, Value) ){
 				result=dg(gr.keyValue.value);
-			}else static if( isForeachDelegateWithTypes!(DG, T, Value) ){
+			}else static if( isForeachDelegateWithTypes!(DG, Key, Value) ){
 				result=dg(gr.keyValue.key, gr.keyValue.value);
 			}else{
 				static assert(0);
@@ -242,9 +253,9 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		return result;
 	}
 
-	int byKey(scope int delegate(T k) dg){
+	int byKey(scope int delegate(Key k) dg){
 		int result;
-		foreach(ref T k; this){
+		foreach(ref Key k; this){
 			result=dg(k);
 			if (result)
 				break;	
@@ -262,9 +273,9 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		return result;		
 	}
 	
-	int byKeyValue(scope int delegate(ref T k, ref Value v) dg){
+	int byKeyValue(scope int delegate(ref Key k, ref Value v) dg){
 		int result;
-		foreach(ref T k, ref Value v; this){
+		foreach(ref Key k, ref Value v; this){
 			result=dg(k, v);
 			if (result)
 				break;	
@@ -293,7 +304,7 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 		enum distributionsNum=1024*8;
 		BenchmarkData!(1, distributionsNum) distr;// For now use benchamrk as a plotter
 		
-		foreach(ref T el; this){
+		foreach(ref Key el; this){
 			immutable size_t rotateMask=elements.length-1;
 			ulong group=hashFunc(el) & rotateMask;
 			if(group>=distributionsNum){
@@ -311,36 +322,39 @@ struct HashMap(T, Value, alias hashFunc=defaultHashFunc){
 
 
 unittest{
-	HashMap!(int, int) set;
-	
-	assert(set.isIn(123)==false);
-	set.add(123, 1);
-	set.add(123, 1);
-	assert(set.isIn(123)==true);
-	assert(set.isIn(122)==false);
-	assert(set.length==1);
-	set.remove(123);
-	assert(set.isIn(123)==false);
-	assert(set.length==0);
-	assert(set.tryRemove(500)==false);
-	set.add(123, 1);
-	assert(set.tryRemove(123)==true);
+	HashMap!(int, int) map;
+
+	assert(map.isIn(123)==false);
+	assert(map.markerdDeleted==0);
+	map.add(123, 1);
+	map.add(123, 1);
+	assert(map.isIn(123)==true);
+	assert(map.isIn(122)==false);
+	assert(map.length==1);
+	map.remove(123);
+	assert(map.markerdDeleted==1);
+	assert(map.isIn(123)==false);
+	assert(map.length==0);
+	assert(map.tryRemove(500)==false);
+	map.add(123, 1);
+	assert(map.markerdDeleted==0);
+	assert(map.tryRemove(123)==true);
 	
 	
 	foreach(i;1..130){
-		set.add(i, 1);		
+		map.add(i, 1);		
 	}
 
 	foreach(i;1..130){
-		assert(set.isIn(i));
+		assert(map.isIn(i));
 	}
 
 	foreach(i;130..500){
-		assert(!set.isIn(i));
+		assert(!map.isIn(i));
 	}
 
-	foreach(int el; set){
-		assert(set.isIn(el));
+	foreach(int el; map){
+		assert(map.isIn(el));
 	}
 }
 
@@ -352,6 +366,8 @@ unittest{
 	assert(!map.isIn(2));
 	assert(map.getInsertDefault(2, 20)==20);
 	assert(map.get(2)==20);
+	map[5]=50;
+	assert(map[5]==50);
 	foreach(k; &map.byKey){}
 	foreach(k, v; &map.byKeyValue){}
 	foreach(v; &map.byValue){}
@@ -361,28 +377,28 @@ unittest{
 
 
 void benchmarkHashMapInt(){
-	HashMap!(int, int) set;
+	HashMap!(int, int) map;
 	byte[int] mapStandard;
 	uint elementsNumToAdd=cast(uint)(65536*0.74);
 	// Add elements
 	foreach(int i;0..elementsNumToAdd){
-		set.add(i, 1);
+		map.add(i, 1);
 		mapStandard[i]=1;
 	}
 	// Check if isIn is working
 	foreach(int i;0..elementsNumToAdd){
-		assert(set.isIn(i));
+		assert(map.isIn(i));
 		assert((i in mapStandard) !is null);
 	}
 	// Check if isIn is returning false properly
 	foreach(int i;elementsNumToAdd..elementsNumToAdd+10_000){
-		assert(!set.isIn(i));
+		assert(!map.isIn(i));
 		assert((i in mapStandard) is null);
 	}
-	//set.numA=set.numB=set.numC=0;
+	//map.numA=map.numB=map.numC=0;
 	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
-	doNotOptimize(set);// Make some confusion for compiler
+	doNotOptimize(map);// Make some confusion for compiler
 	doNotOptimize(mapStandard);
 	ushort myResults;
 	myResults=0;
@@ -403,20 +419,20 @@ void benchmarkHashMapInt(){
 	foreach(b;0..itNum){
 		bench.start!(0)(b);
 		foreach(i;0..elementsNumToAdd){
-			auto ret=set.isIn(myResults);
+			auto ret=map.isIn(myResults);
 			myResults+=1+ret;//cast(typeof(myResults))(ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(0)(b);
 	}
 	assert(myResults==stResult);// Same behavior as standard map
-	//writeln(set.getLoadFactor(set.length));
-	//writeln(set.numA);
-	//writeln(set.numB);
+	//writeln(map.getLoadFactor(map.length));
+	//writeln(map.numA);
+	//writeln(map.numB);
 	
 	doNotOptimize(myResults);
 	bench.plotUsingGnuplot("testA.png",["my", "standard"]);
-	set.saveGroupDistributionPlot("distrA.png");	
+	map.saveGroupDistributionPlot("distrA.png");	
 }
 
 
@@ -425,10 +441,10 @@ void benchmarkHashMapPerformancePerElement(){
 	doNotOptimize(trueResults);
 	enum itNum=100;
 	BenchmarkData!(2, itNum) bench;
-	HashMap!(int, int) set;
+	HashMap!(int, int) map;
 	byte[int] mapStandard;
-	//writeln(set.getLoadFactor(set.length));
-	//set.numA=set.numB=set.numC=0;
+	//writeln(.getLoadFactor(map.length));
+	//map.numA=map.numB=map.numC=0;
 	size_t lastAdded;
 	size_t numToAdd=16*8;
 
@@ -449,21 +465,21 @@ void benchmarkHashMapPerformancePerElement(){
 	trueResults=0;
 	foreach(b;0..itNum){
 		foreach(i;lastAdded..lastAdded+numToAdd){
-			set.add(cast(uint)i, 1);
+			map.add(cast(uint)i, 1);
 		}
 		lastAdded+=numToAdd;
 		bench.start!(0)(b);
 		foreach(i;0..1000_00){
-			auto ret=set.isIn(trueResults);
+			auto ret=map.isIn(trueResults);
 			trueResults+=1;//cast(typeof(trueResults))(ret);
 			doNotOptimize(ret);
 		}
 		bench.end!(0)(b);
 	}
-	//writeln(set.numA);
-	//writeln(set.numB);
+	//writeln(map.numA);
+	//writeln(map.numB);
 	doNotOptimize(trueResults);
 	bench.plotUsingGnuplot("test.png",["my", "standard"]);
-	//set.saveGroupDistributionPlot("distr.png");
+	//map.saveGroupDistributionPlot("distr.png");
 
 }
