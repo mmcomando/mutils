@@ -80,19 +80,10 @@ struct TraceBezier(T, alias mixFun=mix){
 	void computeAll(){
 		assert(data.length>=3);
 		data[0].suppVec=computeSupportingPoint(data[0],data[0],data[1]);
-		//writeln(data.length);
-		//foreach(i;1..data.length-1){
-		for(int i=1;i<data.length-1;i++){
-			//writeln(i);
-			//writeln(data[i-1]);
-			//writeln(data[i]);
-			//writeln(data[i+1]);
-			//data[i].suppVec=computeSupportingPoint(data[i-1],data[i],data[i+1]);
+		foreach(i;1..data.length-1){
+			data[i].suppVec=computeSupportingPoint(data[i-1],data[i],data[i+1]);
 		}
-		//data[$-1].suppVec=computeSupportingPoint(data[$-2],data[$-1],data[$-1]);
-		//writeln(data[$-2]);
-		//writeln(data[$-1]);
-		//writeln(data[$-1]);
+		data[$-1].suppVec=computeSupportingPoint(data[$-2],data[$-1],data[$-1]);
 	}
 
 	float totalLength(){

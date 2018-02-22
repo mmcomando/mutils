@@ -41,7 +41,8 @@ Component* getComponent(Component, Entity)(Entity* ent){
 	return &ent.tupleof[componentNum];	
 }
 
-struct EntityManager(Entities...){
+struct EntityManager(ENTS){
+	alias Entities=ENTS.Entities;
 	alias FromEntities=Entities;
 	alias UniqueComponents=NoDuplicates!(staticMap!(Fields, Entities));
 	template EntitiesWithComponents(Components...){
@@ -100,7 +101,7 @@ struct EntityManager(Entities...){
 					}
 				}
 			}
-			assert(0);
+			assert(0, "There is no entity represented by this EntityId enum.");
 		}
 		
 		auto hasComponent(Components...)(){
@@ -218,7 +219,7 @@ struct EntityManager(Entities...){
 		EntityId* entId=entityToEntityId(entity);
 		entity.destroy();
 		getContainer!(EntityType).remove(cast(EntityData!(EntityType)*)(cast(void*)entity-8));
-		long stableId=entityIdToStableId.getDefault(entId, -1);	
+		long stableId=entityIdToStableId.get(entId, -1);	
 		if(stableId==-1){
 			return;
 		}
@@ -292,23 +293,32 @@ struct EntityManager(Entities...){
 		return lastStableId;
 	}
 
-	import mutils.container.hash_map;
+	import mutils.container.hash_map2;
 	HashMap!(long, EntityId*) stableIdToEntityId;
 	HashMap!(EntityId*, long) entityIdToStableId;
 
 
 	// When (id == 0 && makeDefault !is null ) new id is assigned and Entity is created by makeDefault function
 	EntityId* getEntityByStableId(ref long id, EntityId* function() makeDefault=null){
-		EntityId* ent=stableIdToEntityId.getDefault(id, null);
+		EntityId* ent=stableIdToEntityId.get(id, null);
+
 		if(ent==null && makeDefault !is null){
 			ent=makeDefault();
 			if(id==0){
 				id=getUniqueStableId();
 			}
-			stableIdToEntityId.add(id, ent);
-			entityIdToStableId.add(ent, id);
+			stableIdToEntityId[id]=ent;
+			entityIdToStableId[ent]=id;
 		}
 		return ent;
+	}
+
+	void setEntityStableId(ref long id, EntityId* ent){
+		if(id==0){
+			id=getUniqueStableId();
+		}
+		stableIdToEntityId.add(id, ent);
+		entityIdToStableId.add(ent, id);
 	}
 	
 	auto getRange(Entity)(size_t start, size_t end){
@@ -316,8 +326,6 @@ struct EntityManager(Entities...){
 		assert(end<=container.length);
 		return Range!(Entity)(container, start, end);
 	}
-
-	
 
 	struct Range(Entity){
 		getEntityContainer!Entity* container;
@@ -431,13 +439,12 @@ unittest{
 			entitiesNum--;
 		}
 	}
+
+	static struct ENTS{
+		alias Entities=AliasSeq!(EntityTurrent,			EntityTurrent2,			EntitySomething);
+	}
 	
-	
-	alias TetstEntityManager=EntityManager!(
-		EntityTurrent,
-		EntityTurrent2,
-		EntitySomething
-		);
+	alias TetstEntityManager=EntityManager!( ENTS );
 
 	TetstEntityManager entitiesManager;
 	entitiesManager.initialize;

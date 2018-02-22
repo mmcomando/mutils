@@ -71,8 +71,7 @@ struct HashMap(Key, Value, alias hashFunc=defaultHashFunc){
 	ref Value get()(auto ref Key k){
 		size_t index=getIndex(k);
 		assert(index!=getIndexEmptyValue);
-		return elements[index].keyValue.value;
-		
+		return elements[index].keyValue.value;		
 	}
 
 	deprecated("Use get with second parameter.")
@@ -370,8 +369,18 @@ unittest{
 	assert(map[5]==50);
 	foreach(k; &map.byKey){}
 	foreach(k, v; &map.byKeyValue){}
-	foreach(v; &map.byValue){}
-	
+	foreach(v; &map.byValue){}	
+}
+
+unittest{
+	HashMap!(Vector!char, int) map;
+	Vector!char vecA;
+
+	vecA~="AAA";
+	map.add(vecA, 10);
+	assert(map[vecA]==10);
+	//assert(vecA=="AAA");
+	//assert(map["AAA"]==10);// TODO hashMap Vector!char and string
 }
 
 
