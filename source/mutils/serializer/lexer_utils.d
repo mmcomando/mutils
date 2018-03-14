@@ -205,11 +205,11 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 				con=con[1..$];
 			}
 			double num=stringToLong(firstPart)+cast(double)stringToLong(secondPart)/(10^^secondPart.length);
-			token.double_=minus?-num:num;
+		token.double_=minus?-num:num;
 			token.type=StandardTokens.double_;
 		}else{
 			long num=stringToLong(firstPart);
-			token.long_=minus?-num:num;
+		token.long_=minus?-num:num;
 			token.type=StandardTokens.long_;
 		}
 	}else{
@@ -261,7 +261,35 @@ struct TokenData{
 
 	string getUnescapedString(){
 		assert(type==StandardTokens.string_);
-		return str;
+
+		bool hasEscapeChar=false;
+		foreach(ch; str){
+			if(ch=='\\'){
+				hasEscapeChar=true;
+				break;
+			}
+		}
+
+		if(!hasEscapeChar){
+			return str;
+		}
+		string copy;
+		copy.reserve(str.length);
+		bool lastAddedSlash=false;
+		foreach(i, ch; str){
+			if(ch=='\\' && i!=0 && str[i-1]=='\\' && lastAddedSlash==false){
+				lastAddedSlash=true;
+				copy~=ch;
+				continue;
+			}
+			if(ch=='\\'){
+				continue;
+			}
+			lastAddedSlash=false;
+			copy~=ch;
+		}
+		return copy;
+
 	}
 
 	string getEscapedString(){
@@ -287,9 +315,9 @@ struct TokenData{
 		return type==StandardTokens.comment_line || type==StandardTokens.comment_multiline;
 	}
 
+	
 
-
-
+	
 	void opAssign(T)(T el)
 		if(isIntegral!T || isFloatingPoint!T || is(T==string) || is(Unqual!T==char)  || is(T==bool) )
 	{
@@ -368,7 +396,7 @@ struct TokenData{
 		}
 	}
 
-
+	
 	string toString(){
 		import std.format;
 		switch(type){
@@ -387,7 +415,7 @@ struct TokenData{
 			default:
 				return format("TK(%5s, ???, %s, %s)",cast(StandardTokens)type,line,column);
 
-
+				
 		}
 	}
 }

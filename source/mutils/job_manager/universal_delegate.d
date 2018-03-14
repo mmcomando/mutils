@@ -2,7 +2,8 @@
  Module contains UniversalDelegate, usefull to change complicated delegates to void delegate(void) 
  */
 module mutils.job_manager.universal_delegate;
-import std.traits:ReturnType,Parameters,isFunctionPointer,isDelegate,ParameterStorageClassTuple,ParameterStorageClass,AliasSeq;
+import std.traits:ReturnType,Parameters,isFunctionPointer,isDelegate,ParameterStorageClassTuple,ParameterStorageClass;
+import std.meta: AliasSeq;
 
 auto makeUniversalDelegate(T,Args...)(T del,Args args){
 	alias pstc = ParameterStorageClassTuple!T;

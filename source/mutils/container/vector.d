@@ -190,7 +190,7 @@ public:
 	
 	void removeElement()(T elem){
 		bool ok=tryRemoveElement(elem);
-		assert(ok);
+		assert(ok, "There is no such an element in vector");
 	}
 	
 	ref T opIndex(size_t elemNum){

@@ -182,7 +182,7 @@ package:
 			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
 			enum bool doSerialize=!hasNoserializeUda!(TP);
 			enum bool useMalloc=hasMallocUda!(TP);
-			if(doSerialize){
+			static if(doSerialize){
 				serialize!(load,useMalloc)(a,con);
 			}
 		}

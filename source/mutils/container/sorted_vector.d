@@ -27,6 +27,10 @@ struct SortedVector(T, alias less="a < b")
 		vec.used=0;
 	}
 
+	void clear(){
+		vec.clear();
+	}
+
 	size_t add(T t){
 		foreach(i, el;vec[]){
 			if(cmpFunction(t,el)){

@@ -240,30 +240,6 @@ struct EntityManager(ENTS){
 		
 	}
 
-	
-	auto allWith(Component)(){
-		static struct ForeachStruct(T){
-			T* mn;
-			int opApply(Dg)(scope Dg dg)
-			{ 
-				int result;
-				foreach(Entity;Entities){
-					enum componentNum=staticIndexOf!(Component,Fields!Entity);
-					static if(componentNum!=-1){
-						foreach(ref EntityData!(Entity) el;mn.getContainer!(Entity)()){
-							result=dg(el.entityId);
-							if (result)
-								break;			
-						}
-					}
-				}
-				return result;
-			}
-		}
-		ForeachStruct!(typeof(this)) tmp;
-		tmp.mn=&this;
-		return tmp;
-	}
 
 	// Based on pointer of component checks its base type
 	EntityId* getEntityFromComponent(Component)(ref Component c){
@@ -319,6 +295,16 @@ struct EntityManager(ENTS){
 		}
 		stableIdToEntityId.add(id, ent);
 		entityIdToStableId.add(ent, id);
+	}
+
+	void removeByStableId(long id){
+		if(id==0){
+			return;
+		}
+		EntityId* ent=stableIdToEntityId.get(id, null);
+		if(ent !is null){
+			remove(ent);
+		}
 	}
 	
 	auto getRange(Entity)(size_t start, size_t end){

@@ -30,23 +30,23 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 	
 	/* Example T
 	 struct SpatialTreeData{
-		 float[2] pos;
-		 float radius;
-		 MyData1 data1;
-		 MyData* data2;
+	 float[2] pos;
+	 float radius;
+	 MyData1 data1;
+	 MyData* data2;
 	 }
 	 */
 	
 	static struct Node{
 		//static if(loose){
-			DataContainer!T dataContainer;
-			Node* child;
+		DataContainer!T dataContainer;
+		Node* child;
 		/*}else{
-			union{
-				DataContainer!T dataContainer;// Used only at lowest level
-				Node* child;
-			}
-		}*/
+		 union{
+		 DataContainer!T dataContainer;// Used only at lowest level
+		 Node* child;
+		 }
+		 }*/
 		
 	}
 	
@@ -63,10 +63,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 		root.dataContainer.clear();
 		quadContainer.clear();
 	}
-	
-	/////////////////////////
-	///// Add functions /////
-	/////////////////////////
+
 	
 	void remove(Point posRemove, T data){
 		int levelFrom=0;
@@ -108,38 +105,34 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 			}
 			return false;
 		}
-		
-		
-		foreach(i,el;posRemove){
-			if(el>size/2 || el<-size/2){
-				static if(loose){
-					root.dataContainer.removeElement(data);
-				}
-				return;
-			}
-		}
+		import std.stdio;
+
 		static if(loose){
-			float diam=data.radius*2;
-			byte level=-1;
-			float sizeTmp=size/2;
-			while(sizeTmp>diam/2 && level<maxLevel){
-				level++;
-				sizeTmp/=2;
+			foreach(i,el;posRemove){
+				if(el>size/2 || el<-size/2){
+					bool ok=root.dataContainer.tryRemoveElement(data);
+					if(ok){
+						return;
+					}
+				}
 			}
-			levelFrom=level;
 		}
 		Point pos=0;
 		bool ok=removeFormQuad(pos, &root, size/2, 0);
 		assert(ok,"Unable to find element in Tree");
 	}
+
+	/////////////////////////
+	///// Add functions /////
+	/////////////////////////
 	
 	void add(Point pos, T data){
-		foreach(i,el;pos){
-			if(el>size/2 || el<-size/2){
-				static if(loose){
+		static if(loose){
+			foreach(i,el;pos){
+				if(el>size/2 || el<-size/2){
 					root.dataContainer.add(data);
+					return;
 				}
-				return;
 			}
 		}
 		static if(loose){

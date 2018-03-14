@@ -250,6 +250,7 @@ package:
 			serializeCharToken!(load)(']',con);			
 		}
 	}
+
 	void serializeCustomMap(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		serializeCharToken!(load)('{' ,con);
 		static if(load==Load.yes){
@@ -278,6 +279,7 @@ package:
 		}
 		serializeCharToken!(load)('}' ,con);
 	}
+
 	void serializeKeyValue(Load load, Key, Value, ContainerOrSlice)(ref Key key, ref Value value, ref ContainerOrSlice con){
 		static assert(isStringVector!Key || isNumeric!Key, "Map key has to be numeric.");
 		static if(isJson){

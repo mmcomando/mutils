@@ -16,6 +16,7 @@ enum Key {
 	shift,
 	F1,F2,F3,F4,F5,F6,F7,F8,F9,F10,F11,F12,
 	up,down,left,right,
+	space,
 	esc
 }
 /**
@@ -199,6 +200,7 @@ struct Events{
 				case SDLK_LCTRL:key= Key.ctrl;break;
 				case SDLK_LSHIFT:key=Key.shift;break;
 				case SDLK_LALT:key=Key.alt;break;
+				case SDLK_SPACE:key=Key.space;break;
 					//F_XX
 				case SDLK_F1:key=Key.F1;break;
 				case SDLK_F2:key=Key.F2;break;
