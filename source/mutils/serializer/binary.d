@@ -168,6 +168,36 @@ package:
 			}
 		}		
 	}
+
+
+	
+	void serializeCustomMap(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
+		static assert(isCustomMap!T);
+
+		uint dataLength=cast(uint)(var.length);
+		serialize!(loadOrSkip!load)(dataLength, con);
+
+		static if(load==Load.yes){
+			static if(hasMember!(T,"initialize")){
+				if(load!=Load.skip)var.initialize();
+			}
+			static if(hasMember!(T,"reserve")){
+				if(load!=Load.skip)var.reserve(dataLength);
+			}
+			foreach(i;0..dataLength){
+				T.Key key;
+				T.Value value;
+				serialize!(load)(key, con);
+				serialize!(load)(value, con);
+				if(load!=Load.skip)var.add(key, value);
+			}			
+		}else{			
+			foreach(ref key, ref value; &var.byKeyValue){
+				serialize!(load)(key, con);
+				serialize!(load)(value, con);
+			}
+		}	
+	}
 	
 	void serializePointer(Load load,bool useMalloc, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		commonSerializePointer!(load,useMalloc)(this,var,con);		
@@ -416,6 +446,33 @@ unittest{
 	serializer.serialize!(Load.yes)(test,container[]);
 	assert(test.a==3);
 }
+
+// test custom map
+unittest{	
+	import mutils.container.hash_map2;
+	static struct TestStruct{
+		int a;
+		int b;
+	}
+	HashMap!(int, TestStruct) map;
+	map.add(1, TestStruct(1, 11));
+	map.add(7, TestStruct(7, 77));
+
+	Vector!ubyte container;
+
+	//save
+	BinarySerializer serializer=BinarySerializer.instance;
+	serializer.serialize!(Load.no)(map, container);
+	assert(container.length==4+2*4+2*8);// length + 2*key + 2* value
+	
+	//reset var
+	map=map.init;
+	//load
+	serializer.serialize!(Load.yes)(map, container[]);
+	assert(map.get(1)==TestStruct(1, 11));
+	assert(map.get(7)==TestStruct(7, 77));
+}
+
 
 // test beforeSerialize and afterSerialize
 unittest{

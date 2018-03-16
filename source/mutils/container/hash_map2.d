@@ -27,7 +27,10 @@ ulong hashInt(ulong x) nothrow @nogc @safe {
 }
 
 
-struct HashMap(Key, Value, alias hashFunc=defaultHashFunc){
+struct HashMap(KeyPar, ValuePar, alias hashFunc=defaultHashFunc){
+	alias Key=KeyPar;
+	alias Value=ValuePar;
+
 	enum rehashFactor=0.75;
 	enum size_t getIndexEmptyValue=size_t.max;
 
