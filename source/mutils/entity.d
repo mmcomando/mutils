@@ -14,7 +14,7 @@ import mutils.container.buckets_chain;
 struct EntityIdNR{
 	@disable this(this);
 	uint id;
-	uint type;
+	uint type=uint.max;
 }
 
 bool hasComponent(Entity, Components...)(){
@@ -61,7 +61,7 @@ struct EntityManager(ENTS){
 	static struct EntityId{
 		@disable this(this);
 		uint id;
-		EntityEnum type;
+		EntityEnum type=EntityEnum.none;
 		
 		auto get(EntityType)(){
 			foreach(i,Ent;Entities){
@@ -290,6 +290,13 @@ struct EntityManager(ENTS){
 	}
 
 	void setEntityStableId(ref long id, EntityId* ent){
+
+		long entBeforeStId=entityIdToStableId.get(ent, 0);
+		if(entBeforeStId != 0){
+			stableIdToEntityId.remove(entBeforeStId);
+			entityIdToStableId.remove(ent);
+		}
+
 		if(id==0){
 			id=getUniqueStableId();
 		}
@@ -373,6 +380,7 @@ struct EntityManager(ENTS){
 		foreach(i,Entity;Entities){
 			code~=format("_%d=%d,",i,i);
 		}
+		code~=format("none=uint.max,");
 		code~="}";
 		return code;
 	}
