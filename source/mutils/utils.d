@@ -3,7 +3,7 @@ module mutils.utils;
  * Some random functions
  */
 
-const(char)* getTmpSmallCString(string str) {
+const(char)* getTmpSmallCString(const(char)[]  str) {
 	assert(str.length<256);
 	static char[256] tmpStr;
 	tmpStr[0..str.length]=str[];
