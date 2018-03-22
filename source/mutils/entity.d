@@ -91,16 +91,19 @@ struct EntityManager(ENTS){
 		
 		Component* getComponent(Component)(){
 			static assert(staticIndexOf!(Component, UniqueComponents)!=-1, "No entity has such component");
-
-			foreach(i,Entity;Entities){
-				enum componentNum=staticIndexOf!(Component,Fields!Entity);
-				static if(componentNum!=-1){
-					if(type==i){
-						Entity* el=get!Entity;
+			switch (type){
+				foreach(uint i,Entity;Entities){
+					enum componentNum=staticIndexOf!(Component,Fields!Entity);
+					static if(componentNum!=-1){
+						case cast(EntityEnumM)i:
+						Entity* el=cast(Entity*)(cast(void*)&this+8); // Inline get!Entity for debug performance
 						return &el.tupleof[componentNum];
 					}
 				}
+				default:
+					break;
 			}
+
 			assert(0, "There is no entity represented by this EntityId enum.");
 		}
 		
@@ -108,10 +111,16 @@ struct EntityManager(ENTS){
 			foreach(C; Components){
 				static assert(staticIndexOf!(C, UniqueComponents)!=-1, "No entity has such component");
 			}
-			foreach(i,Entity; Entities){
-				if(type==i){
-					return mutils.entity.hasComponent!(Entity, Components);
+			switch (type){
+				foreach(uint i,Entity; Entities){
+					case cast(EntityEnumM)i:
+					//if(type==i){
+					enum has=mutils.entity.hasComponent!(Entity, Components);
+					return has;
+					//}
 				}
+				default:
+					break;
 			}
 
 			assert(0, "There is no entity represented by this EntityId enum.");
@@ -240,7 +249,7 @@ struct EntityManager(ENTS){
 		
 	}
 
-
+	
 	// Based on pointer of component checks its base type
 	EntityId* getEntityFromComponent(Component)(ref Component c){
 		alias EntsWithComp=EntitiesWithComponents!(Component);
@@ -273,7 +282,7 @@ struct EntityManager(ENTS){
 	HashMap!(long, EntityId*) stableIdToEntityId;
 	HashMap!(EntityId*, long) entityIdToStableId;
 
-
+	
 	// When (id == 0 && makeDefault !is null ) new id is assigned and Entity is created by makeDefault function
 	EntityId* getEntityByStableId(ref long id, EntityId* function() makeDefault=null){
 		EntityId* ent=stableIdToEntityId.get(id, null);
