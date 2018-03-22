@@ -234,11 +234,6 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 		void visitAllDataNoCheck(Node* node, int level){
 			if(hasElements(level)){
 				foreach(ref pData;node.dataContainer){
-					static if(loose){
-						if(circleNotInBox(downLeft, upRight, pData.pos,pData.radius )){
-							continue;
-						}
-					}
 					visitor(pData);			
 				}
 			}
@@ -264,7 +259,7 @@ struct SpatialTree(ubyte dimension, T, bool loose=false, ubyte maxLevel=8){
 			if(hasElements(level)){
 				foreach(ref pData;node.dataContainer){
 					static if(loose){
-						if(circleNotInBox(downLeft, upRight, pData.pos,pData.radius )){
+						if( circleNotInBox(downLeft, upRight, pData.pos, pData.radius) ){
 							continue;
 						}
 					}
