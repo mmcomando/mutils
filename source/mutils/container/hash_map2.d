@@ -317,7 +317,24 @@ struct HashMap(KeyPar, ValuePar, alias hashFunc=defaultHashFunc){
 		}
 		distr.plotUsingGnuplot(path, ["group distribution"]);
 	}
+
+
 	
+}
+static void dumpHashMapToJson(T)(ref T map, string path="HashMapDump.json"){
+	Vector!char data;
+	import std.file;
+	import mutils.serializer.json;
+	JSONSerializer.instance.serialize!(Load.no)(map, data);
+	std.file.write(path, data[]);	
+}
+
+static void printHashMap(T)(ref T map){
+	import std.stdio;
+	writeln(T.stringof, " dump:\n");
+	foreach(k, v; &map.byKeyValue){
+		writefln("%20s : %20s", k, v);
+	}
 }
 
 
