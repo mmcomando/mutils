@@ -104,7 +104,7 @@ struct EntityManager(ENTS){
 					break;
 			}
 
-			assert(0, "There is no entity represented by this EntityId enum.");
+			assert(0, "This entity do not have this component.");
 		}
 		
 		auto hasComponent(Components...)(){
@@ -282,9 +282,9 @@ struct EntityManager(ENTS){
 	HashMap!(long, EntityId*) stableIdToEntityId;
 	HashMap!(EntityId*, long) entityIdToStableId;
 
-	
 	// When (id == 0 && makeDefault !is null ) new id is assigned and Entity is created by makeDefault function
 	EntityId* getEntityByStableId(ref long id, EntityId* function() makeDefault=null){
+		assert(id<=lastStableId);
 		EntityId* ent=stableIdToEntityId.get(id, null);
 
 		if(ent==null && makeDefault !is null){
@@ -295,11 +295,11 @@ struct EntityManager(ENTS){
 			stableIdToEntityId[id]=ent;
 			entityIdToStableId[ent]=id;
 		}
+		assert(stableIdToEntityId.length==entityIdToStableId.length);
 		return ent;
 	}
 
 	void setEntityStableId(ref long id, EntityId* ent){
-
 		long entBeforeStId=entityIdToStableId.get(ent, 0);
 		if(entBeforeStId != 0){
 			stableIdToEntityId.remove(entBeforeStId);
@@ -311,6 +311,7 @@ struct EntityManager(ENTS){
 		}
 		stableIdToEntityId.add(id, ent);
 		entityIdToStableId.add(ent, id);
+		assert(stableIdToEntityId.length==entityIdToStableId.length);
 	}
 
 	void removeByStableId(long id){
