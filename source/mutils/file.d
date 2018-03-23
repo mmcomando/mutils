@@ -7,7 +7,7 @@ import mutils.container.hash_map;
 import mutils.container.vector;
 
 struct File{
-	static long getModificationTimestamp(string path){
+	static long getModificationTimestamp(const(char)[] path){
 		version(Posix){
 			import core.sys.posix.sys.stat: stat, stat_t;
 		}else version(Windows){
@@ -22,6 +22,10 @@ struct File{
 			return -1;
 		}
 		return statbuf.st_mtime;
+	}
+
+	static bool exists(const(char)[] path){
+		return File.getModificationTimestamp(path)!=-1;
 	}
 }
 
@@ -44,7 +48,7 @@ struct FileWatcher{
 	HashMap!(Vector!(char), WatchedFileInfo) watchedFiles;
 
 
-	bool watchFile(string path, EventDelegate del){
+	bool watchFile(const(char)[] path, EventDelegate del){
 		long timestamp=File.getModificationTimestamp(path);
 		WatchedFileInfo* info=&watchedFiles.getInsertDefault( Vector!(char)(cast(char[])path), WatchedFileInfo(timestamp) );
 		info.timestamp=timestamp;
