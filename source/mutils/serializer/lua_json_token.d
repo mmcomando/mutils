@@ -281,7 +281,7 @@ package:
 	}
 
 	void serializeKeyValue(Load load, Key, Value, ContainerOrSlice)(ref Key key, ref Value value, ref ContainerOrSlice con){
-		static assert(isStringVector!Key || isNumeric!Key, "Map key has to be numeric.");
+		static assert(isStringVector!Key || isNumeric!Key, "Map key has to be numeric or char vector.");
 		static if(isJson){
 			static if(isStringVector!Key){
 				serializeImpl!(load)(key, con);

@@ -3,7 +3,7 @@
 import core.stdc.stdlib;
 import core.stdc.string;
 
-auto getTmpCString(string dstr){
+auto getTmpCString(const(char)[] dstr){
 	static struct CStrTmp{
 		@disable this();
 		@disable this(this);
