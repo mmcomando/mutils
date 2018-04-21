@@ -58,13 +58,13 @@ extern(C) void* threadRunFunction(void* threadVoid){
 	import core.thread: thread_attachThis, thread_detachThis;
 	Thread* th=cast(Thread*)threadVoid;
 
-	auto stdThread=thread_attachThis();
+	//auto stdThread=thread_attachThis();
 	rt_moduleTlsCtor();
 
 	Thread.thisThreadd=th;
 	th.threadStart();
 
-	thread_detachThis();
+	//thread_detachThis();
 	rt_moduleTlsDtor();
 
 	th.reset();
@@ -262,12 +262,12 @@ final class Fiber{
 
 			coro_stack stack;
 
-			//import core.stdc.stdlib;
-			//void* mem=malloc(pageSize);
-			//stack.sptr=mem;
-			//stack.ssze=pageSize;
-			coro_stack_alloc(&stack, 1024*1024);
-
+			import core.stdc.stdlib;
+			void* mem=malloc(pageSize);
+			stack.sptr=mem;
+			stack.ssze=pageSize;
+			//int ok=coro_stack_alloc(&stack, 1024*1024);
+			//assert(ok);
 			//printf("stack(%p), size %d\n", stack.sptr ,stack.ssze);
 			//printf("create(%d) corr(%p)\n", jobManagerThreadNum ,this);
 			assert(myThreadNum==jobManagerThreadNum);
@@ -303,7 +303,7 @@ final class Fiber{
 
 }
 
-/*version(Posix) unittest{
+unittest{
 	Fiber fb;
 	enum nestageLevelMax=10;
 	int nestageLevel=0;
@@ -364,6 +364,6 @@ final class Fiber{
 	th.start();
 	th.join();
 }
-*/
+
 
 

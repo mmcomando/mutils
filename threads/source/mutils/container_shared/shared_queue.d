@@ -83,7 +83,7 @@ public:
 		last.next = tmp;
 		last = tmp;
 		producerLock.unlock();
-		atomicOp!"+="(elementsAdded,1);
+		//atomicOp!"+="(elementsAdded,1);
 		
 	}
 	void add( T[]  t ) {
@@ -105,7 +105,7 @@ public:
 		last.next = firstInChain;
 		last = lastInChain;	
 		producerLock.unlock();
-		atomicOp!"+="(elementsAdded,t.length);
+		//atomicOp!"+="(elementsAdded,t.length);
 		
 	}
 	
@@ -122,7 +122,7 @@ public:
 			theNext.value = varInit;
 			first = theNext;
 			consumerLock.unlock();
-			atomicOp!"+="(elementsPopped,1);
+			//atomicOp!"+="(elementsPopped,1);
 			
 			allocator.dispose(theFirst);
 			return result;

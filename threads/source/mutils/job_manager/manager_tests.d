@@ -262,6 +262,7 @@ void test(uint threadsNum=16){
 	}
 	jobManager.startMainLoop(&startTest,threadsNum);
 	jobManager.clear();
+	printf("Test end\n");
 }
 void testScalability(){
 	foreach(int i;1..32){
