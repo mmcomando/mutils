@@ -13,11 +13,14 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	alias FromTypes=ConTypes;
 	static assert(FromTypes.length>0,"Union has to have members.");
 
+	union{
+		private FromTypes values;
+	}
 	mixin(getCode!(FromTypes));
 	//enum Types{...}    //from mixin
 	alias Types=TypesM;// alias used to give better autocompletion in IDE-s
 
-	Types currentType=(makeFirstParDefaultOne)?Types._e_0:Types.none;
+	Types currentType=(makeFirstParDefaultOne)?Types._0:Types.none;
 
 	/**
 	 * Constuctor supporting direcs assigment of Type
@@ -40,13 +43,10 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 */
 	@nogc nothrow auto get(T)(){
 		static assert(properType!T,"Given Type is not present in union");
-		foreach(i,Type;FromTypes){
-			static if(is(Type==T)){
-				assert(currentType==i,"Got type which is not currently bound.");
-				mixin("return &_"~i.to!string~";");
-			}
-		}
-		assert(false);
+
+		enum index=staticIndexOf!(T,FromTypes);
+		assert(currentType==index, "Got type which is not currently bound.");
+		return &values[index];
 	}
 
 	/**
@@ -54,16 +54,8 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 */
 	@nogc nothrow bool isType(T)(){
 		static assert(properType!T,"Given Type is not present in union");
-		bool ok=false;
-		foreach(i,Type;FromTypes){
-			static if(is(Type==T)){
-				Types type=cast(Types)i;
-				if(currentType==type){
-					ok=true;
-				}
-			}
-		}
-		return ok;
+		enum index=staticIndexOf!(T,FromTypes);
+		return currentType==index;
 	}
 
 	/**
@@ -71,11 +63,7 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 */
 	static Types getEnum(T)(){
 		static assert(properType!T,"Given Type is not present in union");
-		foreach(i,Type;FromTypes){
-			static if(is(Type==T)){
-				return cast(Types)i;
-			}
-		}
+		return cast(Types)staticIndexOf!(T,FromTypes);
 	}
 
 	/**
@@ -83,37 +71,37 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 */
 	@nogc nothrow auto  set(T)(T obj){
 		static assert(properType!T,"Given Type is not present in union");
-		foreach(i,Type;FromTypes){
-			static if(is(Type==T)){
-				currentType=cast(Types)i;
-				mixin("_"~i.to!string~"=obj;");
-			}
-		}
+		enum index=staticIndexOf!(T,FromTypes);
+		currentType=cast(Types)index;
+		values[index]=obj;
 	}
 	
 	auto ref apply(alias fun)() {
-		switch(currentType){
-			mixin(getCaseCode("return fun(_%1$s);")); 			
+	sw: switch(currentType){	
+			foreach(i, Type; FromTypes){
+				case i:	return fun(values[i]);
+			}
 			
 			default:
 				assert(0);
 		}
 	}
 
-
+	
 
 	import mutils.serializer.binary;
 	/**
 	 * Support for serialization
 	 */
 	void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,ref ContainerOrSlice con){
-
 		serializer.beginObject!(load)(con);
 		serializer.serializeWithName!(load, false, "type")(currentType, con);
-
-		//serializer.serialize!(load)(currentType,con);
-		final switch(currentType){
-			mixin(getCaseCode(`serializer.serializeWithName!(load, false, FromTypes[%1$s].stringof)(_%1$s,con);break;`)); 
+	sw:final switch(currentType){
+			foreach(i, Type; FromTypes){
+				case i:
+				serializer.serializeWithName!(load, false, FromTypes[i].stringof)(values[i],con);
+				break sw;
+			}
 			case Types.none:
 				break;
 		}
@@ -129,8 +117,12 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	{
 		put(sink, "SafeUnion(");
 		
-		final switch(currentType){
-			mixin(getCaseCode("formatValue(sink, %1$s, fmt);break;")); 
+	sw:final switch(currentType){
+			foreach(i, Type; FromTypes){
+				case i:
+				formatValue(sink, values[i], fmt);
+				break sw;
+			}
 			case Types.none:
 				put(sink, "none");
 				break;
@@ -166,46 +158,30 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 			static assert(typeOk,"Return type "~CompareReturnType.stringof~" of '"~funcName~"' has to be the same in every union member.");
 			static assert(parametersOk,"Parameter types "~CompareParametersTypes.stringof~" of '"~funcName~"' have to be the same in every union member.");
 		}
-		switch(currentType){
-			mixin(getCaseCode("return _%1$s."~funcName~"(args);"));
+	sw:switch(currentType){
+			foreach(i, Type; FromTypes){
+				case i:
+				auto val=&values[i];
+				mixin("return val."~funcName~"(args);");
+			}
 			default:
 				assert(0);
 		}
 	}
 package: 
 
-	/** 
-	 * Generates cases for switch with code, use _%1$s to place your var
-	 */
-	private static string getCaseCode(string code){
-		string str;
-		foreach(uint i,type;FromTypes){
-			import std.format;
-			string istr=i.to!string;
-			str~="case Types._e_"~istr~":";
-			str~=format(code,istr);
-		}
-		return str;
-	}	
 	
 	/** 
-	 * Generates enum,and union with given FromTypes
+	 * Generates enum for stored Types
 	 */
 	private static string getCode(FromTypes...)(){
-		string codeEnum="enum TypesM:ubyte{\n";
-		string code="private union{\n";
-		foreach(uint i,type;FromTypes){
-			string istr=i.to!string;
-			string typeName=type.stringof;
-			string enumName="_e_"~istr;
-			string valueName="_"~istr;
-			codeEnum~=enumName~"="~istr~",\n";
-			code~="FromTypes["~istr~"] "~valueName~";\n";
-			
-			
+		import std.format : format;
+		string code="enum TypesM:ubyte{";
+		foreach(i, Type; FromTypes){
+			code~=format("_%d=%d,",i,i);
 		}
-		codeEnum~="none\n}\n";
-		return codeEnum~code~"}\n";
+		code~="none}";
+		return code;
 	}
 
 	/**
@@ -258,4 +234,5 @@ unittest{
 		case Shape.Types.none:
 			break;
 	}
+
 }
