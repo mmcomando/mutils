@@ -7,6 +7,8 @@ import core.atomic;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 
+import mutils.thread;
+
 struct MyMallocator{
 	@disable this(this);
 	

@@ -1,7 +1,29 @@
 {
 	"name": "threads",
 	"targetType": "library",
+	"mainSourceFile": "source/test_mt.d",
+	"configurations": [
+	
+		{
+			"name": "simple",
+			"targetType":"executable",
+			"lflags-posix": ["-L."],
+			"libs": ["coro" ],
+			"libs-windowss": ["pthreadVC2" ]
+		},
+		{
+			"name": "unittest",
+			"lflags-posix": ["-L."],
+			"libs": ["coro" ],
+			"libs-windows": ["pthreadVC2" ]
+		},
+		{
+			"name": "lib",
+			"targetType":"library"
+		},
+	],
 	"dependencies": {
 		"mutils": "*",
 	}
+	
 }
