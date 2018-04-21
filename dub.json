@@ -34,5 +34,7 @@
 			"dflags_dub_warnings": [ "-unittest", "-g", "-O", "-boundscheck=off" ]
 		}
 	],
-	"dependencies": {}
+	"subPackages": [
+		"./threads/"
+	],
 }

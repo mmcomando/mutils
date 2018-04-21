@@ -1,0 +1,7 @@
+{
+	"name": "threads",
+	"targetType": "library",
+	"dependencies": {
+		"mutils": "*",
+	}
+}

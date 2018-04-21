@@ -196,6 +196,7 @@ struct EntityManager(ENTS){
 	}
 
 	void update(){
+		import mutils.benchmark;auto timeThis=TimeThis.time();
 		foreach(i, ref con;entityContainers){
 			foreach(ref con.ElementType el;con){
 				el.update();

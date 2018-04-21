@@ -6,7 +6,6 @@ module mutils.container_shared.shared_queue;
 import core.atomic;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import mutils.thread;
 
 struct MyMallocator{
 	@disable this(this);

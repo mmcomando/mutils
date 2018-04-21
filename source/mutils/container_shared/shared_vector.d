@@ -7,7 +7,6 @@ import std.algorithm : remove;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 
-import mutils.container_shared.shared_allocator;
 import mutils.container.vector;
 
 ////////////////////
