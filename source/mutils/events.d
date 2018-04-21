@@ -1,6 +1,7 @@
 module mutils.events;
 
 import mutils.time;
+import core.stdc.string : memset, strlen;
 
 Events gEvents;
 
@@ -17,7 +18,15 @@ enum Key {
 	F1,F2,F3,F4,F5,F6,F7,F8,F9,F10,F11,F12,
 	up,down,left,right,
 	space,
-	esc
+	esc,
+	backspace,
+	delete_,
+	return_,
+	pageup,
+	pagedown,
+	home,
+	end,
+	insert,
 }
 /**
  * Struct to store simple controller event states, like pressed, down, released.
@@ -39,6 +48,8 @@ struct Events{
 	int[2] _mousePos = [100,100];
 	int[2] _mouseWheel;
 
+	char[] inputedText;
+
 	float dtf;
 	float fps = 0;
 	float minTime = 0;
@@ -56,8 +67,9 @@ struct Events{
 	}
 	
 	void update() {
-		import core.stdc.string : memset;
+		__gshared static char[] defaultInputText=['\0', '\0', '\0', '\0'];
 		_mouseWheel = [0, 0];
+		inputedText=defaultInputText;
 		memset(&pressedKeys, 0, 256);
 		memset(&releasedKeys, 0, 256);
 		memset(&mousePressedKeys, 0, MouseButton.max + 1);
@@ -176,16 +188,12 @@ struct Events{
 	//// Events check implementations /////
 	///////////////////////////////////////
 
-
-	//https://dlang.org/blog/2017/02/13/a-new-import-idiom/
-	// you don't have to import library if you dont use function
-	template from(string moduleName)
-	{
-		mixin("import from = " ~ moduleName ~ ";");
-	}
-
-	void fromSDLEvent()(ref from!"derelict.sdl2.sdl".SDL_Event event){
+	
+	void fromSDLEvent(T)(ref T event){
 		import derelict.sdl2.sdl;
+		static assert( is(T==SDL_Event));
+
+		__gshared static char[SDL_TEXTINPUTEVENT_TEXT_SIZE] textStorage;
 
 		void specialKeysImpl(uint sym, bool up) {
 			Key key;
@@ -214,6 +222,16 @@ struct Events{
 				case SDLK_F10:key=Key.F10;break;
 				case SDLK_F11:key=Key.F11;break;
 				case SDLK_F12:key=Key.F12;break;
+					//OTHER
+				case SDLK_BACKSPACE:key=Key.backspace;break;
+				case SDLK_DELETE:key=Key.delete_;break;
+				case SDLK_RETURN:key=Key.return_;break;
+				case SDLK_PAGEUP:key=Key.pageup;break;
+				case SDLK_PAGEDOWN:key=Key.pagedown;break;
+				case SDLK_HOME:key=Key.home;break;
+				case SDLK_END:key=Key.end;break;
+				case SDLK_INSERT:key=Key.insert;break;
+
 				default:
 					return;
 			}
@@ -228,6 +246,10 @@ struct Events{
 
 		
 		switch (event.type) {
+			case SDL_TEXTINPUT:
+				textStorage=event.text.text;
+				inputedText=textStorage[0..strlen(textStorage.ptr)];
+				break;
 			case SDL_KEYDOWN:
 				auto sym=event.key.keysym.sym;
 				specialKeysImpl(sym, false);
@@ -297,9 +319,9 @@ struct Events{
 		
 	}
 
+	
 
-
-
+	
 
 }
 
