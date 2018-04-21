@@ -98,7 +98,9 @@ struct Vec(T, int dim){
 	Vec!(T, dim) opBinary(string op)(T[dim] rhs)
 	{
 		Vec!(T, dim) ret;
-		mixin("ret.vector=this.vector[] "~op~" rhs[];");
+		// MonoDevelop lexer does not support static forach
+		mixin("static foreach(i; 0..dim){  ret.vector[i]=this.vector[i] "~op~" rhs[i];  }");
+
 		return ret;
 	}
 
