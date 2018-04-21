@@ -2,8 +2,10 @@
 
 import mutils.container.hash_set;
 
-struct HashMap(Key, T){
-	alias KeyType=Key;
+struct HashMap(KeyTypeE, T){
+	alias Key=KeyTypeE;
+	alias KeyType=KeyTypeE;
+	alias Value=T;
 	alias ValueType=T;
 
 	HashSet!(Key, defaultHashFunc, ValueType) set;
