@@ -136,6 +136,7 @@ import mutils.container.vector;
 import mutils.container.buckets_chain;
 
 static BucketsChain!(PerfData, 64, false) perfDataAlloc;
+
 struct PerfData{
 	Vector!(PerfData*) perfs;
 	string funcName;
@@ -183,7 +184,8 @@ struct PerfData{
 /// Always use: auto timeThis=TimeThis.time(); alone TimeThis.time(); is not working
 struct TimeThis{
 
-	static PerfData timingRoot;
+	static PerfData[2] timingRoot;
+	static bool timingRootIndex;
 	static PerfData* currentTiming;
 	static bool enableTiming=true;
 
@@ -192,7 +194,7 @@ struct TimeThis{
 	long timeStart;
 
 	static void initializeStatic(){
-		currentTiming=&timingRoot;
+		currentTiming=&timingRoot[0];
 	}
 
 	@disable this();
@@ -207,7 +209,7 @@ struct TimeThis{
 	}
 
 	~this(){
-		if(!enableTiming){
+		if(timeStart==0){
 			return;
 		}
 		long timeEnd=useconds();
@@ -225,17 +227,23 @@ struct TimeThis{
 	}
 
 	static void print(){
-		foreach(p; timingRoot.perfs){
+		//foreach(p; timingRoot.perfs){
 			//writeln(*p);
-		}
+		//}
 	}
 
 	static PerfData*[] getRootPerfs(){
-		return timingRoot.perfs[];
+		return timingRoot[!timingRootIndex].perfs[];
 	}
 
 	static void reset(){
-		foreach(p; timingRoot.perfs){
+		if(!enableTiming){
+			return;
+		}
+		assert(currentTiming==&timingRoot[timingRootIndex]);
+		timingRootIndex=!timingRootIndex;
+		currentTiming=&timingRoot[timingRootIndex];
+		foreach(p; timingRoot[timingRootIndex].perfs){
 			p.reset();
 		}
 	}
