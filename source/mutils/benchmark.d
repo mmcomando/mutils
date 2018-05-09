@@ -1,5 +1,6 @@
 module mutils.benchmark;
 
+import std.algorithm: sort;
 import std.stdio: File;
 import std.format: format;
 import std.conv:to;
@@ -166,6 +167,16 @@ struct PerfData{
 		perfs~=p;
 		return p;
 	}
+
+
+	
+	void sortByName(){
+		sort!("a.funcName>b.funcName")(perfs[]);
+		foreach(p; perfs){
+			p.sortByName();
+		}
+	}
+
 	static int lvl=-1;
 	string toString()
 	{
@@ -179,6 +190,8 @@ struct PerfData{
 		lvl--;
 		return str;
 	}
+
+
 }
 /// Can be used only once in function
 /// Always use: auto timeThis=TimeThis.time(); alone TimeThis.time(); is not working
@@ -250,6 +263,11 @@ struct TimeThis{
 
 	static void enable(bool yes){
 		enableTiming=yes;
+	}
+
+	static void sortByName(){
+		timingRoot[0].sortByName();
+		timingRoot[1].sortByName();
 	}
 
 	
