@@ -1,11 +1,12 @@
 module mutils.entity;
 
-import std.format;
-import std.traits;
+import std.algorithm: clamp, max, min;
+import std.format: format;
 import std.meta;
+import std.traits;
 
 import mutils.container.buckets_chain;
-
+import mutils.time: useconds;
 /**
  * EntityId No Reference
  * Struct representing EntityId but without compile time information of EntityManager
@@ -201,8 +202,63 @@ struct EntityManager(ENTS){
 			foreach(ref con.ElementType el;con){
 				el.update();
 			}
+		}
+
+		foreach(i, ref con;entityContainers){
+			alias EntityType=typeof(con.ElementType.entity);
+			alias TFields=Fields!EntityType;
+			foreach (Type; TFields) {
+				static if(hasMember!(Type, "updateTimely")){
+					updateTimely!(Type)(con);
+				}
+			}
 
 		}
+
+		
+	}
+
+	void updateTimely(Component, Container)(ref Container container){
+		static assert(hasMember!(Component, "updateTimely"));
+		alias Entity=typeof(Container.ElementType.entity);
+
+		static size_t startTime=0;
+		static size_t lastIndex=0;
+		static size_t lastUnitsPerFrame=100;
+		//static size_t sumUnitsOfWork=0;
+
+		if(startTime==0){
+			startTime=useconds();
+		}
+
+		size_t currentWork;
+		auto range=getRange!(Entity)(lastIndex, container.length);
+		foreach(ref Entity ent; range){		
+			Component* comp=ent.getComponent!Component;	
+			currentWork+=comp.updateTimely(ent);
+			lastIndex+=1;
+			if(currentWork>lastUnitsPerFrame){
+				break;
+			}
+		}
+		//sumUnitsOfWork+=currentWork;
+		if(lastIndex<container.length || startTime>useconds()){
+			return;
+		}
+		size_t endTime=useconds();
+		size_t dt=endTime-startTime;
+
+		startTime=endTime+Component.updateTimelyPeriod;
+
+		float mul=cast(float)Component.updateTimelyPeriod/dt;
+		mul=(mul-1)*0.5+1;
+
+		lastUnitsPerFrame=cast(size_t)( lastUnitsPerFrame/mul );
+		lastUnitsPerFrame=max(10, lastUnitsPerFrame);
+
+		//sumUnitsOfWork=0;
+		lastIndex=0;
+
 	}
 
 	// Adds enitiy without calling initialize on it, the user has to do it himself
