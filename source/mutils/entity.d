@@ -358,7 +358,7 @@ struct EntityManager(ENTS){
 
 	void setEntityStableId(ref long id, EntityId* ent){
 		long entBeforeStId=entityIdToStableId.get(ent, 0);
-		if(entBeforeStId != 0){
+		if(entBeforeStId != 0 && entBeforeStId!=id){
 			stableIdToEntityId.remove(entBeforeStId);
 			entityIdToStableId.remove(ent);
 		}
