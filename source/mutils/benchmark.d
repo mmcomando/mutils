@@ -210,6 +210,11 @@ struct TimeThis{
 		currentTiming=&timingRoot[0];
 	}
 
+	static void clearRoots(){
+		timingRoot[0].perfs.clear();
+		timingRoot[1].perfs.clear();
+	}
+
 	@disable this();
 	this(string funcName, long time){
 		if(!enableTiming){
@@ -289,6 +294,6 @@ unittest{
 		testB();
 	}
 	perfDataAlloc.clear();
-	TimeThis.timingRoot.perfs.clear();
+	TimeThis.clearRoots();
 	//TimeThis.print();
 }
