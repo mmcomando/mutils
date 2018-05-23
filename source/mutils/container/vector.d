@@ -231,7 +231,7 @@ public:
 		array[elemNum]=obj;		
 	}
 
-	void opSliceAssign()(T obj, size_t a, size_t b){
+	void opSliceAssign()(T[] obj, size_t a, size_t b){
 		assert(b<used && a<=b, "Range viloation");
 		array.ptr[a..b]=obj;		
 	}

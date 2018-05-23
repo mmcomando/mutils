@@ -23,10 +23,11 @@ static void check(string str="Parsing Error")(bool ok){
 
 
 /// Enum to check if data is loaded or saved
-enum Load {
-	no,
-	yes,
-	skip
+enum Load{
+	no=0,
+	yes=1,
+	skip=2,
+
 }
 
 /// Checks if type have to be allocated by serializer
