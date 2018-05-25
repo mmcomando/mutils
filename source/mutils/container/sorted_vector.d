@@ -77,7 +77,7 @@ struct SortedVector(T, alias less="a < b")
 	}
 
 	void remove(size_t elemNum){
-		vec.remove(elemNum);
+		vec.removeStable(elemNum);
 	}
 
 	void opOpAssign(string op)(T obj){

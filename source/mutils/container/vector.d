@@ -177,6 +177,13 @@ public:
 		swap(array[elemNum], array[used-1]);
 		used--;
 	}
+
+	void removeStable(size_t elemNum){
+		used--;
+		foreach(i; 0..used){
+			array[i]=array[i+1];
+		}
+	}
 	
 	bool tryRemoveElement()(T elem){
 		foreach(i,ref el;array[0..used]){
