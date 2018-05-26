@@ -178,7 +178,7 @@ public:
 		used--;
 	}
 
-	void removeStable(size_t elemNum){
+	void removeStable()(size_t elemNum){
 		used--;
 		foreach(i; 0..used){
 			array[i]=array[i+1];

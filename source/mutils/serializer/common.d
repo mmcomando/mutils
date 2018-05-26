@@ -131,7 +131,7 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 		static assert(0, "Type can not be serialized");
 	}
 	
-	static if (__traits(compiles,var.afterSerialize!(load)(ser,con))) {
+	static if (hasMember!(T, "afterSerialize" )) {
 		var.afterSerialize!(load)(ser,con);
 	}
 }
