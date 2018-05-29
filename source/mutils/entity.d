@@ -443,11 +443,11 @@ struct EntityManager(ENTS){
 	
 	// Order if enum is important, indexing of objects is made out of it
 	static string createEnumCode(){
-		string code="enum EntityEnumM:uint{";
+		string code="enum EntityEnumM:int{";
 		foreach(i,Entity;Entities){
 			code~=format("_%d=%d,",i,i);
 		}
-		code~=format("none=uint.max,");
+		code~=format("none");
 		code~="}";
 		return code;
 	}
