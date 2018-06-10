@@ -3,8 +3,8 @@ module mutils.container.string_intern;
 import mutils.container.hash_map2;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-
-
+import mutils.traits : isForeachDelegateWithI;
+import std.traits : Parameters;
 
 struct StringIntern {
     private __gshared HashMap!(const(char)[], StringIntern) internStrings;
@@ -12,6 +12,10 @@ struct StringIntern {
 
     this(const(char)[] fromStr) {
         opAssign(fromStr);
+    }
+
+    const(char)[] get() {
+        return str;
     }
 
     bool opEquals()(auto ref const StringIntern s) const {
@@ -37,9 +41,29 @@ struct StringIntern {
         str = internedStr.str;
     }
 
-    const(char)[] get() {
-        return str;
-    }
+    // foreach support
+   /* int opApply(DG)(scope DG dg) {
+        int result;
+        static if (isForeachDelegateWithI!DG) {
+            foreach (Parameters!(DG)[0] i, char c; str) {
+                result = dg(i, c);
+                if (result)
+                    break;
+            }
+        } else {
+            foreach (char c; str) {
+                result = dg(c);
+                if (result)
+                    break;
+            }
+        }
+
+        return result;
+    }*/
+
+    const(char)[] opSlice(){
+		return str;
+	}
 
     private const(char)[] allocStr(const(char)[] fromStr) {
         char[] data = Mallocator.instance.makeArray!(char)(fromStr.length + 1);
@@ -77,4 +101,26 @@ unittest {
     assert(strA == chC);
     assert(strA == chD);
     assert(strA.str.ptr[strA.str.length] == '\0');
+
+    foreach (char c; strA) {
+    }
+    foreach (int i, char c; strA) {
+    }
+    foreach (ubyte i, char c; strA) {
+    }
+    foreach (c; strA) {
+    }
+}
+
+unittest {
+    import mutils.container.hash_map2 : HashMap;
+
+    HashMap!(StringIntern, StringIntern) map;
+
+    map.add(StringIntern("aaa"), StringIntern("bbb"));
+    map.add(StringIntern("aaa"), StringIntern("bbb"));
+    
+    assert(map.length==1);
+    assert(map.get(StringIntern("aaa"))==StringIntern("bbb"));
+
 }
