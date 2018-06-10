@@ -126,8 +126,10 @@ struct HashMap(KeyPar, ValuePar, alias hashFunc=defaultHashFunc){
 		add(key, value);
 	}
 
-	void add()(auto ref Key el, auto ref Value value){
-		if(isIn(el)){
+	void add()(auto ref Key key, auto ref Value value){
+		size_t index=getIndex(key);
+		if(index!=getIndexEmptyValue){
+			elements[index].keyValue.value=value;
 			return;
 		}
 		
@@ -136,9 +138,9 @@ struct HashMap(KeyPar, ValuePar, alias hashFunc=defaultHashFunc){
 		}
 		length++;
 		
-		immutable ulong hash=hashFunc(el) | HASH_FILLED_MARK;
+		immutable ulong hash=hashFunc(key) | HASH_FILLED_MARK;
 		immutable size_t rotateMask=elements.length-1;
-		ulong index=hash & rotateMask;// Starting point
+		index=hash & rotateMask;// Starting point
 
 		while(true){
 			Bucket* gr=&elements[index];
@@ -147,7 +149,7 @@ struct HashMap(KeyPar, ValuePar, alias hashFunc=defaultHashFunc){
 					markerdDeleted--;
 				}
 				gr.hash=hash;
-				gr.keyValue.key=el;
+				gr.keyValue.key=key;
 				gr.keyValue.value=value;
 				return;
 			}
@@ -399,6 +401,8 @@ unittest{
 	vecA~="AAA";
 	map.add(vecA, 10);
 	assert(map[vecA]==10);
+	map.add(vecA, 20);
+	assert(map[vecA]==20);
 	//assert(vecA=="AAA");
 	//assert(map["AAA"]==10);// TODO hashMap Vector!char and string
 }
