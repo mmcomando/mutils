@@ -4,11 +4,9 @@ import mutils.container.hash_set;
 
 struct HashMap(KeyTypeE, T){
 	alias Key=KeyTypeE;
-	alias KeyType=KeyTypeE;
 	alias Value=T;
-	alias ValueType=T;
 
-	HashSet!(Key, defaultHashFunc, ValueType) set;
+	HashSet!(Key, defaultHashFunc, Value) set;
 
 	void add(Key k, T v){
 		size_t index=set.getIndex(k);
@@ -90,9 +88,9 @@ struct HashMap(KeyTypeE, T){
 				
 	}
 
-	int byKey(scope int delegate(KeyType k) dg){
+	int byKey(scope int delegate(Key k) dg){
 		int result;
-		foreach(ref KeyType k;set){
+		foreach(ref Key k;set){
 			result=dg(k);
 			if (result)
 				break;	
@@ -102,7 +100,7 @@ struct HashMap(KeyTypeE, T){
 
 	int byValue(scope int delegate(ref T k) dg){
 		int result;
-		foreach(ref Control c, ref KeyType k, ref ValueType v; set){
+		foreach(ref Control c, ref Key k, ref Value v; set){
 			result=dg(v);
 			if (result)
 				break;	
@@ -110,9 +108,9 @@ struct HashMap(KeyTypeE, T){
 		return result;		
 	}
 
-	int byKeyValue(scope int delegate(ref KeyType k, ref ValueType k) dg){
+	int byKeyValue(scope int delegate(ref Key k, ref Value k) dg){
 		int result;
-		foreach(ref Control c, ref KeyType k, ref ValueType v; set){
+		foreach(ref Control c, ref Key k, ref Value v; set){
 			result=dg(k, v);
 			if (result)
 				break;	
