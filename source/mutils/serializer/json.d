@@ -89,7 +89,6 @@ unittest{
 	assert(test.a==1);
 	assert(test.b==145);
 	assert(test.c=="asdasdas asdasdas asdasd asd");
-	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 // test formating
@@ -160,8 +159,6 @@ unittest{
 	assert(test.aa.a==11);
 	assert(test.aa.c==22);
 	assert(test.aa.b=="xxxxx");
-	Mallocator.instance.dispose(cast(char[])test.aa.b);
-	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 // test arrays
@@ -196,10 +193,6 @@ unittest{
 	assert(test.a==[1,2,3].s);
 	assert(test.b==[11,22,33].s);
 	assert(test.c[]==[1,2,3,4,5,6,7].s);
-	Mallocator.instance.dispose(test.b);
-	Mallocator.instance.dispose(cast(char[])test.d[0].a);
-	Mallocator.instance.dispose(cast(char[])test.d[1].a);
-	Mallocator.instance.dispose(cast(char[])test.d[2].a);
 }
 
 // test map
@@ -616,7 +609,6 @@ unittest{
 	serializer.serialize!(Load.no)(test,tokens);
 	
 	assert(tokens.length==13);
-	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 
@@ -696,8 +688,6 @@ unittest{
 	assert(test.aa.a==11);
 	assert(test.aa.c==22);
 	assert(test.aa.b=="xxxxx");
-	Mallocator.instance.dispose(cast(char[])test.aa.b);
-	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 // test arrays
@@ -733,10 +723,6 @@ unittest{
 	assert(test.a==[1,2,3].s);
 	assert(test.b==[11,22,33].s);
 	assert(test.c[]==[1,2,3,4,5,6,7].s);
-	Mallocator.instance.dispose(test.b);
-	Mallocator.instance.dispose(cast(char[])test.d[0].a);
-	Mallocator.instance.dispose(cast(char[])test.d[1].a);
-	Mallocator.instance.dispose(cast(char[])test.d[2].a);
 }
 
 

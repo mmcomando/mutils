@@ -208,7 +208,9 @@ package:
 	}
 	
 	
-	
+	void serializeString(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
+			serializeCustomVectorString!(load)(var, con);
+	}
 	
 	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static if(is(Unqual!(ForeachType!(T))==char)){
@@ -256,8 +258,8 @@ package:
 		static if(load==Load.yes){
 			bool ok=!con[0].isChar('}');// false if no elements inside
 			while(ok){
-				T.KeyType key;
-				T.ValueType value;
+				T.Key key;
+				T.Value value;
 				serializeKeyValue!(load)(key, value, con );
 				var.add(key, value);
 

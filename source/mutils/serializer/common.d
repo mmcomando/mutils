@@ -64,7 +64,7 @@ auto hasNoserializeUda(Args...)(){
 }
 
 bool isStringVector(T)(){
-	static if(is( Unqual!(ForeachType!T)==char )){
+	static if(is(T==struct) && is( Unqual!(ForeachType!T)==char )){
 		return true;
 	}else{
 		return false;
@@ -105,6 +105,8 @@ void commonSerialize(Load load,bool useMalloc=false, Serializer, T, ContainerOrS
 		var.customSerialize!(load)(ser, con);
 	} else static if (isBasicType!T) {
 		ser.serializeBasicVar!(load)(var, con);
+	} else static if(isStringVector!T){
+		ser.serializeString!(load)(var, con);
 	} else static if(isCustomVector!T){
 		ser.serializeCustomVector!(load)(var, con);
 	} else static if(isCustomMap!T){
@@ -229,12 +231,10 @@ void tokensToCharVectorPreatyPrint(Lexer,Vec)(TokenData[] tokens, ref Vec vec){
 
 void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con){
 	alias ElementType=Unqual!(ForeachType!(T));
-	static assert(isCustomVector!T);
 	static assert(is(ElementType==char));
 	
 	static if(load==Load.yes){
-		var.reset();
-		var~=cast(char[])con[0].getUnescapedString;
+		var=con[0].getUnescapedString;
 		con=con[1..$];
 	}else{
 		TokenData token;

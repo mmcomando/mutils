@@ -137,9 +137,11 @@ package:
 		
 	}
 
-	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
-		static assert(isCustomVector!T);
-		
+	void serializeString(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
+		serializeCustomVector!(load)(var, con);
+	}
+
+	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){		
 		alias ElementType=Unqual!(ForeachType!(T));
 		uint dataLength=cast(uint)(var.length);
 		serialize!(loadOrSkip!load)(dataLength, con);

@@ -130,7 +130,6 @@ unittest{
 	assert(test.a==1);
 	assert(test.b==145);
 	assert(test.c=="asdasdas asdasdas asdasd asd");
-	Mallocator.instance.dispose(cast(char[])test.c);
 }
 
 
