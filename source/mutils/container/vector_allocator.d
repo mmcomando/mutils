@@ -66,7 +66,7 @@ struct VectorAllocator(T, Allocator){
 		array[$-1]=t;
 	}
 
-	void add( T[]  t ) {
+	void add(X)(X[]  t) if( is(Unqual!X==Unqual!T) ){
 		size_t sizeBefore=array.length;
 		setLenght(array.length+t.length);
 		foreach(i;0..t.length){
@@ -110,7 +110,11 @@ struct VectorAllocator(T, Allocator){
 		add(obj);
 	}
 
-	void opOpAssign(string op)(T[] obj){
+	/*void opOpAssign(string op)(T[] obj){
+		static assert(op=="~");
+		add(obj);
+	}*/
+	void opOpAssign(string op,X)(X[] obj){
 		static assert(op=="~");
 		add(obj);
 	}
@@ -118,6 +122,11 @@ struct VectorAllocator(T, Allocator){
 	void opIndexAssign(T obj,size_t elemNum){
 		array[elemNum]=obj;
 
+	}
+
+	void opAssign(X)(X[] slice){
+		reset();
+		this~=slice;
 	}
 	
 }
