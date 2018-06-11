@@ -3,7 +3,7 @@
 import core.stdc.stdlib;
 import core.stdc.string;
 
-auto getTmpCString(const(char)[] dstr){
+auto getTmpCString(const(char)[] dstr, char[] buffer=null){
 	static struct CStrTmp{
 		@disable this();
 		@disable this(this);
@@ -29,6 +29,11 @@ auto getTmpCString(const(char)[] dstr){
 	}
 	if(dstr[$-1]=='\0'){
 		return CStrTmp(cast(const(char)[])dstr, false);
+	}
+	if(buffer.length>=dstr.length+1){
+		memcpy(buffer.ptr, cast(void*)dstr.ptr, dstr.length);
+		buffer[dstr.length]='\0';
+		return CStrTmp(cast(const(char)[])(buffer[0..dstr.length+1]), false);
 	}
 
 	char* mem=cast(char*)malloc(dstr.length+1);

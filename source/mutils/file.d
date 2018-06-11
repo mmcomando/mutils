@@ -1,10 +1,13 @@
 ﻿module mutils.file;
 
-import std.algorithm: canFind;
+import core.stdc.stdio : fclose, FILE, fopen, fread, fseek, ftell, SEEK_END, SEEK_SET;
+import core.stdc.stdlib : free, malloc;
+import std.algorithm : canFind;
 
-import mutils.string;
 import mutils.container.hash_map;
 import mutils.container.vector;
+import mutils.string;
+import mutils.string : getTmpCString;
 
 struct File{
 	static long getModificationTimestamp(const(char)[] path){
@@ -27,6 +30,28 @@ struct File{
 	static bool exists(const(char)[] path){
 		return File.getModificationTimestamp(path)!=-1;
 	}
+
+	static ubyte[] rawRead(const(char)[] path){		
+		char[1024] tmpBuff;
+		auto tmpPath=getTmpCString(path, tmpBuff[]);
+		FILE * f = fopen (tmpPath.str.ptr, "rb");
+		if(f==null){
+			return null;
+		}		
+		fseek (f, 0, SEEK_END);
+		long length = ftell (f);
+		fseek (f, 0, SEEK_SET);
+		ubyte* buffer = cast(ubyte*)malloc (length);
+		fread (buffer, 1, length, f);		
+		fclose (f);
+		
+		return buffer[0..length];
+	}
+
+	static void rawRemoveReadedData(ubyte[] data){
+		free(data.ptr);
+	}
+	
 }
 
 unittest{
