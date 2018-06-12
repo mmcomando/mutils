@@ -43,9 +43,9 @@ package:
 
 	void serializeImpl(Load load,bool useMalloc=false, T, ContainerOrSlice)(ref T var,ref ContainerOrSlice con){
 		static assert(
-			(load==Load.skip && is(ContainerOrSlice==ubyte[])) ||
-			(load==Load.yes && is(ContainerOrSlice==ubyte[])) ||
-			(load==Load.no  && !isDynamicArray!ContainerOrSlice)
+			(load==Load.skip && is( Unqual!(ForeachType!ContainerOrSlice)==ubyte )) ||
+			(load==Load.yes  && is( Unqual!(ForeachType!ContainerOrSlice)==ubyte )) ||
+			(load==Load.no   && !isDynamicArray!ContainerOrSlice)
 			);
 		static assert(!is(T==union), "Type can not be union");
 		static assert((!is(T==struct) && !is(T==class)) || !isNested!T, "Type can not be nested");
@@ -154,7 +154,7 @@ package:
 			}
 			static if(isBasicType!ElementType){
 				ElementType[] arr=(cast(ElementType*)con)[0..dataLength];
-				if(load!=Load.skip)var~=arr;
+				if(load!=Load.skip)var=arr;
 				con=con[dataLength*ElementType.sizeof..$];
 			}else{
 				foreach(i;0..dataLength){

@@ -14,6 +14,10 @@ struct StringIntern {
         opAssign(fromStr);
     }
 
+    size_t length(){
+        return str.length;
+    }
+
     const(char)[] get() {
         return str;
     }
