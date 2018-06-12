@@ -1,6 +1,6 @@
 ﻿module mutils.file;
 
-import core.stdc.stdio : fclose, FILE, fopen, fread, fseek, ftell, SEEK_END, SEEK_SET;
+import core.stdc.stdio : fclose, FILE, fopen, fread, fseek, ftell, fwrite, removeFileC=remove, SEEK_END, SEEK_SET;
 import core.stdc.stdlib : free, malloc;
 import std.algorithm : canFind;
 
@@ -31,10 +31,16 @@ struct File{
 		return File.getModificationTimestamp(path)!=-1;
 	}
 
+	static bool remove(const(char)[] path){
+		char[1024] tmpBuff;
+		auto tmpPath=getTmpCString(path, tmpBuff[]);
+		return removeFileC(tmpPath.str.ptr)==0;
+	}
+
 	static ubyte[] rawRead(const(char)[] path){		
 		char[1024] tmpBuff;
 		auto tmpPath=getTmpCString(path, tmpBuff[]);
-		FILE * f = fopen (tmpPath.str.ptr, "rb");
+		FILE* f = fopen (tmpPath.str.ptr, "rb");
 		if(f==null){
 			return null;
 		}		
@@ -50,6 +56,19 @@ struct File{
 
 	static void rawRemoveReadedData(ubyte[] data){
 		free(data.ptr);
+	}
+
+	static bool write(T)(const(char)[] path, const(T)[] data){
+		static assert( is(T==ubyte) || is(T==char) );
+		char[1024] tmpBuff;
+		auto tmpPath=getTmpCString(path, tmpBuff[]);
+		FILE* f = fopen ( tmpPath.str.ptr , "wb" );
+		if(f is null){
+			return false;
+		}
+		size_t elementsWritten=fwrite(data.ptr, data.length*T.sizeof, 1, f);
+		fclose(f);
+		return elementsWritten==1;
 	}
 	
 }
