@@ -6,11 +6,12 @@ import std.experimental.allocator.mallocator;
 import mutils.traits : isForeachDelegateWithI;
 import std.traits : Parameters;
 
+private __gshared static HashMap!(const(char)[], StringIntern) gStringInterns;
+
 struct StringIntern {
-    private __gshared HashMap!(const(char)[], StringIntern) internStrings;
     private const(char)[] str;
 
-    this(const(char)[] fromStr) {
+    this(const(char)[] fromStr){
         opAssign(fromStr);
     }
 
@@ -35,11 +36,11 @@ struct StringIntern {
             return;
         }
         StringIntern defaultValue;
-        StringIntern internedStr = internStrings.get(fromStr, defaultValue);
+        StringIntern internedStr = gStringInterns.get(fromStr, defaultValue);
 
         if (internedStr.str.length == 0) {
             internedStr.str = allocStr(fromStr);
-            internStrings.add(internedStr.str, internedStr);
+            gStringInterns.add(internedStr.str, internedStr);
         }
 
         str = internedStr.str;
