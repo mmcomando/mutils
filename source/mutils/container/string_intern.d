@@ -1,6 +1,6 @@
 module mutils.container.string_intern;
 
-import mutils.container.hash_map2;
+import mutils.container.hash_map;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import mutils.traits : isForeachDelegateWithI;
@@ -118,7 +118,7 @@ unittest {
 }
 
 unittest {
-    import mutils.container.hash_map2 : HashMap;
+    import mutils.container.hash_map : HashMap;
 
     HashMap!(StringIntern, StringIntern) map;
 

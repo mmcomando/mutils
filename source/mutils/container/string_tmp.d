@@ -7,11 +7,18 @@ static struct StringTmp {
     @disable this();
     @disable this(this);
 
-    const(char)[] str;
+    const(char)[] cstr= "\0";
+    const(char)[] str(){
+        return cstr[0 .. $-1];
+    }
+
+
     bool deleteMem;
+    bool hasTrailingNull;
 
     this(const(char)[] str, bool deleteMem) {
-        this.str = str;
+        assert(str[$ - 1] == '\0');
+        this.cstr = str;
         this.deleteMem = deleteMem;
     }
 
@@ -28,7 +35,7 @@ static struct StringTmp {
         if (!deleteMem) {
             return;
         }
-        free(cast(void*) str.ptr);
-        str = null;
+        free(cast(void*) cstr.ptr);
+        cstr = "\0";
     }
 }

@@ -27,13 +27,13 @@ auto getTmpCString(const(char)[] dstr, char[] buffer = null) {
 unittest {
 	auto tmpCString = getTmpCString("asdsdd ddd");
 	assert(tmpCString.deleteMem == true);
-	assert(tmpCString.str == "asdsdd ddd\0");
+	assert(tmpCString.cstr == "asdsdd ddd\0");
 
 	tmpCString = getTmpCString("asdsdd ddd\0");
 	assert(tmpCString.deleteMem == false);
-	assert(tmpCString.str == "asdsdd ddd\0");
+	assert(tmpCString.cstr == "asdsdd ddd\0");
 
 	tmpCString = getTmpCString("");
 	assert(tmpCString.deleteMem == false);
-	assert(tmpCString.str == "\0");
+	assert(tmpCString.cstr == "\0");
 }

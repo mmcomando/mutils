@@ -19,8 +19,11 @@ struct StringBuilder {
 
     Vector!Element elements;
 
-    this(T)(T obj) {
-        createNew(obj, elements, false);
+    this(Args...)(Args args) {
+        elements.reserve(args.length);
+        foreach (i, ref arg; args) {
+            addNewElement(arg, elements);
+        }
     }
 
     void reserve(size_t size) {
@@ -30,18 +33,22 @@ struct StringBuilder {
     StringBuilder opBinaryRight(string op, T)(T lhs) {
         static assert(op == "~", "Only concatenation operator is supported");
         StringBuilder newBuilder;
-        createNew(lhs, newBuilder.elements, false);
+        newBuilder.elements.reserve(elements.length + 1);
+        addNewElement(lhs, newBuilder.elements);
+        newBuilder.elements ~= elements[];
         return newBuilder;
     }
 
     StringBuilder opBinary(string op, T)(T lhs) {
         static assert(op == "~", "Only concatenation operator is supported");
         StringBuilder newBuilder;
-        createNew(lhs, newBuilder.elements, true);
+        newBuilder.elements.reserve(elements.length + 1);
+        newBuilder.elements ~= elements[];
+        addNewElement(lhs, newBuilder.elements);
         return newBuilder;
     }
 
-    void createNew(T)(T rhs, ref Vector!Element arrToAdd, bool addToRight) {
+    private void addNewElement(T)(T rhs, ref Vector!Element arrToAdd) {
         static assert(isProperType!T, "Concatenation of given type not supported");
 
         static if (is(T == char[])) {
@@ -55,14 +62,7 @@ struct StringBuilder {
         }
 
         Element element = Element(ElementData(rhsValue));
-        arrToAdd.reserve(elements.length + 1);
-        if (addToRight) {
-            arrToAdd ~= elements[];
-            arrToAdd ~= element;
-        } else {
-            arrToAdd ~= element;
-            arrToAdd ~= elements[];
-        }
+        arrToAdd ~= element;
     }
 
     size_t getRequiredSize() {
@@ -103,7 +103,7 @@ struct StringBuilder {
         return size + 1;
     }
 
-    StringTmp toStringTmp(char[] buffer = null) {
+    StringTmp getStringTmp(char[] buffer = null) {
         size_t charsAdded;
 
         size_t requiredSize = getRequiredSize();
@@ -166,10 +166,13 @@ struct StringBuilder {
 
 unittest {
     char[4] chars = ['h', 'a', 's', ' '];
+    char[4] chars2 = ['h', 'a', 'v', 'e'];
     char[256] buffer;
     StringBuilder str = StringBuilder("String ") ~ chars[] ~ 'n' ~ 'o' ~ StringIntern(
             " power ") ~ 2 ~ " be m" ~ 8.0f;
 
-    auto tmpStr = str.toStringTmp(buffer);
-    assert(tmpStr.str == "String has no power 2 be m8\0");
+    auto tmpStr = str.getStringTmp(buffer);
+    assert(tmpStr.cstr == "String has no power 2 be m8\0");
+    assert(StringBuilder("You ", chars2[], " failed ", 10, " times.")
+            .getStringTmp(buffer).str == "You have failed 10 times.");
 }
