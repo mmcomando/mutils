@@ -45,7 +45,7 @@ struct File{
 			return null;
 		}		
 		fseek (f, 0, SEEK_END);
-		long length = ftell (f);
+		size_t length = ftell (f);
 		fseek (f, 0, SEEK_SET);
 		ubyte* buffer = cast(ubyte*)malloc (length);
 		fread (buffer, 1, length, f);		

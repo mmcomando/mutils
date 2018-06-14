@@ -1,5 +1,7 @@
 ﻿module mutils.container.hash_map_simd;
 
+version(X86_64):
+
 import mutils.container.hash_set_simd;
 
 struct HashMap(KeyTypeE, T){

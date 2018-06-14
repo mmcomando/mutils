@@ -173,7 +173,7 @@ string bool2str(T)(auto ref const T bbb, char[] buff){
 	static assert( is(T==bool) , "T must be a boolean");
 	enum string[2] strs=["false", "true"];
 	string name=strs[bbb];
-	long toCopy=min(name.length, buff.length);
+	size_t toCopy=min(name.length, buff.length);
 
 	foreach(i, char c; name[0..toCopy]){
 		buff[i]=c;
@@ -411,11 +411,13 @@ private bool worksWithStr2Num(T)(){
 }
 
 unittest{
-	import core.simd: ushort8;
-	static assert(worksWithStr2Num!(int));
-	static assert(worksWithStr2Num!(void*));
-	static assert(worksWithStr2Num!(double));
-	static assert(!worksWithStr2Num!(ushort8));
+	version(x86_64){
+		import core.simd: ushort8;
+		static assert(worksWithStr2Num!(int));
+		static assert(worksWithStr2Num!(void*));
+		static assert(worksWithStr2Num!(double));
+		static assert(!worksWithStr2Num!(ushort8));
+	}
 }
 
 string getSpecifier(TTT)(){

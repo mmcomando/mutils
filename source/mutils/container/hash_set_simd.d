@@ -1,5 +1,7 @@
 ﻿module mutils.container.hash_set_simd;
 
+version(X86_64):
+
 import core.bitop;
 import core.simd: ushort8;
 import std.meta;

@@ -10,7 +10,7 @@ private enum HASH_EMPTY = 0;
 private enum HASH_DELETED = 0x1;
 private enum HASH_FILLED_MARK = ulong(1) << 8 * ulong.sizeof - 1;
 
-size_t defaultHashFunc(T)(auto ref T t){
+ulong defaultHashFunc(T)(auto ref T t){
 	static if (isIntegral!(T)){
 		return hashInt(t);
 	}else{
@@ -319,7 +319,7 @@ struct HashMap(KeyPar, ValuePar, alias hashFunc=defaultHashFunc){
 		
 		foreach(ref Key el; this){
 			immutable size_t rotateMask=elements.length-1;
-			ulong group=hashFunc(el) & rotateMask;
+			size_t group=cast(size_t)(hashFunc(el) & rotateMask);
 			if(group>=distributionsNum){
 				continue;
 			}
@@ -507,7 +507,7 @@ void benchmarkHashMapPerformancePerElement(){
 	trueResults=0;
 	foreach(b;0..itNum){
 		foreach(i;lastAdded..lastAdded+numToAdd){
-			map.add(cast(uint)i, 1);
+			map.add(cast(int)i, 1);
 		}
 		lastAdded+=numToAdd;
 		bench.start!(0)(b);

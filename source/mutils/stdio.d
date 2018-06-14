@@ -99,10 +99,12 @@ private void testMutilsStdio() @nogc nothrow @safe pure{
 	int[9] arr=[1,2,3,4,5,6,7,8,9];
 	writeln(arr[]);
 	writeln(arr);
-	// simd
-	import core.simd;
-	ubyte16 vec=14;
-	writeln(vec);
+	version(X86_64){
+		// simd
+		import core.simd;
+		ubyte16 vec=14;
+		writeln(vec);
+	}
 	//  writeln spaced 	
 	writelns(1,2,3,4,5,6,7,8,9);
 	//  writefln
