@@ -279,7 +279,7 @@ struct HashSet(T, alias hashFunc=defaultHashFunc, ADV...){
 		return num;
 	}
 	// Division is expensive but groups.length is power of two so use trick
-	int hashMod(size_t hash){
+	int hashMod(size_t hash) nothrow @nogc @system{
 		return cast(int)(hash & (groups.length-1));
 	}
 

@@ -20,7 +20,7 @@ struct StringBuilder {
     Vector!Element elements;
 
     this(T)(T obj) {
-        createNew(obj, elements, true);
+        createNew(obj, elements, false);
     }
 
     void reserve(size_t size) {
