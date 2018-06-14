@@ -198,7 +198,6 @@ unittest{
 // test map
 unittest{
 	import mutils.container.hash_map;
-	import mutils.container.hash_set;
 	static struct TestInner{
 		int a;
 		ubyte b;

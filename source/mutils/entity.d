@@ -335,7 +335,7 @@ struct EntityManager(ENTS){
 		return lastStableId;
 	}
 
-	import mutils.container.hash_map2;
+	import mutils.container.hash_map;
 	HashMap!(long, EntityId*) stableIdToEntityId;
 	HashMap!(EntityId*, long) entityIdToStableId;
 

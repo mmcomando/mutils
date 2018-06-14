@@ -1,4 +1,4 @@
-﻿module mutils.container.hash_set;
+﻿module mutils.container.hash_set_simd;
 
 import core.bitop;
 import core.simd: ushort8;
@@ -8,6 +8,8 @@ import std.traits;
 import mutils.benchmark;
 import mutils.container.vector;
 import mutils.traits;
+
+//There is some bug, maybe with not tracking deleting entries (ending is never true)
 
 version(DigitalMars){
 	import core.bitop;

@@ -451,7 +451,7 @@ unittest{
 
 // test custom map
 unittest{	
-	import mutils.container.hash_map2;
+	import mutils.container.hash_map;
 	static struct TestStruct{
 		int a;
 		int b;

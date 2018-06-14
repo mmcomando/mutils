@@ -108,7 +108,7 @@ struct FileWatcher{
 
 	bool removeFileFromWatch(string path, EventDelegate del){
 		WatchedFileInfo noInfo=WatchedFileInfo(-1);
-		WatchedFileInfo* info=&watchedFiles.getDefault( Vector!(char)(cast(char[])path), noInfo );
+		WatchedFileInfo* info=&watchedFiles.get( Vector!(char)(cast(char[])path), noInfo );
 		if(info.timestamp==-1){
 			return false;
 		}
