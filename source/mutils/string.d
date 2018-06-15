@@ -1,7 +1,6 @@
 ﻿module mutils.string;
 
-import core.stdc.stdlib;
-import core.stdc.string;
+import core.stdc.string : memcpy;
 
 import mutils.container.string_tmp;
 

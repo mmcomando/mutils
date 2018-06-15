@@ -5,54 +5,52 @@ There are few implementations which can be easly changed and tested for performa
 */
 module mutils.job_manager.fiber_cache;
 
-import core.stdc.stdlib:malloc,free;
-import core.stdc.string:memset,memcpy;
 import core.atomic;
-import mutils.thread: Fiber, Thread, PAGESIZE;
-import mutils.container.vector;
-import mutils.job_manager.manager_utils;
 import core.memory;
-
-
+import core.stdc.stdlib : free, malloc;
+import core.stdc.string : memcpy, memset;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
+
+import mutils.container.vector;
+import mutils.job_manager.manager_utils;
+import mutils.thread : Fiber, PAGESIZE, Thread;
+
 //only one warning about GC
-Fiber newFiber(){
+Fiber newFiber() {
 	Fiber fiber = Mallocator.instance.make!(Fiber)(PAGESIZE * 32u);
-	fiber.state=Fiber.State.TERM;
+	fiber.state = Fiber.State.TERM;
 	return fiber;
 }
 
-
-
 Vector!Fiber array;
-uint used=0;
+uint used = 0;
 
-struct FiberTLSCache{	
-	
-	void clear(){
+struct FiberTLSCache {
+
+	void clear() {
 		array.clear();
-		used=0;
+		used = 0;
 	}
 
-	Fiber getData(uint,uint){
+	Fiber getData(uint, uint) {
 		Fiber fiber;
-		if(array.length<=used){
-			fiber= newFiber();
-			array~=fiber;
+		if (array.length <= used) {
+			fiber = newFiber();
+			array ~= fiber;
 			used++;
 			return fiber;
 		}
-		fiber=array[used];
+		fiber = array[used];
 		used++;
 		return fiber;
 	}
 
-	void removeData(Fiber obj,uint,uint){
-		foreach(i,fiber;array){
-			if(cast(void*)obj == cast(void*)fiber){
-				array[i]=array[used-1];
-				array[used-1]=obj;
+	void removeData(Fiber obj, uint, uint) {
+		foreach (i, fiber; array) {
+			if (cast(void*) obj == cast(void*) fiber) {
+				array[i] = array[used - 1];
+				array[used - 1] = obj;
 				used--;
 				return;
 			}
@@ -60,6 +58,3 @@ struct FiberTLSCache{
 		assert(0);
 	}
 }
-
-
-

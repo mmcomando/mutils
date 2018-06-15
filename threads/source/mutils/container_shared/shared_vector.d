@@ -11,90 +11,101 @@ import mutils.container.vector;
 
 ////////////////////
 
-class LockedVectorBuildIn(T){
+class LockedVectorBuildIn(T) {
 	T[] array;
 public:
-	bool empty(){
-		return(array.length==0);
-	}	
-	
-	void add( T  t ) {
-		synchronized( this ){
-			array.assumeSafeAppend~=t;
-		}
-	}	
-	void add( T[]  t ) {
-		synchronized( this ){
-			array.assumeSafeAppend~=t;
+	bool empty() {
+		return (array.length == 0);
+	}
+
+	void add(T t) {
+		synchronized (this) {
+			array.assumeSafeAppend ~= t;
 		}
 	}
-	
-	T pop(  ) {
-		synchronized( this ){
-			if(array.length==0)return T.init;
-			T obj=array[$-1];
-			array=array.remove(array.length-1);
+
+	void add(T[] t) {
+		synchronized (this) {
+			array.assumeSafeAppend ~= t;
+		}
+	}
+
+	T pop() {
+		synchronized (this) {
+			if (array.length == 0)
+				return T.init;
+			T obj = array[$ - 1];
+			array = array.remove(array.length - 1);
 			return obj;
 		}
 	}
-	
+
 }
 
-class LockedVector(T){
+class LockedVector(T) {
 	Vector!T array;
 public:
-	this(){
+	this() {
 		//array=Mallocator.instance.make!(Vector!T)(16);
 	}
-	~this(){
+
+	~this() {
 		//Mallocator.instance.dispose(array);
 	}
-	bool empty(){
-		return(array.length==0);
-	}	
-	
-	void add( T  t ) {
-		synchronized( this ){
-			array~=t;
-		}
-	}	
-	void add( T[]  t ) {
-		synchronized( this ){
-			array~=t;
+
+	bool empty() {
+		return (array.length == 0);
+	}
+
+	void add(T t) {
+		synchronized (this) {
+			array ~= t;
 		}
 	}
-	void removeElement( T elem ) {
-		synchronized( this ){
+
+	void add(T[] t) {
+		synchronized (this) {
+			array ~= t;
+		}
+	}
+
+	void removeElement(T elem) {
+		synchronized (this) {
 			array.removeElement(elem);
 		}
 	}
-	
-	T pop(  ) {
-		synchronized( this ){
-			if(array.length==0)return T.init;
-			T obj=array[$-1];
-			array.remove(array.length-1);
+
+	T pop() {
+		synchronized (this) {
+			if (array.length == 0)
+				return T.init;
+			T obj = array[$ - 1];
+			array.remove(array.length - 1);
 			return obj;
 		}
 	}
-	auto opSlice(){
+
+	auto opSlice() {
 		return array[];
 	}
 
 	//allocated by Mallocator.instance
-	Vector!T vectorCopy(){
-		synchronized( this ){
-			Vector!T vec;//=Mallocator.instance.make!(Vector!T)(array.length);
-			vec~=array[];
+	Vector!T vectorCopy() {
+		synchronized (this) {
+			Vector!T vec; //=Mallocator.instance.make!(Vector!T)(array.length);
+			vec ~= array[];
 			return vec;
 		}
 	}
-	Vector!T vectorCopyWithReset(){
-		if(array.length==0)return Vector!T();
-		synchronized( this ){
-			scope(exit)array.reset;
+
+	Vector!T vectorCopyWithReset() {
+		if (array.length == 0)
+			return Vector!T();
+		synchronized (this) {
+			scope (exit)
+				array.reset;
 			return array.copy;
 		}
 	}
-	
+
 }

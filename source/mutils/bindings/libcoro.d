@@ -1,22 +1,20 @@
 ﻿module mutils.bindings.libcoro;
 
+enum CORO_VERSION = 3;
 
+alias coro_func = extern (C) void function(void*);
 
-enum CORO_VERSION=3;
+extern (C) void coro_create(coro_context* ctx, coro_func coro, void* arg, void* sptr, size_t ssze);
+extern (C) void coro_transfer(coro_context* prev, coro_context* next);
+extern (C) void coro_destroy(coro_context* ctx);
+extern (C) int coro_stack_alloc(coro_stack* stack, uint size);
 
-alias  coro_func= extern(C) void function(void *);
-
-extern(C) void coro_create (coro_context *ctx,	coro_func coro,	void *arg, void *sptr, size_t ssze);
-extern(C) void coro_transfer (coro_context *prev, coro_context *next);
-extern(C) void coro_destroy (coro_context *ctx);
-extern(C) int coro_stack_alloc (coro_stack *stack, uint size);
-
-struct coro_context{
-	void*[128] data;// Platform/system dependant, this should be enought
+struct coro_context {
+	void*[128] data; // Platform/system dependant, this should be enought
 }
 
-struct coro_stack{
-	void *sptr;
+struct coro_stack {
+	void* sptr;
 	size_t ssze;
 	int valgrind_id;
 }

@@ -1,17 +1,15 @@
 module mutils.container.string_tmp;
 
 import core.stdc.stdlib;
-import core.stdc.string;
 
 static struct StringTmp {
     @disable this();
     @disable this(this);
 
-    const(char)[] cstr= "\0";
-    const(char)[] str(){
-        return cstr[0 .. $-1];
+    const(char)[] cstr = "\0";
+    const(char)[] str() {
+        return cstr[0 .. $ - 1];
     }
-
 
     bool deleteMem;
     bool hasTrailingNull;

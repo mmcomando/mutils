@@ -1,9 +1,9 @@
 module mutils.container.string_intern;
 
 import mutils.container.hash_map;
+import mutils.traits : isForeachDelegateWithI;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import mutils.traits : isForeachDelegateWithI;
 import std.traits : Parameters;
 
 private __gshared static HashMap!(const(char)[], StringIntern) gStringInterns;
@@ -11,11 +11,11 @@ private __gshared static HashMap!(const(char)[], StringIntern) gStringInterns;
 struct StringIntern {
     private const(char)[] str;
 
-    this(const(char)[] fromStr){
+    this(const(char)[] fromStr) {
         opAssign(fromStr);
     }
 
-    size_t length(){
+    size_t length() {
         return str.length;
     }
 
@@ -47,7 +47,7 @@ struct StringIntern {
     }
 
     // foreach support
-   /* int opApply(DG)(scope DG dg) {
+    /* int opApply(DG)(scope DG dg) {
         int result;
         static if (isForeachDelegateWithI!DG) {
             foreach (Parameters!(DG)[0] i, char c; str) {
@@ -66,9 +66,9 @@ struct StringIntern {
         return result;
     }*/
 
-    const(char)[] opSlice(){
-		return str;
-	}
+    const(char)[] opSlice() {
+        return str;
+    }
 
     private const(char)[] allocStr(const(char)[] fromStr) {
         char[] data = Mallocator.instance.makeArray!(char)(fromStr.length + 1);
@@ -77,8 +77,6 @@ struct StringIntern {
         return data[0 .. $ - 1];
     }
 }
-
-import std.stdio;
 
 unittest {
     const(char)[] chA = ['a', 'a'];
@@ -124,8 +122,8 @@ unittest {
 
     map.add(StringIntern("aaa"), StringIntern("bbb"));
     map.add(StringIntern("aaa"), StringIntern("bbb"));
-    
-    assert(map.length==1);
-    assert(map.get(StringIntern("aaa"))==StringIntern("bbb"));
+
+    assert(map.length == 1);
+    assert(map.get(StringIntern("aaa")) == StringIntern("bbb"));
 
 }

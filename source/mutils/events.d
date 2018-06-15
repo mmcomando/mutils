@@ -1,7 +1,7 @@
 module mutils.events;
 
-import mutils.time;
 import core.stdc.string : memset, strlen;
+import mutils.time;
 
 Events gEvents;
 

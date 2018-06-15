@@ -2,38 +2,37 @@
 
 import core.stdc.time;
 
-version(Windows):
-extern(C):
+version (Windows)  : extern (C):
 // From header file:  ftp://sourceware.org/pub/pthreads-win32/dll-latest/include/
 
-struct pthread_t{
-	void * p;         
-	uint x;       
-} 
+struct pthread_t {
+  void* p;
+  uint x;
+}
 
-alias pthread_mutex_t=void*;
-alias pthread_attr_t=void*;
-alias pthread_cond_t=void*;
-alias pthread_condattr_t=void*;
-alias pthread_mutexattr_t=void*;
-alias pthread_rwlock_t=void*;
-alias pthread_key_t=void*;
-alias pthread_rwlockattr_t=void*;
+alias pthread_mutex_t = void*;
+alias pthread_attr_t = void*;
+alias pthread_cond_t = void*;
+alias pthread_condattr_t = void*;
+alias pthread_mutexattr_t = void*;
+alias pthread_rwlock_t = void*;
+alias pthread_key_t = void*;
+alias pthread_rwlockattr_t = void*;
 //pthread_attr_t
 struct sched_param {
   int sched_priority;
 }
-struct timespec{
+
+struct timespec {
   time_t a;
   int b;
 }
 
-
-struct pthread_once_t{
-  int          done;        /* indicates if user function has been executed */
-  void *       lock;
-  int          reserved1;
-  int          reserved2;
+struct pthread_once_t {
+  int done; /* indicates if user function has been executed */
+  void* lock;
+  int reserved1;
+  int reserved2;
 }
 
 int pthread_atfork(void function(), void function(), void function());
@@ -84,4 +83,3 @@ int pthread_setcancelstate(int, int*);
 int pthread_setcanceltype(int, int*);
 int pthread_setspecific(pthread_key_t, in void*);
 void pthread_testcancel();
-

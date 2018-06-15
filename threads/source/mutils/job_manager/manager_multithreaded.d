@@ -7,34 +7,31 @@ module mutils.job_manager.manager_multithreaded;
 
 import core.atomic;
 import core.stdc.stdio;
-import core.stdc.stdlib: rand;
-
+import core.stdc.stdlib : rand;
 import std.functional : toDelegate;
 
 import mutils.container.vector;
+import mutils.container_shared.shared_queue;
 import mutils.job_manager.fiber_cache;
 import mutils.job_manager.manager_utils;
-import mutils.container_shared.shared_queue;
-import mutils.thread : Thread,Fiber;
+import mutils.thread : Fiber, Thread;
 
+enum threadsPerCPU = 4;
 
-enum threadsPerCPU=4;
-
-
-alias JobVector=LowLockQueue!(JobDelegate*);
-alias FiberVector=LowLockQueue!(FiberData);
-alias CacheVector=FiberTLSCache;
+alias JobVector = LowLockQueue!(JobDelegate*);
+alias FiberVector = LowLockQueue!(FiberData);
+alias CacheVector = FiberTLSCache;
 
 __gshared JobManager jobManager;
 
-struct JobManager{
-	struct DebugHelper{
-		align(64)shared uint jobsAdded;
-		align(64)shared uint jobsDone;
-		align(64)shared uint fibersAdded;
-		align(64)shared uint fibersDone;
-		
-		void resetCounters(){
+struct JobManager {
+	struct DebugHelper {
+		align(64) shared uint jobsAdded;
+		align(64) shared uint jobsDone;
+		align(64) shared uint fibersAdded;
+		align(64) shared uint fibersDone;
+
+		void resetCounters() {
 			{
 				atomicStore(jobsAdded, 0);
 				atomicStore(jobsDone, 0);
@@ -42,14 +39,25 @@ struct JobManager{
 				atomicStore(fibersDone, 0);
 			}
 		}
-		void jobsAddedAdd  (int num=1){	atomicOp!"+="(jobsAdded,  num); }
-		void jobsDoneAdd   (int num=1){	atomicOp!"+="(jobsDone,   num); }
-		void fibersAddedAdd(int num=1){	atomicOp!"+="(fibersAdded,num); }
-		void fibersDoneAdd (int num=1){	atomicOp!"+="(fibersDone, num); }
 
-		
-		
+		void jobsAddedAdd(int num = 1) {
+			atomicOp!"+="(jobsAdded, num);
+		}
+
+		void jobsDoneAdd(int num = 1) {
+			atomicOp!"+="(jobsDone, num);
+		}
+
+		void fibersAddedAdd(int num = 1) {
+			atomicOp!"+="(fibersAdded, num);
+		}
+
+		void fibersDoneAdd(int num = 1) {
+			atomicOp!"+="(fibersDone, num);
+		}
+
 	}
+
 	DebugHelper debugHelper;
 	//jobs managment
 	private JobVector waitingJobs;
@@ -59,193 +67,195 @@ struct JobManager{
 	private Vector!Thread threadPool;
 	bool exit;
 
-
-	private void initialize(uint threadsCount=0){
-		exit=false;
-		if(threadsCount==0)threadsCount=threadsPerCPU;
-		if(threadsCount==0)threadsCount=4;
-		waitingFibers.length=threadsCount;
-		threadPool.length=threadsCount;
-		foreach(ref f;waitingFibers)f.initialize();
-		foreach(uint i;0..threadsCount){
-			threadPool[i].threadNum=i;
+	private void initialize(uint threadsCount = 0) {
+		exit = false;
+		if (threadsCount == 0)
+			threadsCount = threadsPerCPU;
+		if (threadsCount == 0)
+			threadsCount = 4;
+		waitingFibers.length = threadsCount;
+		threadPool.length = threadsCount;
+		foreach (ref f; waitingFibers)
+			f.initialize();
+		foreach (uint i; 0 .. threadsCount) {
+			threadPool[i].threadNum = i;
 			threadPool[i].setDg(&threadRunFunction);
 		}
 
 		waitingJobs.initialize();
-		version(Android)rt_init();
+		version (Android)
+			rt_init();
 	}
 
-	void clear(){
+	void clear() {
 		waitingJobs.clear();
 		waitingFibers.clear();
 		threadPool.clear();
 	}
 
-	void start(){
-		foreach(ref thread;threadPool){
+	void start() {
+		foreach (ref thread; threadPool) {
 			thread.start();
 		}
 	}
 
-	void startMainLoop(void function() mainLoop,uint threadsCount=0){
-		startMainLoop(mainLoop.toDelegate,threadsCount);
+	void startMainLoop(void function() mainLoop, uint threadsCount = 0) {
+		startMainLoop(mainLoop.toDelegate, threadsCount);
 	}
 
-	void startMainLoop(JobDelegate mainLoop,uint threadsCount=0){
-		
-		align(64) shared bool endLoop=false;
-		static struct NoGcDelegateHelper
-		{
+	void startMainLoop(JobDelegate mainLoop, uint threadsCount = 0) {
+
+		align(64) shared bool endLoop = false;
+		static struct NoGcDelegateHelper {
 			JobDelegate del;
 			shared bool* endPointer;
 
-			this(JobDelegate del,ref shared bool end){
-				this.del=del;
-				endPointer=&end;
+			this(JobDelegate del, ref shared bool end) {
+				this.del = del;
+				endPointer = &end;
 			}
 
-			void call() { 
+			void call() {
 				del();
-				atomicStore(*endPointer,true);			
+				atomicStore(*endPointer, true);
 			}
 		}
 
-		NoGcDelegateHelper helper=NoGcDelegateHelper(mainLoop, endLoop);
+		NoGcDelegateHelper helper = NoGcDelegateHelper(mainLoop, endLoop);
 		initialize(threadsCount);
-		auto del=&helper.call;
+		auto del = &helper.call;
 		start();
 		addJob(&del);
 		waitForEnd(endLoop);
-		end();		
+		end();
 	}
 
-	void waitForEnd(ref shared bool end){
-		bool wait=true;
-		do{
-			wait= !atomicLoad(end);
-			foreach(ref th; threadPool){
-				if(!th.isRunning){
-					wait=false;
+	void waitForEnd(ref shared bool end) {
+		bool wait = true;
+		do {
+			wait = !atomicLoad(end);
+			foreach (ref th; threadPool) {
+				if (!th.isRunning) {
+					wait = false;
 				}
 			}
 			Thread.sleep(10);
-		}while(wait);
+		}
+		while (wait);
 	}
 
-	void end(){
-		exit=true;
-		foreach(ref thread;threadPool){
+	void end() {
+		exit = true;
+		foreach (ref thread; threadPool) {
 			thread.join;
 		}
-		version(Android)rt_close();
+		version (Android)
+			rt_close();
 
 	}
 
-	size_t threadsNum(){
+	size_t threadsNum() {
 		return threadPool.length;
 	}
 
-	
-	void addFiber(FiberData fiberData){
-		assert(waitingFibers.length==threadPool.length);
-		assert(fiberData.fiber.state!=Fiber.State.TERM);//  && fiberData.fiber.state!=Fiber.State.EXEC - cannot be added because addThisFiberAndYield violates this assertion
+	void addFiber(FiberData fiberData) {
+		assert(waitingFibers.length == threadPool.length);
+		assert(fiberData.fiber.state != Fiber.State.TERM); //  && fiberData.fiber.state!=Fiber.State.EXEC - cannot be added because addThisFiberAndYield violates this assertion
 		debugHelper.fibersAddedAdd();
 		waitingFibers[fiberData.threadNum].add(fiberData);
 	}
 
 	// Only for tests - fiber should not add itself to execution
-	void addThisFiberAndYield(FiberData thisFiber){
+	void addThisFiberAndYield(FiberData thisFiber) {
 		addFiber(thisFiber);
 		Fiber.yield();
 	}
 
-	void addJob(JobDelegate* del){
+	void addJob(JobDelegate* del) {
 		debugHelper.jobsAddedAdd();
 		waitingJobs.add(del);
 	}
 
-	void addJobs(JobDelegate*[] dels){
-		debugHelper.jobsAddedAdd(cast(int)dels.length);
+	void addJobs(JobDelegate*[] dels) {
+		debugHelper.jobsAddedAdd(cast(int) dels.length);
 		waitingJobs.add(dels);
 	}
 
-	void addJobAndYield(JobDelegate* del){
+	void addJobAndYield(JobDelegate* del) {
 		addJob(del);
 		Fiber.yield();
 	}
 
-	void addJobsAndYield(JobDelegate*[] dels){
+	void addJobsAndYield(JobDelegate*[] dels) {
 		addJobs(dels);
 		Fiber.yield();
 	}
 
-	
 	CacheVector fibersCache;
 	uint fibersMade;
 
-	Fiber allocateFiber(JobDelegate del){
+	Fiber allocateFiber(JobDelegate del) {
 		Fiber fiber;
-		fiber=fibersCache.getData(jobManagerThreadNum,cast(uint)threadPool.length);
-		assert(fiber.state==Fiber.State.TERM);
-		assert(fiber.myThreadNum==jobManagerThreadNum);
+		fiber = fibersCache.getData(jobManagerThreadNum, cast(uint) threadPool.length);
+		assert(fiber.state == Fiber.State.TERM);
+		assert(fiber.myThreadNum == jobManagerThreadNum);
 		fiber.reset(del);
 		fibersMade++;
 		return fiber;
 	}
-	void deallocateFiber(Fiber fiber){
-		fiber.threadStart=null;
-		fibersCache.removeData(fiber,jobManagerThreadNum,cast(uint)threadPool.length);
+
+	void deallocateFiber(Fiber fiber) {
+		fiber.threadStart = null;
+		fibersCache.removeData(fiber, jobManagerThreadNum, cast(uint) threadPool.length);
 	}
-	void runNextJob(){
-		static int nothingToDoNum=0;
-		static int dummySink=0;
+
+	void runNextJob() {
+		static int nothingToDoNum = 0;
+		static int dummySink = 0;
 		Fiber fiber;
-		FiberData fd=waitingFibers[jobManagerThreadNum].pop;
+		FiberData fd = waitingFibers[jobManagerThreadNum].pop;
 		FiberData varInit;
-		if(fd!=varInit){
-			fiber=fd.fiber;
+		if (fd != varInit) {
+			fiber = fd.fiber;
 			debugHelper.fibersDoneAdd();
-		}else if( !waitingJobs.empty ){
+		} else if (!waitingJobs.empty) {
 			JobDelegate* job;
-			job=waitingJobs.pop();
-			if(job !is null){
+			job = waitingJobs.pop();
+			if (job !is null) {
 				debugHelper.jobsDoneAdd();
-				fiber=allocateFiber(*job);
-			}	
+				fiber = allocateFiber(*job);
+			}
 		}
 		//nothing to do
-		if(fiber is null ){
-						nothingToDoNum++;
-						if(nothingToDoNum>5){
-								Thread.sleep(1);
+		if (fiber is null) {
+			nothingToDoNum++;
+			if (nothingToDoNum > 5) {
+				Thread.sleep(1);
 				//foreach(i;0..random()%2000)dummySink+=random()%2;//backoff
-								nothingToDoNum=0;
-							}else{
-								foreach(i;0..rand()%20)dummySink+=rand()%2;//backoff
-							}
+				nothingToDoNum = 0;
+			} else {
+				foreach (i; 0 .. rand() % 20)
+					dummySink += rand() % 2; //backoff
+			}
 			return;
 		}
 		//do the job
-		nothingToDoNum=0;
-		assert(fiber.state==Fiber.State.HOLD);
+		nothingToDoNum = 0;
+		assert(fiber.state == Fiber.State.HOLD);
 		fiber.call();
 
 		//reuse fiber
-		if(fiber.state==Fiber.State.TERM){
+		if (fiber.state == Fiber.State.TERM) {
 			deallocateFiber(fiber);
 		}
 	}
 
-
-	void threadRunFunction(){
+	void threadRunFunction() {
 		Fiber.initializeStatic();
-		while(!exit){
+		while (!exit) {
 			runNextJob();
 		}
 		fibersCache.clear();
 	}
-	
+
 }
-
-
