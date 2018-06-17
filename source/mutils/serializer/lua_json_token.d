@@ -404,8 +404,10 @@ package:
 			static if (load == Load.yes) {
 				if (con[0].type != StandardTokens.string_) {
 					//writelnTokens(con[0..10]);
+					//assert(con[0].type == StandardTokens.string_, "Wrong token, there should be key");
+					name = null;
+					return;
 				}
-				assert(con[0].type == StandardTokens.string_, "Wrong token, there should be key");
 				name = con[0].getUnescapedString;
 				con = con[1 .. $];
 			} else {
