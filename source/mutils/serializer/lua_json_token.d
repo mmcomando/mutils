@@ -268,6 +268,7 @@ package:
 
 				if (con[0].isChar(',')) {
 					serializeCharToken!(load)(',', con);
+					ok = !con[0].isChar('}');
 				} else {
 					break;
 				}
