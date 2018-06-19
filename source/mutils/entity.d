@@ -17,6 +17,7 @@ import mutils.time : useconds;
 struct EntityIdNR {
 	@disable this(this);
 	uint id;
+	bool doSerializetion = true;
 	uint type = uint.max;
 }
 
@@ -57,18 +58,21 @@ struct EntityManager(ENTS) {
 	//Enum EntityEnumM {...} // form mixin
 	mixin(createEnumCode());
 	alias EntityEnum = EntityEnumM; //Alias for autocompletion
-	uint lastId = 1;
 
+	enum memoryDtId = 16;
+	uint lastId = 1;
+	// Keep this struc in sync with  EntityIdNR
 	static struct EntityId {
 		@disable this(this);
 		uint id;
+		bool doSerializetion = true;
 		EntityEnum type = EntityEnum.none;
 
 		auto get(EntityType)() {
 			foreach (i, Ent; Entities) {
 				static if (is(EntityType == Ent)) {
 					assert(type == i);
-					return cast(Ent*)(cast(void*)&this + 8);
+					return cast(Ent*)(cast(void*)&this + memoryDtId);
 				}
 			}
 			assert(0);
@@ -98,7 +102,7 @@ struct EntityManager(ENTS) {
 					enum componentNum = staticIndexOf!(Component, Fields!Entity);
 					static if (componentNum != -1) {
 			case cast(EntityEnumM) i:
-						Entity* el = cast(Entity*)(cast(void*)&this + 8); // Inline get!Entity for debug performance
+						Entity* el = cast(Entity*)(cast(void*)&this + memoryDtId); // Inline get!Entity for debug performance
 						return &el.tupleof[componentNum];
 					}
 				}
@@ -106,7 +110,7 @@ struct EntityManager(ENTS) {
 				break;
 			}
 
-			assert(0, "This entity do not have this component.");
+			assert(0, "This entity does not have this component.");
 		}
 
 		auto hasComponent(Components...)() {
@@ -134,7 +138,7 @@ struct EntityManager(ENTS) {
 	static struct EntityData(Ent) {
 		EntityId entityId;
 		Ent entity;
-		static assert(entity.offsetof == 8);
+		static assert(entity.offsetof == memoryDtId);
 
 		alias entity this;
 	}
@@ -288,7 +292,8 @@ struct EntityManager(ENTS) {
 	void remove(EntityType)(EntityType* entity) {
 		EntityId* entId = entityToEntityId(entity);
 		entity.destroy();
-		getContainer!(EntityType).remove(cast(EntityData!(EntityType)*)(cast(void*) entity - 8));
+		getContainer!(EntityType).remove(
+				cast(EntityData!(EntityType)*)(cast(void*) entity - memoryDtId));
 		long stableId = entityIdToStableId.get(entId, -1);
 		if (stableId == -1) {
 			return;
@@ -361,7 +366,7 @@ struct EntityManager(ENTS) {
 	long getStableIdByEntity(EntityId* ent) {
 		long id = entityIdToStableId.get(ent, 0);
 
-		if (id==0) {
+		if (id == 0) {
 			id = getUniqueStableId();
 			stableIdToEntityId[id] = ent;
 			entityIdToStableId[ent] = id;
@@ -372,10 +377,10 @@ struct EntityManager(ENTS) {
 
 	void setEntityStableId(ref long id, EntityId* ent) {
 		long entBeforeStId = entityIdToStableId.get(ent, 0);
-		if (entBeforeStId != 0 ) {
+		if (entBeforeStId != 0) {
 			if (id == 0) {
-				id=entBeforeStId;
-			}else if (entBeforeStId != id) {
+				id = entBeforeStId;
+			} else if (entBeforeStId != id) {
 				stableIdToEntityId.remove(entBeforeStId);
 				entityIdToStableId.remove(ent);
 			}
@@ -438,7 +443,7 @@ struct EntityManager(ENTS) {
 				"Wrong type passed. Maybe pointer to pointer was passed?");
 		static assert(staticIndexOf!(EntityType, FromEntities) != -1,
 				"There is no entity like: " ~ EntityType.stringof);
-		EntityId* id = cast(EntityId*)(cast(void*) el - 8);
+		EntityId* id = cast(EntityId*)(cast(void*) el - memoryDtId);
 		assert(id.type < Entities.length);
 		return id;
 	}
