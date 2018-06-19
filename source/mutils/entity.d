@@ -358,11 +358,27 @@ struct EntityManager(ENTS) {
 		return ent;
 	}
 
+	long getStableIdByEntity(EntityId* ent) {
+		long id = entityIdToStableId.get(ent, 0);
+
+		if (id==0) {
+			id = getUniqueStableId();
+			stableIdToEntityId[id] = ent;
+			entityIdToStableId[ent] = id;
+		}
+		assert(stableIdToEntityId.length == entityIdToStableId.length);
+		return id;
+	}
+
 	void setEntityStableId(ref long id, EntityId* ent) {
 		long entBeforeStId = entityIdToStableId.get(ent, 0);
-		if (entBeforeStId != 0 && entBeforeStId != id) {
-			stableIdToEntityId.remove(entBeforeStId);
-			entityIdToStableId.remove(ent);
+		if (entBeforeStId != 0 ) {
+			if (id == 0) {
+				id=entBeforeStId;
+			}else if (entBeforeStId != id) {
+				stableIdToEntityId.remove(entBeforeStId);
+				entityIdToStableId.remove(ent);
+			}
 		}
 
 		if (id == 0) {
