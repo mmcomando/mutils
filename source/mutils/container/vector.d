@@ -25,13 +25,9 @@ public:
 		add(t);
 	}
 
-	this()(T[] t) {
+	this(X)(X[] t) if (is(Unqual!X == Unqual!T)) {
 		add(t);
-	}
 
-	this(size_t numElements) {
-		assert(numElements > 0);
-		extend(numElements);
 	}
 
 	static if (isCopyable!T) {
