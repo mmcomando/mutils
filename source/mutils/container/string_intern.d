@@ -8,27 +8,34 @@ import std.traits : Parameters;
 
 private __gshared static HashMap!(const(char)[], StringIntern) gStringInterns;
 
+
 struct StringIntern {
-    private const(char)[] str;
+    private const(char)* strPtr;
 
     this(const(char)[] fromStr) {
         opAssign(fromStr);
     }
 
     size_t length() {
-        return str.length;
+        if(strPtr is null){
+            return 0;
+        }
+        return *cast(size_t*)(strPtr-8);
     }
 
-    const(char)[] get() {
-        return str;
+    const(char)[] str(){
+        return strPtr[0..length];
+    }
+      const(char)[] cstr() {
+        return strPtr[0..length+1];
     }
 
-    bool opEquals()(auto ref const StringIntern s) const {
-        return str.ptr == s.str.ptr;
+    bool opEquals()(auto ref const StringIntern s){
+        return strPtr == s.strPtr;
     }
 
-    bool opEquals()(auto ref const(char[]) s) const {
-        return str == s;
+    bool opEquals()(auto ref const(char[]) s){
+        return str() == s;
     }
 
     void opAssign(const(char)[] fromStr) {
@@ -38,47 +45,30 @@ struct StringIntern {
         StringIntern defaultValue;
         StringIntern internedStr = gStringInterns.get(fromStr, defaultValue);
 
-        if (internedStr.str.length == 0) {
-            internedStr.str = allocStr(fromStr);
+        if (internedStr.length == 0) {
+            internedStr.strPtr = allocStr(fromStr).ptr;
             gStringInterns.add(internedStr.str, internedStr);
         }
 
-        str = internedStr.str;
+        strPtr = internedStr.strPtr;
     }
 
-    // foreach support
-    /* int opApply(DG)(scope DG dg) {
-        int result;
-        static if (isForeachDelegateWithI!DG) {
-            foreach (Parameters!(DG)[0] i, char c; str) {
-                result = dg(i, c);
-                if (result)
-                    break;
-            }
-        } else {
-            foreach (char c; str) {
-                result = dg(c);
-                if (result)
-                    break;
-            }
-        }
-
-        return result;
-    }*/
-
     const(char)[] opSlice() {
-        return str;
+        return strPtr[0..length];
     }
 
     private const(char)[] allocStr(const(char)[] fromStr) {
-        char[] data = Mallocator.instance.makeArray!(char)(fromStr.length + 1);
-        data[0 .. $ - 1] = fromStr;
+        char[] data = Mallocator.instance.makeArray!(char)(fromStr.length + size_t.sizeof + 1);
+        size_t* len=cast(size_t*)data.ptr;
+        *len=fromStr.length;
+        data[size_t.sizeof .. $ - 1] = fromStr;
         data[$ - 1] = '\0';
-        return data[0 .. $ - 1];
+        return data[size_t.sizeof .. $ - 1];
     }
 }
 
 unittest {
+    static assert(StringIntern.sizeof==size_t.sizeof);
     const(char)[] chA = ['a', 'a'];
     char[] chB = ['o', 't', 'h', 'e', 'r'];
     const(char)[] chC = ['o', 't', 'h', 'e', 'r'];
@@ -98,12 +88,17 @@ unittest {
     assert(strD != strE);
     assert(strE == strF);
 
+    assert(strD.length == 1);
+    assert(strE.length == 2);
+    assert(strG.length == 5);
+
     strA = "other";
     assert(strA == "other");
     assert(strA == chB);
     assert(strA == chC);
     assert(strA == chD);
     assert(strA.str.ptr[strA.str.length] == '\0');
+    assert(strA.cstr[$-1] == '\0');
 
     foreach (char c; strA) {
     }

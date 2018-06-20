@@ -7,6 +7,7 @@ import std.traits;
 
 import mutils.container.buckets_chain;
 import mutils.container.hash_map;
+import mutils.container.string_intern;
 import mutils.time : useconds;
 
 /**
@@ -59,11 +60,12 @@ struct EntityManager(ENTS) {
 	mixin(createEnumCode());
 	alias EntityEnum = EntityEnumM; //Alias for autocompletion
 
-	enum memoryDtId = 16;
+	enum memoryDtId = 24;
 	uint lastId = 1;
 	// Keep this struc in sync with  EntityIdNR
 	static struct EntityId {
 		@disable this(this);
+		StringIntern triggerEventOnDeath;
 		uint id;
 		bool doSerializetion = true;
 		EntityEnum type = EntityEnum.none;

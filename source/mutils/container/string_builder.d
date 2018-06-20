@@ -129,7 +129,7 @@ struct StringBuilder {
                 break;
             case ElementData.getEnum!StringIntern:
                 StringIntern str = *e.data.get!StringIntern;
-                buffer[charsAdded .. charsAdded + str.length] = str.get();
+                buffer[charsAdded .. charsAdded + str.length] = str.str();
                 charsAdded += str.length;
                 break;
             case ElementData.getEnum!long:
