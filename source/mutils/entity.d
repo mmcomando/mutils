@@ -17,6 +17,7 @@ import mutils.time : useconds;
  **/
 struct EntityIdNR {
 	@disable this(this);
+	StringIntern triggerEventOnDestroy;
 	uint id;
 	bool doSerializetion = true;
 	uint type = uint.max;
@@ -65,7 +66,7 @@ struct EntityManager(ENTS) {
 	// Keep this struc in sync with  EntityIdNR
 	static struct EntityId {
 		@disable this(this);
-		StringIntern triggerEventOnDeath;
+		StringIntern triggerEventOnDestroy;
 		uint id;
 		bool doSerializetion = true;
 		EntityEnum type = EntityEnum.none;
