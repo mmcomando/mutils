@@ -317,7 +317,11 @@ private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe {
 enum string checkVectorAllocations = `
 //assert(gVectorsCreated==gVectorsDestroyed);
 gVectorsCreated=gVectorsDestroyed=0;
-scope(exit){assert(gVectorsCreated==gVectorsDestroyed, "Vector memory leak");}
+scope(exit){if(gVectorsCreated!=gVectorsDestroyed){	
+	import std.stdio : writefln;
+	writefln("created==destroyed  %s==%s", gVectorsCreated, gVectorsDestroyed);
+	assert(gVectorsCreated==gVectorsDestroyed, "Vector memory leak");
+}}
 `;
 
 unittest {
