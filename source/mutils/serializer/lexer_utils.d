@@ -161,7 +161,6 @@ void serializeStringToken(bool load, Container)(ref TokenData token, ref Contain
 	}
 }
 
-
 /// Returns string is valid only to next call to any mutils.conv function
 string doubleToString(double num) {
 	return num.to!string;
@@ -228,7 +227,6 @@ void serializeNumberToken(bool load, Container)(ref TokenData token, ref Contain
 
 alias whiteTokens = AliasSeq!('\n', '\t', '\r', ' ');
 
-
 enum StandardTokens {
 	notoken = 0,
 	white = 1,
@@ -274,17 +272,28 @@ struct TokenData {
 		}
 		string copy;
 		copy.reserve(str.length);
-		bool lastAddedSlash = false;
+		bool ignoreNext = false;
 		foreach (i, ch; str) {
-			if (ch == '\\' && i != 0 && str[i - 1] == '\\' && lastAddedSlash == false) {
-				lastAddedSlash = true;
-				copy ~= ch;
+			if (ignoreNext) {
+				ignoreNext = false;
 				continue;
+			}
+			if (ch == '\\' && i != str.length - 1) {
+				char nextCh = str[i + 1];
+				ignoreNext = true;
+				if (nextCh == 'n') {
+					copy ~= '\n';
+				} else if (nextCh == 't') {
+					copy ~= '\t';
+				} else if (nextCh == '\\') {
+					copy ~= '\\';
+				} else if (nextCh == '/') {
+					copy ~= '/';
+				}
 			}
 			if (ch == '\\') {
 				continue;
 			}
-			lastAddedSlash = false;
 			copy ~= ch;
 		}
 		return copy;
