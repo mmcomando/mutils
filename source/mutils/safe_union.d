@@ -101,19 +101,22 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 	 */
 	void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
 			ref ContainerOrSlice con) {
-		serializer.beginObject!(load)(con);
-		serializer.serializeWithName!(load, false, "type")(currentType, con);
+		auto begin = serializer.beginObject!(load)(con);
+		scope (exit)
+			serializer.endObject!(load)(con, begin);
+
+
+		serializer.serializeWithName!(load, "type")(currentType, con);
 	sw:
 		final switch (currentType) {
 			foreach (i, Type; FromTypes) {
 		case i:
-				serializer.serializeWithName!(load, false, FromTypes[i].stringof)(values[i], con);
+				serializer.serializeWithName!(load, FromTypes[i].stringof)(values[i], con);
 				break sw;
 			}
 		case Types.none:
 			break;
 		}
-		serializer.endObject!(load)(con);
 	}
 
 	/**

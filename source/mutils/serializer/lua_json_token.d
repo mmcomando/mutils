@@ -14,16 +14,18 @@ import mutils.serializer.lexer_utils;
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
 final class JSON_Lua_SerializerToken(bool isJson) {
+	alias SliceElementType=TokenData;
 
-	void beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	int  beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
 		serializeCharToken!(load)('{', con);
+		return 0;// Just to satisfy interface
 	}
 
-	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, int begin) {
 		serializeCharToken!(load)('}', con);
 	}
 
-	bool serializeWithName(Load load, bool useMalloc = false, string name, T, ContainerOrSlice)(ref T var,
+	bool serializeWithName(Load load, string name, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
 			ref ContainerOrSlice con) {
 		static if (load == Load.yes) {
 			auto conBegin = con;

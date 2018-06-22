@@ -13,14 +13,17 @@ import mutils.container.vector;
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
 class BinarySerializer {
+	alias SliceElementType = ubyte;
+	__gshared static BinarySerializer instance = new BinarySerializer;
 
-	void beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	int beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+		return 0; // Just to satisfy interface
 	}
 
-	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, int begin) {
 	}
 
-	void serializeWithName(Load load, bool useMalloc = false, string name, T, ContainerOrSlice)(ref T var,
+	void serializeWithName(Load load, string name, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
 			ref ContainerOrSlice con) {
 		serialize!(load, useMalloc)(var, con);
 	}
@@ -42,8 +45,6 @@ class BinarySerializer {
 		static assert(load == Load.yes);
 		serialize!(load, useMalloc)(var, con);
 	}
-
-	__gshared static BinarySerializer instance = new BinarySerializer;
 
 package:
 
@@ -245,7 +246,6 @@ package:
 private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe {
 	return array;
 }
-
 
 // test basic types + endianness
 unittest {

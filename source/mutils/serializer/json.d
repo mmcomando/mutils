@@ -14,8 +14,28 @@ import mutils.serializer.lua_json_token;
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
 final class JSONSerializer {
+	alias SliceElementType = char;
 	JSONLexer lex;
 	__gshared static JSONSerializerToken tokenSerializer = new JSONSerializerToken();
+
+	int beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+		static if (load == Load.yes) {
+			assert(con[0] == '{');
+			con ~= con[1 .. $];
+		} else {
+			con ~= '{';
+		}
+		return 0; // Just to satisfy interface
+	}
+
+	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, int begin) {
+		static if (load == Load.yes) {
+			assert(con[0] == '}');
+			con ~= con[1 .. $];
+		} else {
+			con ~= '}';
+		}
+	}
 
 	/**
 	 * Function loads and saves data depending on compile time variable load
@@ -256,13 +276,14 @@ unittest {
 
 		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
 				ref ContainerOrSlice con) {
-			serializer.beginObject!(load)(con);
+			auto begin = serializer.beginObject!(load)(con);
+			scope (exit)
+				serializer.endObject!(load)(con, begin);
 
-			serializer.serializeWithName!(load, false, "vvvA")(a, con);
-			serializer.serializeWithName!(load, false, "vvvB")(b, con);
-			serializer.serializeWithName!(load, false, "vvvC")(c, con);
+			serializer.serializeWithName!(load, "vvvA", false)(a, con);
+			serializer.serializeWithName!(load, "vvvB", false)(b, con);
+			serializer.serializeWithName!(load, "vvvC", false)(c, con);
 
-			serializer.endObject!(load)(con);
 		}
 	}
 
@@ -274,14 +295,15 @@ unittest {
 
 		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
 				ref ContainerOrSlice con) {
-			serializer.beginObject!(load)(con);
+			auto begin = serializer.beginObject!(load)(con);
+			scope (exit)
+				serializer.endObject!(load)(con, begin);
 
-			serializer.serializeWithName!(load, false, "someVarA")(a, con);
-			serializer.serializeWithName!(load, false, "someInner")(innerA, con);
-			serializer.serializeWithName!(load, false, "someVarB")(b, con);
-			serializer.serializeWithName!(load, false, "someVarC")(c, con);
+			serializer.serializeWithName!(load, "someVarA", false)(a, con);
+			serializer.serializeWithName!(load, "someInner", false)(innerA, con);
+			serializer.serializeWithName!(load, "someVarB", false)(b, con);
+			serializer.serializeWithName!(load, "someVarC", false)(c, con);
 
-			serializer.endObject!(load)(con);
 		}
 	}
 

@@ -6,58 +6,8 @@ import std.traits;
 
 import mutils.container.vector;
 public import mutils.serializer.common;
-import mutils.type_info;
 
 // THINK ABOUT: if serializer returns false con should: notbe changed, shoud be at the end of var, undefined??
-
-struct TypeData {
-	string nameFromBase;
-	string name;
-	long size;
-	long aligment;
-	Field[] fields;
-	bool isBasicType;
-	bool isMallocType;
-	bool isStaticArray;
-	bool isCustomVector;
-	bool isCustomMap;
-	bool isStringVector;
-}
-
-struct Field {
-	string name;
-	TypeData typeData;
-}
-
-TypeData getTypeData(T)(string nameFromBase = "") {
-	TypeData data;
-	data.name = T.stringof;
-	data.size = T.sizeof;
-	data.aligment = T.alignof;
-	data.isBasicType = isBasicType!T;
-	data.isStaticArray = isStaticArray!T;
-	data.isCustomVector = isCustomVector!T;
-	data.isCustomMap = isCustomMap!T;
-	data.isStringVector = isStringVector!T;
-
-	static if (is(T == struct) && !isCustomVector!T && !isCustomMap!T && !isStringVector!T) {
-		alias TFields = Fields!T;
-		alias Names = FieldNameTuple!T;
-		foreach (i, F; TFields) {
-			alias TP = AliasSeq!(__traits(getAttributes, T.tupleof[i]));
-			bool noserialize = hasNoserializeUda!(TP) || isMallocType!T;
-			if (!noserialize) {
-				data.fields ~= Field(Names[i], getTypeData!F(nameFromBase ~ "." ~ Names[i]));
-			}
-		}
-	}
-	return data;
-}
-
-long alignPtrDt(long val, long aligment) {
-	auto k = aligment - 1;
-	return (val + k) & ~(k);
-}
 
 ubyte[] toBytes(T)(ref T val) {
 	return (cast(ubyte*)&val)[0 .. T.sizeof];
@@ -167,7 +117,6 @@ void serializeType(Load load, ContainerOrSlice)(ref VariableType type, ref Conta
 	} else {
 		con ~= cast(ubyte) type;
 	}
-	//writeln(size);
 }
 
 struct SerBasicVariable {
@@ -273,6 +222,7 @@ alias SizeNameType = ubyte;
 alias SizeType = uint;
 
 struct BinarySerializerMaped {
+	alias SliceElementType=ubyte;
 	__gshared static BinarySerializerMaped instance;
 
 	static ubyte[] beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
@@ -300,34 +250,46 @@ struct BinarySerializerMaped {
 		}
 
 	}
+	
+	//support for rvalues during load
+	void serializeWithName(Load load, string name, T, ContainerOrSlice)(ref T var,
+			ContainerOrSlice con) {
+		static assert(load == Load.yes);
+		serializeWithName!(load, name)(var, con);
+	}
 
-	static bool serializeWithName(Load load, string name, TypeData typeData, T, ContainerOrSlice)(ref T var,
+	static bool serializeWithName(Load load, string name, T, ContainerOrSlice)(ref T var,
 			ref ContainerOrSlice con) {
 		static if (load == Load.yes) {
-			return serializeByName!(load, name, typeData)(var, con);
+			return serializeByName!(load, name)(var, con);
 		} else {
 			serializeName!(load)(name, con);
-			serialize!(load, typeData)(var, con);
+			serialize!(load)(var, con);
 			return true;
 		}
 
 	}
+	//support for rvalues during load
+	void serialize(Load load, T, ContainerOrSlice)(ref T var,
+			ContainerOrSlice con) {
+		static assert(load == Load.yes);
+		serialize!(load)(var, con);
+	}
 
-	static bool serialize(Load load, TypeData typeData, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serialize(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
 		static if (hasMember!(T, "customSerialize")) {
-			var.customSerialize!(load)(ser, con);
+			var.customSerialize!(load)(instance, con);
 			return true;
-		} else static if (typeData.isBasicType) {
+		} else static if (isBasicType!T) {
 			return serializeBasicVar!(load)(var, con);
-		} else static if (typeData.isCustomVector) {
+		} else static if (isCustomVector!T) {
 			return serializeCustomVector!(load)(var, con);
-		} else static if (typeData.isStaticArray) {
+		} else static if (isStaticArray!T) {
 			return serializeStaticArray!(load)(var, con);
-		} else static if (typeData.isCustomMap) {
+		} else static if (isCustomMap!T) {
 			return serializeCustomMap!(load)(var, con);
 		} else static if (is(T == struct)) {
-			return serializeStruct!(load, typeData)(var, con);
+			return serializeStruct!(load)(var, con);
 		} else {
 			static assert(0, "Not supported");
 		}
@@ -383,8 +345,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeStruct(Load load, TypeData typeData, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
 		static assert(is(T == struct));
 
 		enum VariableType properType = getSerVariableType!T;
@@ -398,16 +359,19 @@ struct BinarySerializerMaped {
 		scope (exit)
 			endObject!(load)(con, begin);
 
-		alias nums = AliasSeq!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
-		foreach (i; nums[0 .. typeData.fields.length]) {
-			enum Field field = typeData.fields[i];
-			string varName = field.name;
-			static if (load == Load.yes) {
-				serializeByName!(load, field.name, field.typeData)(__traits(getMember,
-						var, field.name), con);
-			} else {
-				serializeName!(load)(varName, con);
-				serialize!(load, field.typeData)(__traits(getMember, var, field.name), con);
+		//alias nums = AliasSeq!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+		//foreach (i; nums[0 .. typeData.fields.length]) {
+		foreach (i, ref a; var.tupleof) {
+			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
+			enum bool doSerialize = !hasNoserializeUda!(TP);
+			static if (doSerialize) {
+				enum string varName = __traits(identifier, var.tupleof[i]);
+				static if (load == Load.yes) {
+					serializeByName!(load, varName)(a, con);
+				} else {
+					serializeName!(load)(varName, con);
+					serialize!(load)(a, con);
+				}
 			}
 		}
 
@@ -435,7 +399,7 @@ struct BinarySerializerMaped {
 		}
 
 		foreach (i; 0 .. elementsToLoadSave) {
-			bool ok = serialize!(load, getTypeData!(T))(var[i], con);
+			bool ok = serialize!(load)(var[i], con);
 			if (!ok) {
 				return false;
 			}
@@ -513,11 +477,11 @@ struct BinarySerializerMaped {
 				bool ok;
 				T.Key key;
 				T.Value value;
-				ok = serialize!(load, getTypeData!(T.Key))(key, con);
+				ok = serialize!(load)(key, con);
 				if (!ok) {
 					return false;
 				}
-				ok = serialize!(load, getTypeData!(T.Value))(value, con);
+				ok = serialize!(load)(value, con);
 				if (!ok) {
 					return false;
 				}
@@ -525,8 +489,8 @@ struct BinarySerializerMaped {
 			}
 		} else {
 			foreach (ref key, ref value; &var.byKeyValue) {
-				serialize!(load, getTypeData!(T.Key))(key, con);
-				serialize!(load, getTypeData!(T.Value))(value, con);
+				serialize!(load)(key, con);
+				serialize!(load)(value, con);
 			}
 		}
 		return false;
@@ -534,7 +498,7 @@ struct BinarySerializerMaped {
 
 	//////////////////////////////////////////////// HELPERS
 
-	static bool serializeByName(Load load, string name, TypeData typeData, T, ContainerOrSlice)(ref T var,
+	static bool serializeByName(Load load, string name, T, ContainerOrSlice)(ref T var,
 			ref ContainerOrSlice con) {
 		static assert(load == Load.yes);
 		auto conBegin = con;
@@ -567,7 +531,7 @@ struct BinarySerializerMaped {
 
 			if (varName == name) {
 				ubyte[] conStartVarTmp = conStartVar[0 .. varEnd];
-				bool loaded = serialize!(load, typeData)(var, conStartVarTmp);
+				bool loaded = serialize!(load)(var, conStartVarTmp);
 				if (loaded) {
 					if (noInfiniteLoop == 0) { // Move con because no one will read this value again(no key duplicates)
 						conBegin = conStartVar[varEnd .. $];
@@ -630,23 +594,25 @@ struct BinarySerializerMaped {
 	}
 
 }
+import MSC;
 
 // test basic type
 unittest {
 	int test = 1;
 
-	Vector!ubyte container;
+
+
+	CON_UB container;
+
 	//save
-	BinarySerializerMaped.serializeWithName!(Load.no, "name",
-			getTypeData!(typeof(test)))(test, container);
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(test, container);
 	assert(container.length == SizeNameType.sizeof + 4 + VariableType.sizeof + 4);
 
 	//reset var
 	test = 0;
 	//load
 	ubyte[] dataSlice = container[];
-	BinarySerializerMaped.serializeWithName!(Load.yes, "name",
-			getTypeData!(typeof(test)))(test, dataSlice);
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(test, dataSlice);
 	assert(test == 1);
 	//assert(dataSlice.length==0);
 }
@@ -667,8 +633,7 @@ unittest {
 	Test test = Test(1, 2, 3);
 	Vector!ubyte container;
 	//save
-	BinarySerializerMaped.serializeWithName!(Load.no, "name",
-			getTypeData!(typeof(test)))(test, container);
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(test, container);
 	assert(container.length == SizeNameType.sizeof + 4 + VariableType.sizeof
 			+ SizeType.sizeof + 3 * SizeNameType.sizeof + 3 + 3 * VariableType.sizeof + 4 + 8 + 1);
 	//writeln("Ratio to ideal minimal size: ", container.length/(4.0f+8.0f+1.0f));
@@ -677,8 +642,7 @@ unittest {
 
 	//load
 	ubyte[] dataSlice = container[];
-	BinarySerializerMaped.serializeWithName!(Load.yes, "name",
-			getTypeData!(typeof(testB)))(testB, dataSlice);
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(testB, dataSlice);
 	assert(testB == TestB(0, 3, 1));
 }
 // empty struct
@@ -694,14 +658,12 @@ unittest {
 	Test test = Test();
 	Vector!ubyte container;
 	//save
-	BinarySerializerMaped.serializeWithName!(Load.no, "name",
-			getTypeData!(typeof(test)))(test, container);
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(test, container);
 	//reset var
 	TestB testB;
 	//load
 	ubyte[] dataSlice = container[];
-	BinarySerializerMaped.serializeWithName!(Load.yes, "name",
-			getTypeData!(typeof(testB)))(testB, dataSlice);
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(testB, dataSlice);
 
 }
 
@@ -724,15 +686,13 @@ unittest {
 	Test test = Test([1, 2, 3, 4], Vector!ubyte(bytesA), [10, 20, 30]);
 	Vector!ubyte container;
 	//save
-	BinarySerializerMaped.serializeWithName!(Load.no, "name",
-			getTypeData!(typeof(test)))(test, container);
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(test, container);
 
 	//reset var
 	TestB testB;
 	//load
 	ubyte[] dataSlice = container[];
-	BinarySerializerMaped.serializeWithName!(Load.yes, "name",
-			getTypeData!(typeof(testB)))(testB, dataSlice);
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(testB, dataSlice);
 
 	assert(testB == TestB(Vector!long(bytesB), [1, 2], Vector!int([10, 20, 30])));
 }
@@ -759,15 +719,13 @@ unittest {
 	Vector!ubyte container;
 
 	//save
-	BinarySerializerMaped.serializeWithName!(Load.no, "name",
-			getTypeData!(typeof(map)))(map, container);
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(map, container);
 
 	//reset var
 	HashMap!(byte, TestStructB) mapB;
 	//load
 	ubyte[] dataSlice = container[];
-	BinarySerializerMaped.serializeWithName!(Load.yes, "name",
-			getTypeData!(typeof(mapB)))(mapB, dataSlice);
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(mapB, dataSlice);
 	assert(mapB.get(1) == TestStructB(11, 1));
 	assert(mapB.get(7) == TestStructB(77, 7));
 }
