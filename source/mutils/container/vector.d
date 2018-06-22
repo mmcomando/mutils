@@ -233,7 +233,7 @@ public:
 	}
 
 	void opSliceAssign()(T[] obj, size_t a, size_t b) {
-		assert(b < used && a <= b, "Range viloation");
+		assert(b <= used && a <= b, "Range viloation");
 		array.ptr[a .. b] = obj;
 	}
 
