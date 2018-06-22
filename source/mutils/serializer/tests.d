@@ -2,6 +2,7 @@ module mutils.serializer.tests;
 
 import std.meta;
 
+import mutils.container.vector : Vector;
 import mutils.serializer.binary;
 import mutils.serializer.binary_maped;
 import mutils.serializer.json;
@@ -12,11 +13,6 @@ import mutils.serializer.json;
 // - has to have default serializer instance (Serializer.instance)
 // - supports customSerialize
 
-// Helper to avoid GC
-private T[n] s(T, size_t n)(auto ref T[n] array) pure nothrow @nogc @safe {
-    return array;
-}
-
 import MSC;
 
 auto getContainer(Serializer)() {
@@ -25,7 +21,6 @@ auto getContainer(Serializer)() {
     } else static if (is(Serializer.SliceElementType == char)) {
         return CON_C();
     } else {
-        import mutils.container.vector : Vector;
         return Vector!(Serializer.SliceElementType)();
     }
 }
@@ -88,29 +83,67 @@ struct TestC {
     int b;
     TestA c;
 
-    	void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-				ref ContainerOrSlice con) {
-			auto begin = serializer.beginObject!(load)(con);
-			scope (exit)
-				serializer.endObject!(load)(con, begin);
+    void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
+            ref ContainerOrSlice con) {
+        auto begin = serializer.beginObject!(load)(con);
+        scope (exit)
+            serializer.endObject!(load)(con, begin);
 
-			serializer.serializeWithName!(load, "varA")(a, con);
-			serializer.serializeWithName!(load, "varB")(b, con);
-			serializer.serializeWithName!(load, "varC")(c, con);
+        serializer.serializeWithName!(load, "varA")(a, con);
+        serializer.serializeWithName!(load, "varB")(b, con);
+        serializer.serializeWithName!(load, "varC")(c, con);
 
-		}
+    }
 }
 
+// Test common serialzier properties
 unittest {
-    alias SerializersToTest = AliasSeq!(BinarySerializer, BinarySerializerMaped, JSONSerializerToken);
+    alias SerializersToTest = AliasSeq!(BinarySerializer,
+            BinarySerializerMaped, JSONSerializerToken);
+
+    enum TestA[3] arrA = [TestA(1, 2), TestA(3, 4), TestA(5, 6)];
 
     foreach (Serializer; SerializersToTest) {
         testSerializerInOut(Serializer.instance, 4, 4);
         testSerializerInOut(Serializer.instance, TestA(1, 2), TestA(1, 2));
         testSerializerInOut(Serializer.instance, TestB(3, 4, TestA(1, 2)),
                 TestB(3, 4, TestA(1, 2)));
-        testSerializerInOut(Serializer.instance, TestC(3, 4, TestA(1, 2)),                TestC(3, 4, TestA(1, 2)));
-                
+        testSerializerInOut(Serializer.instance, TestC(3, 4, TestA(1, 2)),
+                TestC(3, 4, TestA(1, 2)));
+
+        testSerializerInOut(Serializer.instance, Vector!TestA(arrA), Vector!TestA(arrA));
+
+        testSerializerBeginEnd(Serializer.instance);
+    }
+}
+
+struct TestA_Diff {
+    int xxx;
+    byte a;
+}
+
+struct TestB_Diff {
+    long b;
+    TestA_Diff c;
+    ushort a;
+}
+
+struct TestB_Diff2 {
+}
+
+// Test out of order loading,loading without present members, loading with different types
+unittest {
+    alias SerializersToTest = AliasSeq!(BinarySerializerMaped, JSONSerializerToken);
+
+    enum TestA[3] arrA = [TestA(1, 2), TestA(3, 4), TestA(5, 6)];
+
+    foreach (Serializer; SerializersToTest) {
+        testSerializerInOut(Serializer.instance, TestA(1, 2), TestA_Diff(0, 1));
+        testSerializerInOut(Serializer.instance, TestB(3, 4, TestA(1, 2)),
+                TestB_Diff(4, TestA_Diff(0, 1), 3));
+        testSerializerInOut(Serializer.instance, TestB(3, 4, TestA(1, 2)), TestB_Diff2());
+
+        testSerializerInOut(Serializer.instance, Vector!TestA(arrA), Vector!TestA(arrA));
 
         testSerializerBeginEnd(Serializer.instance);
     }
