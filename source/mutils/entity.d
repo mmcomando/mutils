@@ -20,7 +20,7 @@ struct EntityIdNR {
 	@disable this(this);
 
 	private StringIntern name;
-	private long id;
+	private StableId id;
 	StringIntern triggerEventOnDestroy;
 	bool doSerialization = true;
 	int type = int.max;
@@ -47,6 +47,10 @@ Component* getComponent(Component, Entity)(Entity* ent) {
 	return &ent.tupleof[componentNum];
 }
 
+struct StableId {
+	private @("noserialize") ulong id;
+}
+
 struct EntityManager(ENTS) {
 	alias Entities = ENTS.Entities;
 	alias FromEntities = Entities;
@@ -67,30 +71,30 @@ struct EntityManager(ENTS) {
 	enum memoryDtId = 32;
 
 	private __gshared static HashMapTwoWay!(StringIntern, EntityId*) nameIdMap;
-	private __gshared static HashMapTwoWay!(long, EntityId*) stableIdEntityIdMap;
-	private __gshared static long lastStableId = 0;
+	private __gshared static HashMapTwoWay!(StableId, EntityId*) stableIdEntityIdMap;
+	private __gshared static ulong lastStableId = 0;
 
 	// Keep this struct in sync with  EntityIdNR
 	static struct EntityId {
 		@disable this(this);
 
 		private StringIntern entityName;
-		private long id;
+		private StableId id;
 		StringIntern triggerEventOnDestroy;
 		bool doSerialization = true;
 		EntityEnum type = EntityEnum.none;
 
-		long stableId() {
-			if (id != 0) {
+		StableId stableId() {
+			if (id.id != 0) {
 				return id;
 			}
 			lastStableId++;
-			id = lastStableId;
+			id = StableId(lastStableId);
 			stableIdEntityIdMap.add(id, &this);
 			return id;
 		}
 
-		long stableIdNoAutoAdd() {
+		StableId stableIdNoAutoAdd() {
 			return id;
 		}
 
@@ -332,20 +336,17 @@ struct EntityManager(ENTS) {
 		EntityId* entId = entityToEntityId(entity);
 		entity.destroy();
 
-		if (entId.id != 0) {
+		if (entId.id.id != 0) {
 			stableIdEntityIdMap.remove(entId);
 		} else {
-			if (stableIdEntityIdMap.get(entId, 0) != 0) {
-				assert(0);
-			}
+			assert(stableIdEntityIdMap.get(entId, StableId()) == StableId());
 		}
 
 		if (entId.entityName != StringIntern()) {
 			nameIdMap.remove(entId);
 		} else {
-			if (nameIdMap.get(entId, StringIntern()) != StringIntern()) {
-				assert(0);
-			}
+			assert(nameIdMap.get(entId, StringIntern()) == StringIntern());
+
 		}
 		getContainer!(EntityType).remove(
 				cast(EntityData!(EntityType)*)(cast(void*) entity - memoryDtId));
@@ -386,8 +387,8 @@ struct EntityManager(ENTS) {
 	}
 
 	// When (id == 0 && makeDefault !is null ) new id is assigned and Entity is created by makeDefault function
-	EntityId* getEntityByStableId(ref long id, EntityId* function() makeDefault = null) {
-		assert(id <= lastStableId);
+	EntityId* getEntityByStableId(ref StableId id, EntityId* function() makeDefault = null) {
+		assert(id.id <= lastStableId);
 		EntityId* ent = stableIdEntityIdMap.get(id, null);
 
 		if (ent == null && makeDefault !is null) {
@@ -402,8 +403,8 @@ struct EntityManager(ENTS) {
 		return ent;
 	}
 
-	void removeByStableId(long id) {
-		if (id == 0) {
+	void removeByStableId(StableId id) {
+		if (id.id == 0) {
 			return;
 		}
 		EntityId* ent = stableIdEntityIdMap.get(id, null);
