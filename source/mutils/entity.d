@@ -9,6 +9,7 @@ import mutils.container.buckets_chain;
 import mutils.container.hash_map;
 import mutils.container.string_intern;
 import mutils.time : useconds;
+import mutils.container.hash_map_tow_way;
 
 /**
  * EntityId No Reference
@@ -18,8 +19,9 @@ import mutils.time : useconds;
 struct EntityIdNR {
 	@disable this(this);
 
-	StringIntern triggerEventOnDestroy;
+	private StringIntern name;
 	private long id;
+	StringIntern triggerEventOnDestroy;
 	bool doSerialization = true;
 	int type = int.max;
 }
@@ -62,20 +64,19 @@ struct EntityManager(ENTS) {
 	mixin(createEnumCode());
 	alias EntityEnum = EntityEnumM; //Alias for autocompletion
 
-	enum memoryDtId = 24;
-	//uint lastId = 1;
+	enum memoryDtId = 32;
 
-	import mutils.container.hash_map_tow_way;
-
-	//HashMapTwoWay!(StringIntern, EntityId*) nameIdMap;
+	private __gshared static HashMapTwoWay!(StringIntern, EntityId*) nameIdMap;
 	private __gshared static HashMapTwoWay!(long, EntityId*) stableIdEntityIdMap;
 	private __gshared static long lastStableId = 0;
 
 	// Keep this struct in sync with  EntityIdNR
 	static struct EntityId {
 		@disable this(this);
-		StringIntern triggerEventOnDestroy;
+
+		private StringIntern entityName;
 		private long id;
+		StringIntern triggerEventOnDestroy;
 		bool doSerialization = true;
 		EntityEnum type = EntityEnum.none;
 
@@ -91,6 +92,25 @@ struct EntityManager(ENTS) {
 
 		long stableIdNoAutoAdd() {
 			return id;
+		}
+
+		StringIntern name() {
+			return entityName;
+		}
+
+		void name(StringIntern newName) {
+			if (newName == entityName) {
+				return;
+			}
+			if (newName.length != 0) {
+				EntityId* otherEnt = nameIdMap.get(newName, null);
+				if (otherEnt !is null) {
+					otherEnt.entityName = StringIntern();
+					//nameIdMap.remove(newName);
+				}
+			}
+			entityName = newName;
+			nameIdMap.add(newName, &this);
 		}
 
 		auto get(EntityType)() {
@@ -315,11 +335,16 @@ struct EntityManager(ENTS) {
 		if (entId.id != 0) {
 			stableIdEntityIdMap.remove(entId);
 		} else {
-			if(stableIdEntityIdMap.get(entId, 0) != 0){import std.stdio;
-				writeln(stableIdEntityIdMap.get(entId, 0));
-				writeln(entId.type);
+			if (stableIdEntityIdMap.get(entId, 0) != 0) {
+				assert(0);
+			}
+		}
 
-			assert(0);
+		if (entId.entityName != StringIntern()) {
+			nameIdMap.remove(entId);
+		} else {
+			if (nameIdMap.get(entId, StringIntern()) != StringIntern()) {
+				assert(0);
 			}
 		}
 		getContainer!(EntityType).remove(
@@ -369,6 +394,11 @@ struct EntityManager(ENTS) {
 			ent = makeDefault();
 			id = ent.stableId;
 		}
+		return ent;
+	}
+
+	EntityId* getEntityByName(StringIntern name) {
+		EntityId* ent = nameIdMap.get(name, null);
 		return ent;
 	}
 
@@ -426,7 +456,7 @@ struct EntityManager(ENTS) {
 		return id;
 	}
 
-	static string getEntityName(EntityEnum type) {
+	static string getEntityEnumName(EntityEnum type) {
 		foreach (i, Entity; Entities) {
 			if (type == i)
 				return Entity.stringof;
