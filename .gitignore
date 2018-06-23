@@ -1,7 +1,9 @@
 /mutils
 dub.userprefs
 dub.selections.json
+/mutils-test-lib
 .dub
+/.vscode
 docs.json
 __dummy.html
 perf.data
