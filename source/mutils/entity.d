@@ -17,10 +17,11 @@ import mutils.time : useconds;
  **/
 struct EntityIdNR {
 	@disable this(this);
+
 	StringIntern triggerEventOnDestroy;
-	uint id;
-	bool doSerializetion = true;
-	uint type = uint.max;
+	private long id;
+	bool doSerialization = true;
+	int type = int.max;
 }
 
 bool hasComponent(Entity, Components...)() {
@@ -62,23 +63,42 @@ struct EntityManager(ENTS) {
 	alias EntityEnum = EntityEnumM; //Alias for autocompletion
 
 	enum memoryDtId = 24;
-	uint lastId = 1;
-	// Keep this struc in sync with  EntityIdNR
+	//uint lastId = 1;
+
+	import mutils.container.hash_map_tow_way;
+
+	//HashMapTwoWay!(StringIntern, EntityId*) nameIdMap;
+	private __gshared static HashMapTwoWay!(long, EntityId*) stableIdEntityIdMap;
+	private __gshared static long lastStableId = 0;
+
+	// Keep this struct in sync with  EntityIdNR
 	static struct EntityId {
 		@disable this(this);
 		StringIntern triggerEventOnDestroy;
-		uint id;
-		bool doSerializetion = true;
+		private long id;
+		bool doSerialization = true;
 		EntityEnum type = EntityEnum.none;
 
-		auto get(EntityType)() {
-			foreach (i, Ent; Entities) {
-				static if (is(EntityType == Ent)) {
-					assert(type == i);
-					return cast(Ent*)(cast(void*)&this + memoryDtId);
-				}
+		long stableId() {
+			if (id != 0) {
+				return id;
 			}
-			assert(0);
+			lastStableId++;
+			id = lastStableId;
+			stableIdEntityIdMap.add(id, &this);
+			return id;
+		}
+
+		long stableIdNoAutoAdd() {
+			return id;
+		}
+
+		auto get(EntityType)() {
+			enum int entityEnumIndex = staticIndexOf!(EntityType, FromEntities);
+			static assert(entityEnumIndex != -1, "There is no entity like: " ~ EntityType.stringof);
+
+			assert(type == entityEnumIndex);
+			return cast(EntityType*)(cast(void*)&this + memoryDtId);
 		}
 
 		Return apply(alias fun, Return = void)() {
@@ -124,10 +144,8 @@ struct EntityManager(ENTS) {
 			switch (type) {
 				foreach (uint i, Entity; Entities) {
 			case cast(EntityEnumM) i:
-					//if(type==i){
 					enum has = mutils.entity.hasComponent!(Entity, Components);
 					return has;
-					//}
 				}
 			default:
 				break;
@@ -193,8 +211,7 @@ struct EntityManager(ENTS) {
 		foreach (ref con; entityContainers) {
 			con.clear();
 		}
-		entityIdToStableId.clear();
-		stableIdToEntityId.clear();
+		stableIdEntityIdMap.clear();
 	}
 
 	ref auto getContainer(EntityType)() {
@@ -275,7 +292,6 @@ struct EntityManager(ENTS) {
 	// Adds enitiy without calling initialize on it, the user has to do it himself
 	EntityType* addNoInitialize(EntityType, Components...)(Components components) {
 		EntityData!(EntityType)* entD = getContainer!(EntityType).add();
-		entD.entityId.id = lastId++;
 		entD.entityId.type = getEnum!EntityType;
 
 		foreach (ref comp; components) {
@@ -295,14 +311,19 @@ struct EntityManager(ENTS) {
 	void remove(EntityType)(EntityType* entity) {
 		EntityId* entId = entityToEntityId(entity);
 		entity.destroy();
+
+		if (entId.id != 0) {
+			stableIdEntityIdMap.remove(entId);
+		} else {
+			if(stableIdEntityIdMap.get(entId, 0) != 0){import std.stdio;
+				writeln(stableIdEntityIdMap.get(entId, 0));
+				writeln(entId.type);
+
+			assert(0);
+			}
+		}
 		getContainer!(EntityType).remove(
 				cast(EntityData!(EntityType)*)(cast(void*) entity - memoryDtId));
-		long stableId = entityIdToStableId.get(entId, -1);
-		if (stableId == -1) {
-			return;
-		}
-		entityIdToStableId.remove(entId);
-		stableIdToEntityId.remove(stableId);
 
 	}
 
@@ -339,69 +360,23 @@ struct EntityManager(ENTS) {
 		assert(0);
 	}
 
-	long lastStableId = 0;
-
-	long getUniqueStableId() {
-		lastStableId++;
-		return lastStableId;
-	}
-
-	HashMap!(long, EntityId*) stableIdToEntityId;
-	HashMap!(EntityId*, long) entityIdToStableId;
-
 	// When (id == 0 && makeDefault !is null ) new id is assigned and Entity is created by makeDefault function
 	EntityId* getEntityByStableId(ref long id, EntityId* function() makeDefault = null) {
 		assert(id <= lastStableId);
-		EntityId* ent = stableIdToEntityId.get(id, null);
+		EntityId* ent = stableIdEntityIdMap.get(id, null);
 
 		if (ent == null && makeDefault !is null) {
 			ent = makeDefault();
-			if (id == 0) {
-				id = getUniqueStableId();
-			}
-			stableIdToEntityId[id] = ent;
-			entityIdToStableId[ent] = id;
+			id = ent.stableId;
 		}
-		assert(stableIdToEntityId.length == entityIdToStableId.length);
 		return ent;
-	}
-
-	long getStableIdByEntity(EntityId* ent) {
-		long id = entityIdToStableId.get(ent, 0);
-
-		if (id == 0) {
-			id = getUniqueStableId();
-			stableIdToEntityId[id] = ent;
-			entityIdToStableId[ent] = id;
-		}
-		assert(stableIdToEntityId.length == entityIdToStableId.length);
-		return id;
-	}
-
-	void setEntityStableId(ref long id, EntityId* ent) {
-		long entBeforeStId = entityIdToStableId.get(ent, 0);
-		if (entBeforeStId != 0) {
-			if (id == 0) {
-				id = entBeforeStId;
-			} else if (entBeforeStId != id) {
-				stableIdToEntityId.remove(entBeforeStId);
-				entityIdToStableId.remove(ent);
-			}
-		}
-
-		if (id == 0) {
-			id = getUniqueStableId();
-		}
-		stableIdToEntityId.add(id, ent);
-		entityIdToStableId.add(ent, id);
-		assert(stableIdToEntityId.length == entityIdToStableId.length);
 	}
 
 	void removeByStableId(long id) {
 		if (id == 0) {
 			return;
 		}
-		EntityId* ent = stableIdToEntityId.get(id, null);
+		EntityId* ent = stableIdEntityIdMap.get(id, null);
 		if (ent !is null) {
 			remove(ent);
 		}
@@ -461,12 +436,11 @@ struct EntityManager(ENTS) {
 	/////////////////////////
 	/////// Enum code  //////
 	/////////////////////////
-	static EntityEnum getEnum(T)() {
-		foreach (i, Type; Entities) {
-			static if (is(Type == T)) {
-				return cast(EntityEnum) i;
-			}
-		}
+	static EntityEnum getEnum(EntityType)() {
+		enum int entityEnumIndex = staticIndexOf!(EntityType, FromEntities);
+		static assert(entityEnumIndex != -1, "There is no entity like: " ~ EntityType.stringof);
+		return cast(EntityEnum) entityEnumIndex;
+
 	}
 
 	// Order if enum is important, indexing of objects is made out of it
