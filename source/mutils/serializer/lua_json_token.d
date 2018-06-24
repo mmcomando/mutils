@@ -65,11 +65,13 @@ final class JSON_Lua_SerializerToken(bool isJson) {
 
 		} else {
 
+			if(!con[$-1].isChar('{')){
+				serializeCharToken!(load)(',', con);
+			}
 			static string tmpName = name;
 			serializeName!(load)(tmpName, con);
 			assert(tmpName == name);
 			serialize!(load, useMalloc)(var, con);
-			serializeCharToken!(load)(',', con);
 			return true;
 
 		}
@@ -246,11 +248,13 @@ package:
 				}
 
 			} else {
-				foreach (i, ref d; var) {
+				int i;
+				foreach (ref d; var) {
 					serializeImpl!(load)(d, con);
 					if (i != var.length - 1) {
 						serializeCharToken!(load)(',', con);
 					}
+					i++;
 				}
 
 			}
@@ -393,7 +397,7 @@ package:
 				}
 			} else {
 				// hack remove comma if last tuple element was not serializable
-				if (i == var.tupleof.length - 1) {
+				if (i == var.tupleof.length - 1 && var.tupleof.length>1) {// ERROR: if all elements are noserialize
 					con.remove(con.length - 1);
 				}
 			}
