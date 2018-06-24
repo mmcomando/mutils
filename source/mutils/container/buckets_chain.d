@@ -93,6 +93,10 @@ struct BucketWithBits(T, uint elementsNum = 128) {
 		}
 	}
 
+	void reset() {
+		clear();
+	}
+
 	~this() {
 		clear();
 	}
@@ -121,10 +125,6 @@ struct BucketWithBits(T, uint elementsNum = 128) {
 		int num = getEmptyElementNum();
 		assert(num != -1);
 		return emplace(&elements[num]);
-
-		//elements[num]=T.init;
-
-		//return &elements[num];
 	}
 
 	T* add()(ref T obj) {
@@ -132,9 +132,6 @@ struct BucketWithBits(T, uint elementsNum = 128) {
 		assert(num != -1);
 
 		return emplace(&elements[num], obj);
-		//emplace(&
-		//elements[num]=obj;
-		//return &elements[num];
 	}
 
 	T* add()(T obj) {
@@ -169,7 +166,6 @@ struct BucketWithBits(T, uint elementsNum = 128) {
 		emptyElements.set(num);
 
 		destroy(*obj);
-		//elements[num]=T.init;
 	}
 
 	bool isIn(T* obj) {
@@ -202,7 +198,7 @@ struct BucketWithBits(T, uint elementsNum = 128) {
 					break;
 			}
 		} else {
-			//the opApply is faster when this pic of code is in inner function
+			//the opApply is faster when this pice of code is in inner function
 			//probably because rare executing code is not inlined (less code in main execution path)
 			void byElementIteration() {
 				mixin(doNotInline);
@@ -239,6 +235,35 @@ struct BucketWithBits(T, uint elementsNum = 128) {
 		}
 
 		return result;
+	}
+
+	struct Range {
+		BucketWithBits!(T, elementsNum)* bucket;
+		int lastElementNum = -1;
+
+		bool empty() {
+			return lastElementNum >= elementsNum;
+		}
+
+		ref T front() {
+			return bucket.elements[lastElementNum];
+		}
+
+		void popFront() {
+			lastElementNum++;
+			while (lastElementNum < elementsNum && bucket.emptyElements.get(lastElementNum) == true) {
+				lastElementNum++;
+			}
+		}
+	}
+
+	Range getRange() {
+		Range rng;
+		rng.bucket = &this;
+		if (rng.empty) {
+			rng.popFront();
+		}
+		return rng;
 	}
 }
 
@@ -279,6 +304,16 @@ unittest {
 	}
 	foreach (int i, long el; bucket) {
 		assert(el == 15);
+	}
+}
+
+unittest {
+	BucketWithBits!(long, 16) bucket;
+	bucket.initialize();
+
+	bucket.add(100);
+	foreach (el; bucket.getRange()) {
+		assert(el == 100);
 	}
 }
 
@@ -344,11 +379,11 @@ struct BucketsChain(T, uint elementsInBucket = 64, bool addGCRange = hasIndirect
 		return getFreeBucket.add();
 	}
 
-	T* add()(T obj) {
+	T* add()(auto ref T obj) {
 		return getFreeBucket().add(obj);
 	}
 
-	void opOpAssign(string op)(T obj) {
+	void opOpAssign(string op)(auto ref T obj) {
 		static assert(op == "~");
 		add(obj);
 	}
@@ -371,6 +406,8 @@ struct BucketsChain(T, uint elementsInBucket = 64, bool addGCRange = hasIndirect
 	}
 
 	int opApply(Dg)(scope Dg dg) {
+	//int opApply(scope int delegate(ref T) dg) {
+		alias Dg=typeof(dg);
 		static assert(ParameterTypeTuple!Dg.length == 1 || ParameterTypeTuple!Dg.length == 2);
 		enum hasI = ParameterTypeTuple!Dg.length == 2;
 		static if (hasI) {
@@ -393,6 +430,69 @@ struct BucketsChain(T, uint elementsInBucket = 64, bool addGCRange = hasIndirect
 
 		}
 		return result;
+	}
+
+	static struct Range {
+		BucketsChain!(T, elementsInBucket, addGCRange)* buckets;
+		int lastBucketNum = 0;
+		int lastElementNum = -1;
+
+		@property bool empty() {
+			return lastBucketNum >= buckets.buckets.length; // && lastElementNum >= elementsInBucket;
+		}
+
+		@property ref T front() {
+			return buckets.buckets[lastBucketNum].elements[lastElementNum];
+		}
+
+		void popFront() {
+			lastElementNum++;
+			while (lastBucketNum < buckets.buckets.length) {
+				auto bucket = buckets.buckets[lastBucketNum];
+				if (lastElementNum >= elementsInBucket) {
+					lastBucketNum++;
+					lastElementNum = 0;
+					continue;
+				}
+				if (bucket.emptyElements.get(lastElementNum) == false) {
+					break;
+				}
+				lastElementNum++;
+			}
+		}
+	}
+
+	Range getRange() {
+		Range rng;
+		rng.buckets = &this;
+		//if(!rng.empty){
+		rng.popFront();
+		//}
+		return rng;
+	}
+}
+
+unittest {
+	BucketsChain!(int, 8) buckets;
+	//buckets.initialize();
+
+	buckets.add(0);
+	buckets.add(1);
+	buckets.add(2);
+	buckets.add(3);
+	auto ptr = buckets.add(4);
+	buckets.add(5);
+	buckets.add(6);
+	buckets.add(7);
+	buckets.add(8);
+	buckets.add(9);
+	buckets.remove(ptr);
+	int i;
+	foreach (el; buckets.getRange()) {
+		assert(el == i);
+		if (el == 3)
+			i++;
+		i++;
 	}
 }
 
