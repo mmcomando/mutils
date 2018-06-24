@@ -189,7 +189,7 @@ struct EntityManager(ENTS) {
 	}
 
 	template getEntityContainer(T) {
-		alias getEntityContainer = BucketsChain!(EntityData!(T));
+		alias getEntityContainer = BucketsChain!(EntityData!(T), 64, false);
 	}
 
 	alias EntityContainers = staticMap!(getEntityContainer, Entities);
@@ -236,15 +236,13 @@ struct EntityManager(ENTS) {
 			con.clear();
 		}
 		stableIdEntityIdMap.clear();
+		nameIdMap.clear();
 	}
 
 	ref auto getContainer(EntityType)() {
-		foreach (i, ent; Entities) {
-			static if (is(EntityType == ent)) {
-				return entityContainers[i];
-			}
-		}
-		assert(0);
+		enum int entityEnumIndex = staticIndexOf!(EntityType, FromEntities);
+		static assert(entityEnumIndex != -1, "There is no entity like: " ~ EntityType.stringof);
+		return entityContainers[entityEnumIndex];
 	}
 
 	void update() {
@@ -431,7 +429,9 @@ struct EntityManager(ENTS) {
 		int opApply(Dg)(scope Dg dg) {
 			int result;
 			// Can be improved: skip whole containers
-			foreach (int i, ref EntityData!(Entity) el; *container) {
+			int i;
+			foreach (ref EntityData!(Entity) el; *container) {
+				scope(exit)i++;
 				if (i < start) {
 					continue;
 				}
