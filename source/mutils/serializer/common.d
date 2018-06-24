@@ -72,7 +72,7 @@ bool isStringVector(T)() {
 /// Checks if type can be treated as vector ex. replace int[] with MyArray!int
 bool isCustomVector(T)() {
 	static if (is(T == struct) && hasMember!(T, "opOpAssign") && hasMember!(T,
-			"opIndex") && hasMember!(T, "length")) {
+			"add") && hasMember!(T, "length")) {
 		return true;
 	} else {
 		return false;

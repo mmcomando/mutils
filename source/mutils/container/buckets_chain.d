@@ -405,8 +405,8 @@ struct BucketsChain(T, uint elementsInBucket = 64, bool addGCRange = hasIndirect
 		assert(0);
 	}
 
-	int opApply(Dg)(scope Dg dg) {
-	//int opApply(scope int delegate(ref T) dg) {
+
+	int opApply(scope int delegate(ref T) dg){
 		alias Dg=typeof(dg);
 		static assert(ParameterTypeTuple!Dg.length == 1 || ParameterTypeTuple!Dg.length == 2);
 		enum hasI = ParameterTypeTuple!Dg.length == 2;
@@ -509,10 +509,10 @@ unittest {
 	assert(ptr == &vec.buckets[0].elements[0]);
 	vec.remove(ptr);
 
-	foreach (int i, ref long el; vec) {
+	foreach (ref long el; vec) {
 		assert(el == 2);
 	}
-	foreach (int i, ref long el; vec) {
+	foreach (ref long el; vec) {
 		vec.remove(&el);
 	}
 	assert(vec.length == 0);

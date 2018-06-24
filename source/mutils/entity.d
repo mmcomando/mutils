@@ -431,7 +431,8 @@ struct EntityManager(ENTS) {
 			// Can be improved: skip whole containers
 			int i;
 			foreach (ref EntityData!(Entity) el; *container) {
-				scope(exit)i++;
+				scope (exit)
+					i++;
 				if (i < start) {
 					continue;
 				}

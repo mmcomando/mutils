@@ -178,7 +178,7 @@ package:
 			}
 
 		} else {
-			foreach (i, ref d; var) {
+			foreach (ref d; var) {
 				serialize!(load)(d, con);
 			}
 		}
