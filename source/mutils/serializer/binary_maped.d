@@ -378,7 +378,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeSlice(Load load, T, ContainerOrSlice)(T[] var, ref ContainerOrSlice con) {
+	static bool serializeSlice(Load load, T, ContainerOrSlice)(T var, ref ContainerOrSlice con) {
 		assert(var.length < SizeType.max);
 
 		ubyte[] begin = beginObject!(load)(con);
@@ -397,11 +397,16 @@ struct BinarySerializerMaped {
 			SizeType oneElementSize = getSerVariableTypeSize(type);
 			auto conSliceStart = con;
 		}
-
-		foreach (i; 0 .. elementsToLoadSave) {
-			bool ok = serialize!(load)(var[i], con);
+		int i;
+		//foreach (i; 0 .. elementsToLoadSave) {
+		foreach (ref el; var) {
+			bool ok = serialize!(load)(el, con);
 			if (!ok) {
 				return false;
+			}
+			i++;
+			if(i>=elementsToLoadSave){
+				break;
 			}
 		}
 
@@ -444,6 +449,16 @@ struct BinarySerializerMaped {
 			var.length = elementsNum;
 		}
 
+		return serializeSlice!(load)(var[], con);
+	}
+
+	static bool serializeRange(Load load, T, ContainerOrSlice)(ref T var,
+			ref ContainerOrSlice con) {
+				static assert(load==Load.no);
+		alias ElementType = Unqual!(ForeachType!(T));
+
+		VariableType type = VariableType.staticArray;// Pretend it is staticArray
+		serializeType!(load)(type, con);
 		return serializeSlice!(load)(var[], con);
 	}
 
