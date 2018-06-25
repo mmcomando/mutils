@@ -1,8 +1,14 @@
 module mutils.container.spatialtree;
 
+import std.conv : emplace;
+import std.experimental.allocator.building_blocks.allocator_list : AllocatorList;
+import std.experimental.allocator.building_blocks.null_allocator : NullAllocator;
+import std.experimental.allocator.building_blocks.region : Region;
+import std.experimental.allocator.common : unbounded;
+import std.experimental.allocator.mallocator : Mallocator;
 import std.traits : ForeachType, hasMember;
 
-import mutils.container.buckets_chain;
+import mutils.allocator.free_list : ContiguousFreeList;
 import mutils.container.vector : DataContainer = Vector;
 
 template QuadTree(T, bool loose = false, ubyte maxLevel = 8) {
@@ -26,9 +32,13 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 	alias Point = float[dimension];
 	alias isLoose = loose;
 
-	//alias QuadContainer = BucketsListChain!(Node[2 ^^ Point.length], 128, false);
-	//QuadContainer quadContainer;
+	enum nodesNumInArray = 2 ^^ dimension;
+	enum allocationSize = nodesNumInArray * Node.sizeof;
+	alias QuadAllocator = AllocatorList!((n) => ContiguousFreeList!(Mallocator,
+			0, unbounded)(4096, allocationSize), Mallocator);
 
+	QuadAllocator allocator;
+	//Region!Mallocator
 	float size = 100;
 
 	/* Example T
@@ -63,9 +73,15 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 	}
 
 	void clear() {
+		int deallocateContainers(Point pos, Node* quad, float halfSize, int level) {
+			quad.dataContainer.clear();
+			return 0;
+		}
+
+		visitAll(&deallocateContainers);
+		allocator.deallocateAll();
 		root.child = null;
 		root.dataContainer.clear();
-		//quadContainer.clear();
 	}
 
 	void remove(Point posRemove, T data) {
@@ -94,8 +110,7 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 				if (ok)
 					return true;
 
-				enum uint nodesNumber = 2 ^^ Point.length;
-				foreach (ubyte i; 0 .. nodesNumber) {
+				foreach (ubyte i; 0 .. nodesNumInArray) {
 					if (i == index)
 						continue;
 					direction = indexToDirection(i);
@@ -150,7 +165,6 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 				level++;
 				sizeTmp /= 2;
 			}
-
 			addToQuad(pos, data, &root, size / 2, cast(ubyte)(maxLevel - level));
 		} else {
 			addToQuad(pos, data, &root, size / 2, 0);
@@ -179,7 +193,7 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 	/////////////////////////
 	//// Visit functions ////
 	/////////////////////////
-
+	// 0 - continue, !0 - break
 	int visitAll(scope int delegate(Point pos, Node* quad, float halfSize, int level) visitor) {
 		Point pos = 0;
 		return visitAll(visitor, pos, &root, size / 2, 0);
@@ -189,10 +203,10 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 			int level) visitor, Point pos, Node* quad, float halfSize, int level) {
 		int visitAllImpl(Point pos, Node* quad, float halfSize, int level) {
 			int res = visitor(pos, quad, halfSize, level);
+			int mmm = maxLevel;
 			if (quad.child !is null && level < maxLevel) {
 				float quarterSize = halfSize / 2;
-				enum uint nodesNumber = 2 ^^ Point.length;
-				foreach (i; 0 .. nodesNumber) {
+				foreach (i; 0 .. nodesNumInArray) {
 					auto direction = indexToDirection(i);
 					Point xy = pos[] + quarterSize * (direction[] * 2 - 1);
 					res = visitAllImpl(xy, &quad.child[i], quarterSize, level + 1);
@@ -246,8 +260,7 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 			}
 
 			if (hasChildren(node, level)) {
-				enum uint nodesNumber = 2 ^^ Point.length;
-				foreach (i; 0 .. nodesNumber) {
+				foreach (i; 0 .. nodesNumInArray) {
 					visitAllDataNoCheck(&node.child[i], level + 1);
 				}
 			}
@@ -276,8 +289,7 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 
 			if (hasChildren(node, level)) {
 				float quarterSize = halfSize / 2;
-				enum uint nodesNumber = 2 ^^ Point.length;
-				foreach (i; 0 .. nodesNumber) {
+				foreach (i; 0 .. nodesNumInArray) {
 					auto direction = indexToDirection(i);
 					Point xy = pos[] + quarterSize * (direction[] * 2 - 1);
 					visitAllDataImpl(xy, &node.child[i], quarterSize, level + 1);
@@ -311,8 +323,7 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 
 				if (hasChildren(node, level)) {
 					float quarterSize = halfSize / 2;
-					enum uint nodesNumber = 2 ^^ Point.length;
-					foreach (i; 0 .. nodesNumber) {
+					foreach (i; 0 .. nodesNumInArray) {
 						auto direction = indexToDirection(i);
 						Point xy = pos[] + quarterSize * (direction[] * 2 - 1);
 						updatePositionsImpl(xy, &node.child[i], quarterSize, level + 1);
@@ -329,8 +340,11 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 	/////////////////////////
 
 	void allocateQuads(Node* quad, int level) {
-		//auto xx = quadContainer.add();
-		auto xx = new Node[](2 ^^ Point.length);
+		void[] xx = allocator.allocate(allocationSize);
+		Node* nodes = cast(Node*) xx.ptr;
+		foreach (i; 0 .. nodesNumInArray) {
+			emplace(&nodes[i]);
+		}
 		quad.child = cast(Node*) xx.ptr;
 	}
 
