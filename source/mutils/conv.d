@@ -218,7 +218,7 @@ T str2enum(T)(auto ref string str) {
 			return e;
 		}
 	}
-	return cast(TestEnum)(OriginalType!T).max; // Probably invalid enum
+	return cast(T)(OriginalType!T).max; // Probably invalid enum
 
 }
 

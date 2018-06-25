@@ -361,11 +361,19 @@ struct BinarySerializerMaped {
 	}
 
 	static bool serializeEnum(Load load, T, COS)(ref T var, ref COS con) {
+
+		VariableType type=VariableType.enum_;
+		serializeType!(load)(type, con);
+
+		if (type != VariableType.enum_) {
+			return false;
+		}
+
 		static if (load == Load.yes) {
 			SizeType varSize;
 			serializeSize!(load)(varSize, con);
 			string str = cast(string) con[0 .. varSize];
-			var = str2enum(str);
+			var = str2enum!(T)(str);
 			assert(str.length == 0);
 		} else {
 			char[256] buffer;
@@ -857,4 +865,29 @@ unittest {
 	assert(testB.aa == "aaa");
 	assert(testB.bb[] == "bbb");
 
+}
+
+// test enum
+unittest {
+
+	enum EnumA {
+		aaa = 10,
+		bbb = 20,
+	}
+
+	enum EnumB {
+		bbb = 10,
+		aaa = 20,
+	}
+
+	EnumA test = EnumA.aaa;
+	Vector!ubyte container;
+	//save
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(test, container);
+	//reset var
+	EnumB testB;
+	//load
+	ubyte[] dataSlice = container[];
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(testB, dataSlice);
+	assert(testB == EnumB.aaa);
 }
