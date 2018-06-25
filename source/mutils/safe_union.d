@@ -95,16 +95,13 @@ struct SafeUnion(bool makeFirstParDefaultOne, ConTypes...) {
 		}
 	}
 
-
 	/**
 	 * Support for serialization
 	 */
-	void customSerialize(Load load, Serializer, COS)(Serializer serializer,
-			ref COS con) {
+	void customSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
 		auto begin = serializer.beginObject!(load)(con);
 		scope (exit)
 			serializer.endObject!(load)(con, begin);
-
 
 		serializer.serializeWithName!(load, "type")(currentType, con);
 	sw:

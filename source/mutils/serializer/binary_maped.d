@@ -288,6 +288,9 @@ struct BinarySerializerMaped {
 
 	static bool serialize(Load load, T, COS)(ref T var, ref COS con) {
 		static if (hasMember!(T, "customSerialize")) {
+			VariableType type = VariableType.struct_;
+			serializeType!(load)(type, con);
+			assert(type==VariableType.struct_);
 			var.customSerialize!(load)(instance, con);
 			return true;
 		} else static if (is(T == enum)) {
@@ -362,7 +365,7 @@ struct BinarySerializerMaped {
 
 	static bool serializeEnum(Load load, T, COS)(ref T var, ref COS con) {
 
-		VariableType type=VariableType.enum_;
+		VariableType type = VariableType.enum_;
 		serializeType!(load)(type, con);
 
 		if (type != VariableType.enum_) {
@@ -426,6 +429,10 @@ struct BinarySerializerMaped {
 		static if (load == Load.yes) {
 			SizeType elemntsNum;
 			serializeSize!(load)(elemntsNum, con);
+
+			if (elemntsNum == 0) {
+				return true;
+			}
 
 			VariableType elementType;
 			serializeTypeNoPop!(load)(elementType, con);
@@ -629,7 +636,7 @@ struct BinarySerializerMaped {
 
 			ubyte[] conStartVar = con;
 
-			VariableType type;
+			VariableType type; // Custom serialize might not have it
 			serializeType!(load)(type, con);
 
 			SizeType varSize;
