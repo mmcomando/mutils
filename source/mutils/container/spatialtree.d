@@ -25,10 +25,11 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 
 	alias Point = float[dimension];
 	alias isLoose = loose;
-	alias QuadContainer = BucketsListChain!(Node[2 ^^ Point.length], 128, false);
+
+	//alias QuadContainer = BucketsListChain!(Node[2 ^^ Point.length], 128, false);
+	//QuadContainer quadContainer;
 
 	float size = 100;
-	QuadContainer quadContainer;
 
 	/* Example T
 	 struct SpatialTreeData{
@@ -64,7 +65,7 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 	void clear() {
 		root.child = null;
 		root.dataContainer.clear();
-		quadContainer.clear();
+		//quadContainer.clear();
 	}
 
 	void remove(Point posRemove, T data) {
@@ -328,7 +329,8 @@ struct SpatialTree(ubyte dimension, T, bool loose = false, ubyte maxLevel = 8) {
 	/////////////////////////
 
 	void allocateQuads(Node* quad, int level) {
-		auto xx = quadContainer.add();
+		//auto xx = quadContainer.add();
+		auto xx = new Node[](2 ^^ Point.length);
 		quad.child = cast(Node*) xx.ptr;
 	}
 
