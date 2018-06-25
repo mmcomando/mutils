@@ -83,8 +83,7 @@ struct TestC {
     int b;
     TestA c;
 
-    void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-            ref ContainerOrSlice con) {
+    void customSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
         auto begin = serializer.beginObject!(load)(con);
         scope (exit)
             serializer.endObject!(load)(con, begin);

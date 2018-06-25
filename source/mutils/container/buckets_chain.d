@@ -405,9 +405,8 @@ struct BucketsChain(T, uint elementsInBucket = 64, bool addGCRange = hasIndirect
 		assert(0);
 	}
 
-
-	int opApply(scope int delegate(ref T) dg){
-		alias Dg=typeof(dg);
+	int opApply(scope int delegate(ref T) dg) {
+		alias Dg = typeof(dg);
 		static assert(ParameterTypeTuple!Dg.length == 1 || ParameterTypeTuple!Dg.length == 2);
 		enum hasI = ParameterTypeTuple!Dg.length == 2;
 		static if (hasI) {

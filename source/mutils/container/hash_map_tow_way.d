@@ -10,10 +10,9 @@ struct HashMapTwoWay(KeyOnePar, KeyTwoPar) {
 
 	enum getIndexEmptyValue = keyOneToKeyTwo.getIndexEmptyValue;
 
-	invariant
-    {
-        assert(keyOneToKeyTwo.length==keyTwoToKeyOne.length);
-    }
+	invariant {
+		assert(keyOneToKeyTwo.length == keyTwoToKeyOne.length);
+	}
 
 	~this() {
 		clear();
@@ -29,7 +28,7 @@ struct HashMapTwoWay(KeyOnePar, KeyTwoPar) {
 		keyTwoToKeyOne.reset();
 	}
 
-	size_t length(){
+	size_t length() {
 		return keyOneToKeyTwo.length;
 	}
 
@@ -92,20 +91,20 @@ struct HashMapTwoWay(KeyOnePar, KeyTwoPar) {
 
 	void remove()(auto ref KeyOne key) {
 		size_t index = keyOneToKeyTwo.getIndex(key);
-		if (index == getIndexEmptyValue ) {
+		if (index == getIndexEmptyValue) {
 			return;
 		}
-		KeyTwo value=keyOneToKeyTwo.elements[index].keyValue.value;
+		KeyTwo value = keyOneToKeyTwo.elements[index].keyValue.value;
 		keyTwoToKeyOne.remove(value);
 		keyOneToKeyTwo.remove(key);
 	}
 
 	void remove()(auto ref KeyTwo key) {
 		size_t index = keyTwoToKeyOne.getIndex(key);
-		if (index == getIndexEmptyValue ) {
+		if (index == getIndexEmptyValue) {
 			return;
 		}
-		KeyOne value=keyTwoToKeyOne.elements[index].keyValue.value;
+		KeyOne value = keyTwoToKeyOne.elements[index].keyValue.value;
 		keyOneToKeyTwo.remove(value);
 		keyTwoToKeyOne.remove(key);
 	}
@@ -116,29 +115,29 @@ unittest {
 	HashMapTwoWay!(char, int) map;
 
 	map.add('a', 1);
-	assert(map.length==1);
-	assert(map.get('a', 0)==1);
-	assert(map.get(1, '\0')=='a');
+	assert(map.length == 1);
+	assert(map.get('a', 0) == 1);
+	assert(map.get(1, '\0') == 'a');
 
 	map.add('a', 2);
-	assert(map.length==1);
-	assert(map.get('a', 0)==2);
-	assert(map.get(1, '\0')=='\0');
-	assert(map.get(2, '\0')=='a');
+	assert(map.length == 1);
+	assert(map.get('a', 0) == 2);
+	assert(map.get(1, '\0') == '\0');
+	assert(map.get(2, '\0') == 'a');
 
 	map.add('b', 2);
-	assert(map.length==1);
-	assert(map.get('a', 0)==0);
-	assert(map.get('b', 0)==2);
-	assert(map.get(1, '\0')=='\0');
-	assert(map.get(2, '\0')=='b');
+	assert(map.length == 1);
+	assert(map.get('a', 0) == 0);
+	assert(map.get('b', 0) == 2);
+	assert(map.get(1, '\0') == '\0');
+	assert(map.get(2, '\0') == 'b');
 
 	map.add('c', 3);
-	assert(map.length==2);
+	assert(map.length == 2);
 
 	map.remove('b');
-	assert(map.length==1);
+	assert(map.length == 1);
 
 	map.remove(3);
-	assert(map.length==0);
+	assert(map.length == 0);
 }

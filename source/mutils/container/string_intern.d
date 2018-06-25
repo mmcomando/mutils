@@ -8,7 +8,6 @@ import std.traits : Parameters;
 
 private __gshared static HashMap!(const(char)[], StringIntern) gStringInterns;
 
-
 struct StringIntern {
     private const(char)* strPtr;
 
@@ -17,24 +16,25 @@ struct StringIntern {
     }
 
     size_t length() {
-        if(strPtr is null){
+        if (strPtr is null) {
             return 0;
         }
-        return *cast(size_t*)(strPtr-8);
+        return *cast(size_t*)(strPtr - 8);
     }
 
-    const(char)[] str(){
-        return strPtr[0..length];
-    }
-      const(char)[] cstr() {
-        return strPtr[0..length+1];
+    const(char)[] str() {
+        return strPtr[0 .. length];
     }
 
-    bool opEquals()(auto ref const StringIntern s){
+    const(char)[] cstr() {
+        return strPtr[0 .. length + 1];
+    }
+
+    bool opEquals()(auto ref const StringIntern s) {
         return strPtr == s.strPtr;
     }
 
-    bool opEquals()(auto ref const(char[]) s){
+    bool opEquals()(auto ref const(char[]) s) {
         return str() == s;
     }
 
@@ -54,13 +54,13 @@ struct StringIntern {
     }
 
     const(char)[] opSlice() {
-        return strPtr[0..length];
+        return strPtr[0 .. length];
     }
 
     private const(char)[] allocStr(const(char)[] fromStr) {
         char[] data = Mallocator.instance.makeArray!(char)(fromStr.length + size_t.sizeof + 1);
-        size_t* len=cast(size_t*)data.ptr;
-        *len=fromStr.length;
+        size_t* len = cast(size_t*) data.ptr;
+        *len = fromStr.length;
         data[size_t.sizeof .. $ - 1] = fromStr;
         data[$ - 1] = '\0';
         return data[size_t.sizeof .. $ - 1];
@@ -68,7 +68,7 @@ struct StringIntern {
 }
 
 unittest {
-    static assert(StringIntern.sizeof==size_t.sizeof);
+    static assert(StringIntern.sizeof == size_t.sizeof);
     const(char)[] chA = ['a', 'a'];
     char[] chB = ['o', 't', 'h', 'e', 'r'];
     const(char)[] chC = ['o', 't', 'h', 'e', 'r'];
@@ -98,7 +98,7 @@ unittest {
     assert(strA == chC);
     assert(strA == chD);
     assert(strA.str.ptr[strA.str.length] == '\0');
-    assert(strA.cstr[$-1] == '\0');
+    assert(strA.cstr[$ - 1] == '\0');
 
     foreach (char c; strA) {
     }

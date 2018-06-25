@@ -9,6 +9,8 @@ public import mutils.serializer.common;
 import mutils.serializer.lexer_utils;
 import mutils.serializer.lua_json_token;
 
+//  COS==ContainerOrSlice
+
 /**
  * Serializer to save data in json format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
@@ -18,7 +20,7 @@ final class JSONSerializer {
 	JSONLexer lex;
 	__gshared static JSONSerializerToken tokenSerializer = new JSONSerializerToken();
 
-	int beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	int beginObject(Load load, COS)(ref COS con) {
 		static if (load == Load.yes) {
 			assert(con[0] == '{');
 			con ~= con[1 .. $];
@@ -28,7 +30,7 @@ final class JSONSerializer {
 		return 0; // Just to satisfy interface
 	}
 
-	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, int begin) {
+	void endObject(Load load, COS)(ref COS con, int begin) {
 		static if (load == Load.yes) {
 			assert(con[0] == '}');
 			con ~= con[1 .. $];
@@ -41,11 +43,10 @@ final class JSONSerializer {
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
 	 * T is the serialized variable
-	 * ContainerOrSlice is char[] when load==Load.yes 
-	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save) 
+	 * COS is char[] when load==Load.yes 
+	 * COS container supplied by user in which data is stored when load==Load.no(save) 
 	 */
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, ref COS con) {
 		try {
 			static if (load == Load.yes) {
 				lex = JSONLexer(cast(string) con, true, true);
@@ -66,8 +67,7 @@ final class JSONSerializer {
 	}
 
 	//support for rvalues during load
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, COS con) {
 		static assert(load == Load.yes);
 		serialize!(load, useMalloc)(var, con);
 	}
@@ -274,8 +274,7 @@ unittest {
 		int b;
 		int c;
 
-		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-				ref ContainerOrSlice con) {
+		void customSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
 			auto begin = serializer.beginObject!(load)(con);
 			scope (exit)
 				serializer.endObject!(load)(con, begin);
@@ -293,8 +292,7 @@ unittest {
 		int b;
 		int c;
 
-		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-				ref ContainerOrSlice con) {
+		void customSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
 			auto begin = serializer.beginObject!(load)(con);
 			scope (exit)
 				serializer.endObject!(load)(con, begin);

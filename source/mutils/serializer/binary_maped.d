@@ -9,6 +9,8 @@ import mutils.container.vector;
 import mutils.conv;
 public import mutils.serializer.common;
 
+//  COS==ContainerOrSlice
+
 // THINK ABOUT: if serializer returns false con should: notbe changed, shoud be at the end of var, undefined??
 
 ubyte[] toBytes(T)(ref T val) {
@@ -116,7 +118,7 @@ SizeType getSerVariableTypeSize(VariableType type) {
 	}
 }
 
-void serializeType(Load load, ContainerOrSlice)(ref VariableType type, ref ContainerOrSlice con) {
+void serializeType(Load load, COS)(ref VariableType type, ref COS con) {
 	if (load == Load.yes) {
 		type = cast(VariableType) con[0];
 		con = con[1 .. $];
@@ -129,7 +131,7 @@ struct SerBasicVariable {
 	align(16) ubyte[16] data; // Strictest aligment and biggest size of basic types
 
 	VariableType type;
-	bool serialize(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	bool serialize(Load load, COS)(ref COS con) {
 		serializeType!(load)(type, con);
 
 		if (!isSerBasicType(type)) {
@@ -236,7 +238,7 @@ struct BinarySerializerMaped {
 	alias SliceElementType = ubyte;
 	__gshared static BinarySerializerMaped instance;
 
-	static ubyte[] beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	static ubyte[] beginObject(Load load, COS)(ref COS con) {
 		ubyte[] orginalSlice = con[];
 
 		SizeType objectSize = 0; // 0 is a placeholder value during save, proper value will be assigned in endObject
@@ -252,7 +254,7 @@ struct BinarySerializerMaped {
 
 	}
 
-	static void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, ubyte[] slice) {
+	static void endObject(Load load, COS)(ref COS con, ubyte[] slice) {
 		static if (load == Load.yes) {
 			con = slice;
 		} else {
@@ -263,14 +265,12 @@ struct BinarySerializerMaped {
 	}
 
 	//support for rvalues during load
-	void serializeWithName(Load load, string name, T, ContainerOrSlice)(ref T var,
-			ContainerOrSlice con) {
+	void serializeWithName(Load load, string name, T, COS)(ref T var, COS con) {
 		static assert(load == Load.yes);
 		serializeWithName!(load, name)(var, con);
 	}
 
-	static bool serializeWithName(Load load, string name, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeWithName(Load load, string name, T, COS)(ref T var, ref COS con) {
 		static if (load == Load.yes) {
 			return serializeByName!(load, name)(var, con);
 		} else {
@@ -281,12 +281,12 @@ struct BinarySerializerMaped {
 
 	}
 	//support for rvalues during load
-	void serialize(Load load, T, ContainerOrSlice)(ref T var, ContainerOrSlice con) {
+	void serialize(Load load, T, COS)(ref T var, COS con) {
 		static assert(load == Load.yes);
 		serialize!(load)(var, con);
 	}
 
-	static bool serialize(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	static bool serialize(Load load, T, COS)(ref T var, ref COS con) {
 		static if (hasMember!(T, "customSerialize")) {
 			var.customSerialize!(load)(instance, con);
 			return true;
@@ -313,7 +313,7 @@ struct BinarySerializerMaped {
 
 	//////////////////////// IMPL
 
-	static bool serializeBasicVar(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	static bool serializeBasicVar(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isBasicType!T);
 
 		enum VariableType properType = getSerVariableType!T;
@@ -336,8 +336,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeBasicVarWithConversion(Load load, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeBasicVarWithConversion(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(load == Load.yes);
 
 		enum VariableType properType = getSerVariableType!T;
@@ -361,7 +360,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeEnum(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	static bool serializeEnum(Load load, T, COS)(ref T var, ref COS con) {
 		static if (load == Load.yes) {
 			SizeType varSize;
 			serializeSize!(load)(varSize, con);
@@ -373,12 +372,12 @@ struct BinarySerializerMaped {
 			string enumStr = enum2str(var, buffer);
 			SizeType varSize = cast(SizeType) enumStr.length;
 			serializeSize!(load)(varSize, con);
-			con ~= cast(ubyte[])enumStr;
+			con ~= cast(ubyte[]) enumStr;
 		}
 		return true; //TODO return false when wrong enum is loaded
 	}
 
-	static bool serializeStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	static bool serializeStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == struct));
 
 		enum VariableType properType = getSerVariableType!T;
@@ -409,7 +408,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeArray(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	static bool serializeArray(Load load, T, COS)(ref T var, ref COS con) {
 		assert(var.length < SizeType.max);
 
 		ubyte[] begin = beginObject!(load)(con);
@@ -454,8 +453,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeStaticArray(Load load, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeStaticArray(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isStaticArray!T);
 
 		VariableType type = VariableType.array;
@@ -496,8 +494,7 @@ struct BinarySerializerMaped {
 
 	}
 
-	static bool serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeCustomVector(Load load, T, COS)(ref T var, ref COS con) {
 		alias ElementType = Unqual!(ForeachType!(T));
 
 		VariableType type = VariableType.array;
@@ -523,8 +520,7 @@ struct BinarySerializerMaped {
 		return serializeArray!(load)(var, con);
 	}
 
-	static bool serializeStringVector(Load load, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeStringVector(Load load, T, COS)(ref T var, ref COS con) {
 		alias ElementType = char;
 
 		VariableType type = VariableType.stringVector;
@@ -533,8 +529,8 @@ struct BinarySerializerMaped {
 			return false;
 		}
 
-		assert(var.length<SizeType.max);
-		SizeType size = cast(SizeType)var.length;
+		assert(var.length < SizeType.max);
+		SizeType size = cast(SizeType) var.length;
 		serializeSize!(load)(size, con);
 
 		static if (load == Load.yes) {
@@ -550,7 +546,7 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeRange(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	static bool serializeRange(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(load == Load.no);
 		alias ElementType = Unqual!(ForeachType!(T));
 
@@ -559,8 +555,7 @@ struct BinarySerializerMaped {
 		return serializeSlice!(load)(var[], con);
 	}
 
-	static bool serializeCustomMap(Load load, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeCustomMap(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isCustomMap!T);
 
 		VariableType type = VariableType.customMap;
@@ -610,8 +605,7 @@ struct BinarySerializerMaped {
 
 	//////////////////////////////////////////////// HELPERS
 
-	static bool serializeByName(Load load, string name, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	static bool serializeByName(Load load, string name, T, COS)(ref T var, ref COS con) {
 		static assert(load == Load.yes);
 		auto conBegin = con;
 		scope (exit)
@@ -659,8 +653,7 @@ struct BinarySerializerMaped {
 		return false;
 	}
 
-	private static void serializeName(Load load, ContainerOrSlice)(auto ref string name,
-			ref ContainerOrSlice con) {
+	private static void serializeName(Load load, COS)(auto ref string name, ref COS con) {
 		if (load == Load.yes) {
 			if (con.length < SizeNameType.sizeof) {
 				name = null;
@@ -680,16 +673,14 @@ struct BinarySerializerMaped {
 		//writeln(name.length);
 	}
 
-	private static void serializeTypeNoPop(Load load, ContainerOrSlice)(
-			ref VariableType type, ref ContainerOrSlice con) {
+	private static void serializeTypeNoPop(Load load, COS)(ref VariableType type, ref COS con) {
 		static assert(load == Load.yes);
 
 		type = cast(VariableType) con[0];
 
 	}
 
-	private static void serializeSize(Load load, ContainerOrSlice)(ref SizeType size,
-			ref ContainerOrSlice con) {
+	private static void serializeSize(Load load, COS)(ref SizeType size, ref COS con) {
 		if (load == Load.yes) {
 			toBytes(size)[0 .. SizeType.sizeof] = con[0 .. SizeType.sizeof];
 			con = con[SizeType.sizeof .. $];
@@ -698,8 +689,7 @@ struct BinarySerializerMaped {
 		}
 	}
 
-	private static void serializeSizeNoPop(Load load, ContainerOrSlice)(ref SizeType size,
-			ref ContainerOrSlice con) {
+	private static void serializeSizeNoPop(Load load, COS)(ref SizeType size, ref COS con) {
 		static assert(load == Load.yes);
 
 		toBytes(size)[0 .. SizeType.sizeof] = con[0 .. SizeType.sizeof];
@@ -864,7 +854,7 @@ unittest {
 	//load
 	ubyte[] dataSlice = container[];
 	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(testB, dataSlice);
-	assert(testB.aa=="aaa");
-	assert(testB.bb[]=="bbb");
+	assert(testB.aa == "aaa");
+	assert(testB.bb[] == "bbb");
 
 }

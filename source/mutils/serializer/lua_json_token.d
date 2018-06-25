@@ -9,24 +9,26 @@ import mutils.container.vector_allocator;
 import mutils.serializer.common;
 import mutils.serializer.lexer_utils;
 
+//  COS==ContainerOrSlice
+
 /**
  * Serializer to save data in json|lua tokens format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
  */
 final class JSON_Lua_SerializerToken(bool isJson) {
-	alias SliceElementType=TokenData;
+	alias SliceElementType = TokenData;
 
-	int  beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	int beginObject(Load load, COS)(ref COS con) {
 		serializeCharToken!(load)('{', con);
-		return 0;// Just to satisfy interface
+		return 0; // Just to satisfy interface
 	}
 
-	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, int begin) {
+	void endObject(Load load, COS)(ref COS con, int begin) {
 		serializeCharToken!(load)('}', con);
 	}
 
-	bool serializeWithName(Load load, string name, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	bool serializeWithName(Load load, string name, bool useMalloc = false, T, COS)(ref T var,
+			ref COS con) {
 		static if (load == Load.yes) {
 			auto conBegin = con;
 			scope (exit)
@@ -65,7 +67,7 @@ final class JSON_Lua_SerializerToken(bool isJson) {
 
 		} else {
 
-			if(!con[$-1].isChar('{')){
+			if (!con[$ - 1].isChar('{')) {
 				serializeCharToken!(load)(',', con);
 			}
 			static string tmpName = name;
@@ -81,15 +83,14 @@ final class JSON_Lua_SerializerToken(bool isJson) {
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
 	 * T is the serialized variable
-	 * ContainerOrSlice is string when load==Load.yes 
-	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save) 
+	 * COS is string when load==Load.yes 
+	 * COS container supplied by user in which data is stored when load==Load.no(save) 
 	 */
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, ref COS con) {
 		try {
 			static if (load == Load.yes) {
 				//pragma(msg, typeof(con));
-				auto sss = NoGcSlice!(ContainerOrSlice)(con);
+				auto sss = NoGcSlice!(COS)(con);
 				serializeImpl!(load, useMalloc)(var, sss);
 				con = sss[0 .. $];
 			} else {
@@ -101,8 +102,7 @@ final class JSON_Lua_SerializerToken(bool isJson) {
 	}
 
 	//support for rvalues during load
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, COS con) {
 		static assert(load == Load.yes);
 		serialize!(load, useMalloc)(var, con);
 	}
@@ -111,10 +111,9 @@ final class JSON_Lua_SerializerToken(bool isJson) {
 
 package:
 
-	void serializeImpl(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
-		static assert((load == Load.yes && is(ForeachType!(ContainerOrSlice) == TokenData))
-				|| (load == Load.no && is(ForeachType!(ContainerOrSlice) == TokenData)));
+	void serializeImpl(Load load, bool useMalloc = false, T, COS)(ref T var, ref COS con) {
+		static assert((load == Load.yes && is(ForeachType!(COS) == TokenData))
+				|| (load == Load.no && is(ForeachType!(COS) == TokenData)));
 		static assert(load != Load.skip, "Skip not supported");
 		commonSerialize!(load, useMalloc)(this, var, con);
 	}
@@ -122,7 +121,7 @@ package:
 	//-----------------------------------------
 	//--- Basic serializing methods
 	//-----------------------------------------
-	void serializeBasicVar(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeBasicVar(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isBasicType!T);
 		static if (is(T == char)) {
 			serializeChar!(load)(var, con);
@@ -141,7 +140,7 @@ package:
 		}
 	}
 
-	void serializeStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == struct));
 
 		serializeCharToken!(load)('{', con);
@@ -155,7 +154,7 @@ package:
 
 	}
 
-	void serializeClass(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeClass(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == class));
 
 		serializeCharToken!(load)('{', con);
@@ -171,7 +170,7 @@ package:
 
 	}
 
-	void serializeStaticArray(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeStaticArray(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isStaticArray!T);
 		serializeCharToken!(load)('[', con);
 		foreach (i, ref a; var) {
@@ -184,7 +183,7 @@ package:
 
 	}
 
-	void serializeDynamicArray(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeDynamicArray(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isDynamicArray!T);
 		alias ElementType = Unqual!(ForeachType!(T));
 		static if (is(ElementType == char)) {
@@ -215,11 +214,11 @@ package:
 		}
 	}
 
-	void serializeString(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeString(Load load, T, COS)(ref T var, ref COS con) {
 		serializeCustomVectorString!(load)(var, con);
 	}
 
-	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeCustomVector(Load load, T, COS)(ref T var, ref COS con) {
 		static if (is(Unqual!(ForeachType!(T)) == char)) {
 			serializeCustomVectorString!(load)(var, con);
 		} else {
@@ -262,7 +261,7 @@ package:
 		}
 	}
 
-	void serializeCustomMap(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeCustomMap(Load load, T, COS)(ref T var, ref COS con) {
 		serializeCharToken!(load)('{', con);
 		static if (load == Load.yes) {
 			bool ok = !con[0].isChar('}'); // false if no elements inside
@@ -292,8 +291,7 @@ package:
 		serializeCharToken!(load)('}', con);
 	}
 
-	void serializeKeyValue(Load load, Key, Value, ContainerOrSlice)(ref Key key,
-			ref Value value, ref ContainerOrSlice con) {
+	void serializeKeyValue(Load load, Key, Value, COS)(ref Key key, ref Value value, ref COS con) {
 		static assert(isStringVector!Key || isNumeric!Key,
 				"Map key has to be numeric or char vector.");
 		static if (isJson) {
@@ -328,8 +326,7 @@ package:
 		}
 	}
 
-	void serializePointer(Load load, bool useMalloc, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serializePointer(Load load, bool useMalloc, T, COS)(ref T var, ref COS con) {
 		commonSerializePointer!(load, useMalloc)(this, var, con);
 	}
 
@@ -337,7 +334,7 @@ package:
 	//--- Helper methods for basic methods
 	//-----------------------------------------
 
-	void loadClassOrStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void loadClassOrStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(load == Load.yes && (is(T == class) || is(T == struct)));
 
 		while (var.tupleof.length > 0) {
@@ -380,7 +377,7 @@ package:
 		}
 	}
 
-	void saveClassOrStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void saveClassOrStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(load == Load.no && (is(T == class) || is(T == struct)));
 		foreach (i, ref a; var.tupleof) {
 			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
@@ -397,7 +394,7 @@ package:
 				}
 			} else {
 				// hack remove comma if last tuple element was not serializable
-				if (i == var.tupleof.length - 1 && var.tupleof.length>1) {// ERROR: if all elements are noserialize
+				if (i == var.tupleof.length - 1 && var.tupleof.length > 1) { // ERROR: if all elements are noserialize
 					con.remove(con.length - 1);
 				}
 			}
@@ -406,7 +403,7 @@ package:
 
 	static if (isJson) {
 
-		void serializeName(Load load, ContainerOrSlice)(ref string name, ref ContainerOrSlice con) {
+		void serializeName(Load load, COS)(ref string name, ref COS con) {
 
 			static if (load == Load.yes) {
 				if (con[0].type != StandardTokens.string_) {
@@ -427,7 +424,7 @@ package:
 		}
 	} else {
 
-		void serializeName(Load load, ContainerOrSlice)(ref string name, ref ContainerOrSlice con) {
+		void serializeName(Load load, COS)(ref string name, ref COS con) {
 
 			static if (load == Load.yes) {
 				assert(con[0].type == StandardTokens.identifier);

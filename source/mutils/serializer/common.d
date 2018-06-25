@@ -98,8 +98,8 @@ Load loadOrSkip(Load load)() {
 	}
 }
 
-void commonSerialize(Load load, bool useMalloc = false, Serializer, T, ContainerOrSlice)(
-		Serializer ser, ref T var, ref ContainerOrSlice con) {
+void commonSerialize(Load load, bool useMalloc = false, Serializer, T, COS)(
+		Serializer ser, ref T var, ref COS con) {
 	static if (__traits(compiles, var.beforeSerialize!(load)(ser, con))) {
 		var.beforeSerialize!(load)(ser, con);
 	}
@@ -163,8 +163,8 @@ struct NoGcSlice(T) {
 	}
 }
 
-void commonSerializePointer(Load load, bool useMalloc, Serializer, T, ContainerOrSlice)(
-		Serializer ser, ref T var, ref ContainerOrSlice con) {
+void commonSerializePointer(Load load, bool useMalloc, Serializer, T, COS)(
+		Serializer ser, ref T var, ref COS con) {
 	static assert(isPointer!T);
 	alias PointTo = typeof(*var);
 	bool exists = var !is null;
@@ -230,7 +230,7 @@ void tokensToCharVectorPreatyPrint(Lexer, Vec)(TokenData[] tokens, ref Vec vec) 
 //--- Helper methods for string format
 //-----------------------------------------
 
-void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+void serializeCustomVectorString(Load load, T, COS)(ref T var, ref COS con) {
 	alias ElementType = Unqual!(ForeachType!(T));
 	static assert(is(ElementType == char));
 
@@ -245,7 +245,7 @@ void serializeCustomVectorString(Load load, T, ContainerOrSlice)(ref T var, ref 
 	}
 }
 
-void serializeCharToken(Load load, ContainerOrSlice)(char ch, ref ContainerOrSlice con) {
+void serializeCharToken(Load load, COS)(char ch, ref COS con) {
 	static if (load == Load.yes) {
 		check(con[0].type == StandardTokens.character && con[0].isChar(ch));
 		con = con[1 .. $];
@@ -256,7 +256,7 @@ void serializeCharToken(Load load, ContainerOrSlice)(char ch, ref ContainerOrSli
 	}
 }
 
-void serializeBoolToken(Load load, ContainerOrSlice)(ref bool var, ref ContainerOrSlice con) {
+void serializeBoolToken(Load load, COS)(ref bool var, ref COS con) {
 	static if (load == Load.yes) {
 		check(con[0].type == StandardTokens.identifier || con[0].type == StandardTokens.long_);
 		if (con[0].type == StandardTokens.identifier) {
@@ -284,8 +284,7 @@ void serializeBoolToken(Load load, ContainerOrSlice)(ref bool var, ref Container
 	}
 }
 
-void ignoreBraces(Load load, ContainerOrSlice)(ref ContainerOrSlice con,
-		char braceStart, char braceEnd) {
+void ignoreBraces(Load load, COS)(ref COS con, char braceStart, char braceEnd) {
 	static assert(load == Load.yes);
 	assert(con[0].isChar(braceStart));
 	con = con[1 .. $];
@@ -307,7 +306,7 @@ void ignoreBraces(Load load, ContainerOrSlice)(ref ContainerOrSlice con,
 	}
 }
 
-void ignoreToMatchingComma(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+void ignoreToMatchingComma(Load load, COS)(ref COS con) {
 	static assert(load == Load.yes);
 	int nestageLevel = 0;
 	//scope(exit)writelnTokens(con);

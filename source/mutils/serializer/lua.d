@@ -9,6 +9,8 @@ public import mutils.serializer.common;
 import mutils.serializer.lexer_utils;
 import mutils.serializer.lua_json_token;
 
+//  COS==ContainerOrSlice
+
 /**
  * Serializer to save data in lua format
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
@@ -18,11 +20,10 @@ class LuaSerializer {
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator
 	 * T is the serialized variable
-	 * ContainerOrSlice is char[] when load==Load.yes 
-	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save) 
+	 * COS is char[] when load==Load.yes 
+	 * COS container supplied by user in which data is stored when load==Load.no(save) 
 	 */
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, ref COS con) {
 		try {
 			static if (load == Load.yes) {
 				LuaLexer lex = LuaLexer(cast(string) con, true, true);
@@ -44,8 +45,7 @@ class LuaSerializer {
 	}
 
 	//support for rvalues during load
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, COS con) {
 		static assert(load == Load.yes);
 		serialize!(load, useMalloc)(var, con);
 	}
@@ -294,7 +294,6 @@ unittest {
 	auto tokens = lua.tokenizeAll();
 	//writelnTokens(tokens[]);
 }
-
 
 alias LuaSerializerToken = JSON_Lua_SerializerToken!(false);
 

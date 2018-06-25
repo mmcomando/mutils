@@ -8,6 +8,8 @@ import std.traits;
 public import mutils.serializer.common;
 import mutils.container.vector;
 
+//  COS==ContainerOrSlice
+
 /**
  * Serializer to save data in binary format (little endian)
  * If serialized data have to be allocated it is not saved/loaded unless it has "malloc" UDA (@("malloc"))
@@ -16,44 +18,41 @@ class BinarySerializer {
 	alias SliceElementType = ubyte;
 	__gshared static BinarySerializer instance = new BinarySerializer;
 
-	int beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
+	int beginObject(Load load, COS)(ref COS con) {
 		return 0; // Just to satisfy interface
 	}
 
-	void endObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con, int begin) {
+	void endObject(Load load, COS)(ref COS con, int begin) {
 	}
 
-	void serializeWithName(Load load, string name, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serializeWithName(Load load, string name, bool useMalloc = false, T, COS)(ref T var,
+			ref COS con) {
 		serialize!(load, useMalloc)(var, con);
 	}
 	/**
 	 * Function loads and saves data depending on compile time variable load
 	 * If useMalloc is true pointers, arrays, classes will be saved and loaded using Mallocator (there is exception, if vairable is not null it won't be allocated)
 	 * T is the serialized variable
-	 * ContainerOrSlice is ubyte[] when load==Load.yes 
-	 * ContainerOrSlice container supplied by user in which data is stored when load==Load.no(save)
+	 * COS is ubyte[] when load==Load.yes 
+	 * COS container supplied by user in which data is stored when load==Load.no(save)
 	 * If load==load.skip data is not loaded but slice is pushed fruther
 	 */
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, ref COS con) {
 		commonSerialize!(load, useMalloc)(this, var, con);
 	}
 	//support for rvalues during load
-	void serialize(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ContainerOrSlice con) {
+	void serialize(Load load, bool useMalloc = false, T, COS)(ref T var, COS con) {
 		static assert(load == Load.yes);
 		serialize!(load, useMalloc)(var, con);
 	}
 
 package:
 
-	void serializeImpl(Load load, bool useMalloc = false, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serializeImpl(Load load, bool useMalloc = false, T, COS)(ref T var, ref COS con) {
 		static assert((load == Load.skip
-				&& is(Unqual!(ForeachType!ContainerOrSlice) == ubyte)) || (load == Load.yes
-				&& is(Unqual!(ForeachType!ContainerOrSlice) == ubyte))
-				|| (load == Load.no && !isDynamicArray!ContainerOrSlice));
+				&& is(Unqual!(ForeachType!COS) == ubyte)) || (load == Load.yes
+				&& is(Unqual!(ForeachType!COS) == ubyte)) || (load == Load.no
+				&& !isDynamicArray!COS));
 		static assert(!is(T == union), "Type can not be union");
 		static assert((!is(T == struct) && !is(T == class)) || !isNested!T,
 				"Type can not be nested");
@@ -63,7 +62,7 @@ package:
 	//-----------------------------------------
 	//--- Basic serializing methods
 	//-----------------------------------------
-	void serializeBasicVar(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeBasicVar(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isBasicType!T);
 		static if (load == Load.yes || load == Load.skip) {
 			T* tmp = cast(T*) con.ptr;
@@ -84,12 +83,12 @@ package:
 		}
 	}
 
-	void serializeStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == struct));
 		serializeClassOrStruct!(load)(var, con);
 	}
 
-	void serializeClass(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeClass(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == class));
 		bool exists = var !is null;
 		serialize!(loadOrSkip!load)(exists, con);
@@ -114,7 +113,7 @@ package:
 
 	}
 
-	void serializeStaticArray(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeStaticArray(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isStaticArray!T);
 		foreach (i, ref a; var) {
 			serialize!(load)(a, con);
@@ -122,7 +121,7 @@ package:
 
 	}
 
-	void serializeDynamicArray(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeDynamicArray(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isDynamicArray!T);
 		alias ElementType = Unqual!(ForeachType!(T));
 		uint dataLength = cast(uint)(var.length);
@@ -146,11 +145,11 @@ package:
 
 	}
 
-	void serializeString(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeString(Load load, T, COS)(ref T var, ref COS con) {
 		serializeCustomVector!(load)(var, con);
 	}
 
-	void serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeCustomVector(Load load, T, COS)(ref T var, ref COS con) {
 		alias ElementType = Unqual!(ForeachType!(T));
 		uint dataLength = cast(uint)(var.length);
 		serialize!(loadOrSkip!load)(dataLength, con);
@@ -184,7 +183,7 @@ package:
 		}
 	}
 
-	void serializeCustomMap(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeCustomMap(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(isCustomMap!T);
 
 		uint dataLength = cast(uint)(var.length);
@@ -215,15 +214,14 @@ package:
 		}
 	}
 
-	void serializePointer(Load load, bool useMalloc, T, ContainerOrSlice)(ref T var,
-			ref ContainerOrSlice con) {
+	void serializePointer(Load load, bool useMalloc, T, COS)(ref T var, ref COS con) {
 		commonSerializePointer!(load, useMalloc)(this, var, con);
 	}
 
 	//-----------------------------------------
 	//--- Helper methods
 	//-----------------------------------------
-	void serializeClassOrStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+	void serializeClassOrStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == struct) || is(T == class));
 		foreach (i, ref a; var.tupleof) {
 			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
@@ -438,8 +436,7 @@ unittest {
 unittest {
 	static struct TestStruct {
 		int a;
-		void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-				ref ContainerOrSlice con) {
+		void customSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
 			int tmp = a / 3;
 			serializer.serialize!(load)(tmp, con);
 			serializer.serialize!(load)(tmp, con);
@@ -499,14 +496,12 @@ unittest {
 
 	static struct TestStruct {
 		ubyte a;
-		void beforeSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-				ref ContainerOrSlice con) {
+		void beforeSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
 			ubyte tmp = 10;
 			serializer.serialize!(load)(tmp, con);
 		}
 
-		void afterSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-				ref ContainerOrSlice con) {
+		void afterSerialize(Load load, Serializer, COS)(Serializer serializer, ref COS con) {
 			ubyte tmp = 7;
 			serializer.serialize!(load)(tmp, con);
 		}

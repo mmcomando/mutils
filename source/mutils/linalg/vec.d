@@ -136,8 +136,8 @@ struct Vec(T, int dim) {
 		formatValue(sink, vector, fmt);
 	}
 
-	void customSerialize(Load load, Serializer, ContainerOrSlice)(Serializer serializer,
-			ref ContainerOrSlice con) {
+	void customSerialize(Load load, Serializer, COS)(Serializer serializer,
+			ref COS con) {
 		serializer.serialize!(load)(vector, con);
 	}
 
