@@ -5,6 +5,7 @@ import std.stdio;
 import std.traits;
 
 import mutils.container.vector;
+import mutils.conv;
 public import mutils.serializer.common;
 
 // THINK ABOUT: if serializer returns false con should: notbe changed, shoud be at the end of var, undefined??
@@ -14,6 +15,7 @@ ubyte[] toBytes(T)(ref T val) {
 }
 
 enum VariableType : byte {
+	bool_,
 	char_,
 	byte_,
 	ubyte_,
@@ -29,15 +31,17 @@ enum VariableType : byte {
 	struct_,
 	class_,
 	stringVector,
-	customVector,
 	customMap,
-	staticArray,
+	array,
+	enum_,
 }
 
 VariableType getSerVariableType(TTT)() {
 	alias T = Unqual!TTT;
 
-	static if (is(T == char)) {
+	static if (is(T == bool)) {
+		return VariableType.bool_;
+	} else static if (is(T == char)) {
 		return VariableType.char_;
 	} else static if (is(T == byte)) {
 		return VariableType.byte_;
@@ -67,25 +71,26 @@ VariableType getSerVariableType(TTT)() {
 		return VariableType.class_;
 	} else static if (isStringVector!T) {
 		return VariableType.stringVector;
-	} else static if (isCustomVector!T) {
-		return VariableType.customVector;
 	} else static if (isCustomMap!T) {
 		return VariableType.customMap;
 	} else static if (isStaticArray!T) {
 		return VariableType.staticArray;
 	} else static if (isCustomMap!T) {
 		return VariableType.customMap;
+	} else static if (is(T == enum)) {
+		return VariableType.enum_;
 	} else {
 		static assert(0, "Type not supported 2307");
 	}
 }
 
 bool isSerBasicType(VariableType type) {
-	return (type >= VariableType.char_ && type <= VariableType.real_);
+	return (type >= VariableType.bool_ && type <= VariableType.real_);
 }
 
 SizeType getSerVariableTypeSize(VariableType type) {
 	switch (type) {
+	case VariableType.bool_:
 	case VariableType.char_:
 	case VariableType.byte_:
 	case VariableType.ubyte_:
@@ -153,6 +158,8 @@ struct SerBasicVariable {
 
 	real getReal() {
 		switch (type) {
+		case VariableType.bool_:
+			return get!bool;
 		case VariableType.char_:
 			return get!char;
 		case VariableType.byte_:
@@ -180,12 +187,14 @@ struct SerBasicVariable {
 		default:
 			break;
 		}
-
-		return 0;
+		assert(0); // TODO Log
+		//return 0;
 	}
 
 	real getLong() {
 		switch (type) {
+		case VariableType.bool_:
+			return get!bool;
 		case VariableType.char_:
 			return get!char;
 		case VariableType.byte_:
@@ -214,7 +223,8 @@ struct SerBasicVariable {
 			break;
 		}
 
-		return 0;
+		assert(0); // TODO Log
+		//return 0;
 	}
 }
 
@@ -222,7 +232,7 @@ alias SizeNameType = ubyte;
 alias SizeType = uint;
 
 struct BinarySerializerMaped {
-	alias SliceElementType=ubyte;
+	alias SliceElementType = ubyte;
 	__gshared static BinarySerializerMaped instance;
 
 	static ubyte[] beginObject(Load load, ContainerOrSlice)(ref ContainerOrSlice con) {
@@ -250,7 +260,7 @@ struct BinarySerializerMaped {
 		}
 
 	}
-	
+
 	//support for rvalues during load
 	void serializeWithName(Load load, string name, T, ContainerOrSlice)(ref T var,
 			ContainerOrSlice con) {
@@ -270,8 +280,7 @@ struct BinarySerializerMaped {
 
 	}
 	//support for rvalues during load
-	void serialize(Load load, T, ContainerOrSlice)(ref T var,
-			ContainerOrSlice con) {
+	void serialize(Load load, T, ContainerOrSlice)(ref T var, ContainerOrSlice con) {
 		static assert(load == Load.yes);
 		serialize!(load)(var, con);
 	}
@@ -280,8 +289,12 @@ struct BinarySerializerMaped {
 		static if (hasMember!(T, "customSerialize")) {
 			var.customSerialize!(load)(instance, con);
 			return true;
+		} else static if (is(T == enum)) {
+			return serializeEnum!(load)(var, con);
 		} else static if (isBasicType!T) {
 			return serializeBasicVar!(load)(var, con);
+		} else static if (isStringVector!T) {
+			return serializeStringVector!(load)(var, con);
 		} else static if (isCustomVector!T) {
 			return serializeCustomVector!(load)(var, con);
 		} else static if (isStaticArray!T) {
@@ -290,6 +303,8 @@ struct BinarySerializerMaped {
 			return serializeCustomMap!(load)(var, con);
 		} else static if (is(T == struct)) {
 			return serializeStruct!(load)(var, con);
+		} else static if (isPointer!T) {
+			static assert(0, "Can not serialzie pointer");
 		} else {
 			static assert(0, "Not supported");
 		}
@@ -345,6 +360,22 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
+	static bool serializeEnum(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+		static if (load == Load.yes) {
+			SizeType varSize;
+			serializeSize!(load)(varSize, con);
+			string str = cast(string) con[0 .. varSize];
+			var = str2enum(str);
+			assert(str.length == 0);
+		} else {
+			char[256] buffer;
+			string enumStr = enum2str(var, buff);
+			SizeType varSize = cast(SizeType) enumStr.length;
+			serializeSize!(load)(varSize, con);
+			con ~= enumStr;
+		}
+	}
+
 	static bool serializeStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
 		static assert(is(T == struct));
 
@@ -359,8 +390,6 @@ struct BinarySerializerMaped {
 		scope (exit)
 			endObject!(load)(con, begin);
 
-		//alias nums = AliasSeq!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
-		//foreach (i; nums[0 .. typeData.fields.length]) {
 		foreach (i, ref a; var.tupleof) {
 			alias TP = AliasSeq!(__traits(getAttributes, var.tupleof[i]));
 			enum bool doSerialize = !hasNoserializeUda!(TP);
@@ -405,7 +434,7 @@ struct BinarySerializerMaped {
 				return false;
 			}
 			i++;
-			if(i>=elementsToLoadSave){
+			if (i >= elementsToLoadSave) {
 				break;
 			}
 		}
@@ -420,9 +449,9 @@ struct BinarySerializerMaped {
 			ref ContainerOrSlice con) {
 		static assert(isStaticArray!T);
 
-		VariableType type = VariableType.staticArray;
+		VariableType type = VariableType.array;
 		serializeType!(load)(type, con);
-		if (type != VariableType.staticArray && type != VariableType.customVector) {
+		if (type != VariableType.array) {
 			return false;
 		}
 		return serializeSlice!(load)(var[], con);
@@ -432,9 +461,9 @@ struct BinarySerializerMaped {
 			ref ContainerOrSlice con) {
 		alias ElementType = Unqual!(ForeachType!(T));
 
-		VariableType type = VariableType.customVector;
+		VariableType type = VariableType.array;
 		serializeType!(load)(type, con);
-		if (type != VariableType.customVector && type != VariableType.staticArray) {
+		if (type != VariableType.array) {
 			return false;
 		}
 
@@ -452,12 +481,35 @@ struct BinarySerializerMaped {
 		return serializeSlice!(load)(var[], con);
 	}
 
-	static bool serializeRange(Load load, T, ContainerOrSlice)(ref T var,
+	static bool serializeStringVector(Load load, T, ContainerOrSlice)(ref T var,
 			ref ContainerOrSlice con) {
-				static assert(load==Load.no);
+		alias ElementType = char;
+
+		VariableType type = VariableType.stringVector;
+		serializeType!(load)(type, con);
+		if (type != VariableType.stringVector) {
+			return false;
+		}
+
+		static if (load == Load.yes) {
+			static if (hasMember!(T, "initialize")) {
+				var.initialize();
+			}
+			auto sliceTmp = con;
+			SizeType elementsNum;
+			serializeSize!(load)(elementsNum, sliceTmp); // Size of whole slice data - ignore
+			serializeSize!(load)(elementsNum, sliceTmp);
+			var.length = elementsNum;
+		}
+
+		return serializeSlice!(load)(var[], con);
+	}
+
+	static bool serializeRange(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
+		static assert(load == Load.no);
 		alias ElementType = Unqual!(ForeachType!(T));
 
-		VariableType type = VariableType.staticArray;// Pretend it is staticArray
+		VariableType type = VariableType.staticArray; // Pretend it is staticArray
 		serializeType!(load)(type, con);
 		return serializeSlice!(load)(var[], con);
 	}
@@ -609,13 +661,12 @@ struct BinarySerializerMaped {
 	}
 
 }
+
 import MSC;
 
 // test basic type
 unittest {
 	int test = 1;
-
-
 
 	CON_UB container;
 

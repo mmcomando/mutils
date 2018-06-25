@@ -167,7 +167,7 @@ nothrow @nogc unittest {
 
 ///////////////////////  Convert bools
 
-/// Converts enum to string
+/// Converts bool to string
 string bool2str(T)(auto ref const T bbb, char[] buff) {
 	static assert(is(T == bool), "T must be a boolean");
 	enum string[2] strs = ["false", "true"];
