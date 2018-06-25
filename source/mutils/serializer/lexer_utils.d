@@ -172,7 +172,32 @@ string longToString(long num) {
 }
 
 long stringToLong(string str) {
-	return str.to!long;
+
+	enum long[19] table = [
+			1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 10000000000, 100000000000,
+			1000000000000, 10000000000000, 100000000000000, 1000000000000000,
+			10000000000000000, 100000000000000000, 1000000000000000000,
+		];
+	assert(str.length < 20);
+	if (str.length == 0) {
+		return 0;
+	}
+	bool minus;
+	if (str.ptr[0] == '-') {
+		minus = true;
+		str = str[1 .. $];
+	}
+	long num;
+	int i;
+	foreach_reverse (c; str) {
+		num += (c - '0') * table[i];
+		i++;
+	}
+
+	if (minus) {
+		num *= -1;
+	}
+	return num;
 }
 
 void serializeNumberToken(bool load, Container)(ref TokenData token, ref Container con) {
