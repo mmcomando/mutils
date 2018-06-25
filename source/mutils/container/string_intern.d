@@ -15,6 +15,10 @@ struct StringIntern {
         opAssign(fromStr);
     }
 
+    void reset() {
+        strPtr=null;
+    }
+
     size_t length() {
         if (strPtr is null) {
             return 0;
@@ -23,10 +27,16 @@ struct StringIntern {
     }
 
     const(char)[] str() {
+        if (strPtr is null) {
+            return null;
+        }
         return strPtr[0 .. length];
     }
 
     const(char)[] cstr() {
+        if (strPtr is null) {
+            return "\0";
+        }
         return strPtr[0 .. length + 1];
     }
 
@@ -54,6 +64,9 @@ struct StringIntern {
     }
 
     const(char)[] opSlice() {
+        if (strPtr is null) {
+            return null;
+        }
         return strPtr[0 .. length];
     }
 
