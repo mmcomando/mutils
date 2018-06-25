@@ -63,7 +63,7 @@ auto hasNoserializeUda(Args...)() {
 }
 
 bool isStringVector(T)() {
-	static if (is(T == struct) && is(Unqual!(ForeachType!T) == char)) {
+	static if (is(T == struct) && is(Unqual!(ForeachType!T) == char) && hasMember!(T, "opSlice")) {
 		return true;
 	} else {
 		return false;

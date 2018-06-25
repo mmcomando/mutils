@@ -1,5 +1,6 @@
 ﻿module mutils.serializer.binary_maped;
 
+import std.algorithm : min;
 import std.meta;
 import std.stdio;
 import std.traits;
@@ -369,11 +370,12 @@ struct BinarySerializerMaped {
 			assert(str.length == 0);
 		} else {
 			char[256] buffer;
-			string enumStr = enum2str(var, buff);
+			string enumStr = enum2str(var, buffer);
 			SizeType varSize = cast(SizeType) enumStr.length;
 			serializeSize!(load)(varSize, con);
-			con ~= enumStr;
+			con ~= cast(ubyte[])enumStr;
 		}
+		return true; //TODO return false when wrong enum is loaded
 	}
 
 	static bool serializeStruct(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
@@ -407,41 +409,48 @@ struct BinarySerializerMaped {
 		return true;
 	}
 
-	static bool serializeSlice(Load load, T, ContainerOrSlice)(T var, ref ContainerOrSlice con) {
+	static bool serializeArray(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
 		assert(var.length < SizeType.max);
 
 		ubyte[] begin = beginObject!(load)(con);
 		scope (exit)
 			endObject!(load)(con, begin);
 
-		SizeType elemntsNum = cast(SizeType) var.length;
-		serializeSize!(load)(elemntsNum, con);
-		import std.algorithm : min;
-
-		size_t elementsToLoadSave = min(var.length, elemntsNum);
-
 		static if (load == Load.yes) {
-			VariableType type;
-			serializeTypeNoPop!(load)(type, con);
-			SizeType oneElementSize = getSerVariableTypeSize(type);
+			SizeType elemntsNum;
+			serializeSize!(load)(elemntsNum, con);
+
+			VariableType elementType;
+			serializeTypeNoPop!(load)(elementType, con);
 			auto conSliceStart = con;
-		}
-		int i;
-		//foreach (i; 0 .. elementsToLoadSave) {
-		foreach (ref el; var) {
-			bool ok = serialize!(load)(el, con);
-			if (!ok) {
-				return false;
+
+			alias ElementType = Unqual!(ForeachType!(T));
+			foreach (kkkkk; 0 .. elemntsNum) {
+				ElementType el;
+				bool ok = serialize!(load)(el, con);
+				if (!ok) {
+					return false;
+				}
+				var ~= el;
 			}
-			i++;
-			if (i >= elementsToLoadSave) {
-				break;
+
+			SizeType oneElementSize = getSerVariableTypeSize(elementType);
+			con = conSliceStart[oneElementSize * elemntsNum .. $];
+		} else {
+			SizeType elemntsNum = 0;
+			size_t conLengthSizeStart = con.length;
+			serializeSize!(load)(elemntsNum, con); // Place holder, proper elementsNum will be saved later
+
+			foreach (ref el; var) {
+				bool ok = serialize!(load)(el, con);
+				assert(ok);
+				elemntsNum++;
 			}
+			SizeType* elementsNumPtr = cast(SizeType*)(con[].ptr + conLengthSizeStart);
+			*elementsNumPtr = elemntsNum;
+
 		}
 
-		static if (load == Load.yes) {
-			con = conSliceStart[oneElementSize * elementsToLoadSave .. $];
-		}
 		return true;
 	}
 
@@ -454,7 +463,37 @@ struct BinarySerializerMaped {
 		if (type != VariableType.array) {
 			return false;
 		}
-		return serializeSlice!(load)(var[], con);
+		ubyte[] begin = beginObject!(load)(con);
+		scope (exit)
+			endObject!(load)(con, begin);
+
+		SizeType elemntsNum = cast(SizeType) var.length;
+		serializeSize!(load)(elemntsNum, con);
+
+		size_t elementsToLoadSave = min(var.length, elemntsNum);
+
+		static if (load == Load.yes) {
+			VariableType elementType;
+			serializeTypeNoPop!(load)(elementType, con);
+			auto conSliceStart = con;
+		}
+
+		foreach (i, ref el; var) {
+			bool ok = serialize!(load)(el, con);
+			if (!ok) {
+				return false;
+			}
+			if (i >= elementsToLoadSave) {
+				break;
+			}
+		}
+
+		static if (load == Load.yes) {
+			SizeType oneElementSize = getSerVariableTypeSize(elementType);
+			con = conSliceStart[oneElementSize * elementsToLoadSave .. $];
+		}
+		return true;
+
 	}
 
 	static bool serializeCustomVector(Load load, T, ContainerOrSlice)(ref T var,
@@ -473,12 +512,15 @@ struct BinarySerializerMaped {
 			}
 			auto sliceTmp = con;
 			SizeType elementsNum;
-			serializeSize!(load)(elementsNum, sliceTmp); // Size of whole slice data - ignore
+			serializeSize!(load)(elementsNum, sliceTmp); // Size of whole array data - ignore
 			serializeSize!(load)(elementsNum, sliceTmp);
-			var.length = elementsNum;
+
+			static if (hasMember!(T, "reserve")) {
+				var.reserve(elementsNum);
+			}
 		}
 
-		return serializeSlice!(load)(var[], con);
+		return serializeArray!(load)(var, con);
 	}
 
 	static bool serializeStringVector(Load load, T, ContainerOrSlice)(ref T var,
@@ -491,18 +533,21 @@ struct BinarySerializerMaped {
 			return false;
 		}
 
+		assert(var.length<SizeType.max);
+		SizeType size = cast(SizeType)var.length;
+		serializeSize!(load)(size, con);
+
 		static if (load == Load.yes) {
 			static if (hasMember!(T, "initialize")) {
 				var.initialize();
 			}
-			auto sliceTmp = con;
-			SizeType elementsNum;
-			serializeSize!(load)(elementsNum, sliceTmp); // Size of whole slice data - ignore
-			serializeSize!(load)(elementsNum, sliceTmp);
-			var.length = elementsNum;
+			var = cast(string) con[0 .. size];
+			con = con[size .. $];
+		} else {
+			assert(var[].length == size);
+			con ~= cast(ubyte[]) var[];
 		}
-
-		return serializeSlice!(load)(var[], con);
+		return true;
 	}
 
 	static bool serializeRange(Load load, T, ContainerOrSlice)(ref T var, ref ContainerOrSlice con) {
@@ -794,4 +839,32 @@ unittest {
 	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(mapB, dataSlice);
 	assert(mapB.get(1) == TestStructB(11, 1));
 	assert(mapB.get(7) == TestStructB(77, 7));
+}
+
+// test string
+unittest {
+	import mutils.container.string_intern;
+
+	static struct Test {
+		Vector!char aa;
+		StringIntern bb;
+	}
+
+	static struct TestB {
+		Vector!char bb;
+		StringIntern aa;
+	}
+
+	Test test = Test(Vector!char("aaa"), StringIntern("bbb"));
+	Vector!ubyte container;
+	//save
+	BinarySerializerMaped.serializeWithName!(Load.no, "name",)(test, container);
+	//reset var
+	TestB testB;
+	//load
+	ubyte[] dataSlice = container[];
+	BinarySerializerMaped.serializeWithName!(Load.yes, "name",)(testB, dataSlice);
+	assert(testB.aa=="aaa");
+	assert(testB.bb[]=="bbb");
+
 }
