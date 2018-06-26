@@ -139,6 +139,19 @@ package:
 			}
 		}
 	}
+	void serializeChar(Load load, T, COS)(ref T var, ref COS con) {
+		serializeCharToken!(load)('"', con);
+		static if (load == Load.yes) {
+				var = con[0].get!T();
+				con = con[1 .. $];
+			} else {
+				TokenData token;
+				token = var;
+				con ~= token;
+			}
+		serializeCharToken!(load)('"', con);
+
+	}
 
 	void serializeStruct(Load load, T, COS)(ref T var, ref COS con) {
 		static assert(is(T == struct));
