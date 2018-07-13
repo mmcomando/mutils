@@ -46,7 +46,11 @@ struct File {
 			return null;
 		}
 		fseek(f, 0, SEEK_END);
-		size_t length = ftell(f);
+		long length = ftell(f);
+		if (length <= 0 || length == long.max) { // If path was a directory fopen will succeed but ftell will return long.max
+			fclose(f);
+			return null;
+		}
 		fseek(f, 0, SEEK_SET);
 		ubyte* buffer = cast(ubyte*) malloc(length);
 		fread(buffer, 1, length, f);
