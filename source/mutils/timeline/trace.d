@@ -27,6 +27,20 @@ struct Trace(T, alias mixFunction = mix) {
 		data.remove(i);
 	}
 
+	T get(ref TimeIndexGetter getter, ref float time, bool loop) {
+		uint[2] ti = getter.index(data[], time);
+		DataPoint curr = data[ti[0]];
+		DataPoint next = data[ti[1]];
+		if (ti[0] == ti[1]) {
+			if (loop) {
+				time = 0;
+			}
+			return curr.point;
+		}
+		float blend = (time - curr.time) / (next.time - curr.time);
+		return mixFunction(curr.point, next.point, blend);
+	}
+
 	T get(float time) {
 		uint[2] ti = indexGetter.index(data[], time);
 		DataPoint curr = data[ti[0]];

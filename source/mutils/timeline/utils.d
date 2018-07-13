@@ -25,6 +25,7 @@ struct TimeIndexGetter {
 		lastIndex = cast(uint) slice.length - 1;
 	}
 
+	/// Returns [currIndex, nextIndex]
 	uint[2] index(T)(in T[] slice, float time) {
 		static assert(hasMember!(T, "time"));
 		assert(slice.length < lastIndex.max);
