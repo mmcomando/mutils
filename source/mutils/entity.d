@@ -175,7 +175,8 @@ struct EntityManager(ENTS) {
 				break;
 			}
 
-			assert(0, "There is no entity represented by this EntityId enum.");
+			assert(0, "There is no entity represented by this EntityId enum.");//TODO log
+			//return false;
 		}
 
 	}

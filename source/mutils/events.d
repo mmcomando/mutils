@@ -50,7 +50,7 @@ struct Events{
 
 	char[] inputedText;
 
-	float dtf;
+	float dtf=0;
 	float fps = 0;
 	float minTime = 0;
 	float maxTime = 0;
@@ -59,7 +59,15 @@ struct Events{
 	bool quit = false;
 
 	void initialzie(){
-		newTime = useconds();
+		reset();
+	}
+
+	void reset(){
+		newTime = oldTime = useconds();
+		dtf = 0;
+		fps = 0;
+		minTime = 0;
+		maxTime = 0;
 	}
 
 	long getFrameTimeMsecs(){
