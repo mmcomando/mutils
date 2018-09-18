@@ -136,24 +136,39 @@ void serializeIdentifier(bool load, Container)(ref TokenData token, ref Containe
 }
 
 void serializeStringToken(bool load, Container)(ref TokenData token, ref Container con) {
-	import std.string;
-
 	static if (load == true) {
-		char fch = con[0];
-		if (fch == '"') {
-			size_t end = con[1 .. $].indexOf('"');
-			if (end == -1) {
-				end = con.length;
-				token.str = con[1 .. end];
-				con = con[end .. $];
-			} else {
-				end += 1;
-				token.str = con[1 .. end];
-				con = con[end + 1 .. $];
-			}
-
-		}
 		token.type = StandardTokens.string_;
+		assert(con[0]=='"');
+		if(con.length<2){
+			token.str = null;
+			con = null;
+			return;
+		}
+		if (con[0..2] == `""`) {
+			token.str = null;
+			con = con[2 .. $];
+			return;
+		}
+		//char fch = con[0];
+		con = con[1 .. $];
+		size_t end = 0;
+		bool ignoreNext=false;
+		foreach (i; 1..con.length) {
+			if (ignoreNext) {
+				ignoreNext = false;
+				continue;
+			}
+			if (con[i] == '\\') {
+				ignoreNext=true;
+				continue;
+			}
+			if (con[i] == '"') {
+				end=i;
+				break;
+			}
+		}
+		token.str = con[0 .. end];
+		con = con[end+1 .. $];
 	} else {
 		if (token.type == StandardTokens.string_) {
 			con ~= token.str;
@@ -314,6 +329,8 @@ struct TokenData {
 					copy ~= '\\';
 				} else if (nextCh == '/') {
 					copy ~= '/';
+				}else if (nextCh == '"') {
+					copy ~= '"';
 				}
 			}
 			if (ch == '\\') {

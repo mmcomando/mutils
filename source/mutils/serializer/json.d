@@ -109,7 +109,6 @@ unittest {
 	//load
 	__gshared static JSONSerializer serializer = new JSONSerializer();
 	serializer.serialize!(Load.yes)(test, cast(char[]) str);
-	//writeln(test);
 	assert(test.a == 1);
 	assert(test.b == 145);
 	assert(test.c == "asdasdas asdasdas asdasd asd");
@@ -636,6 +635,29 @@ unittest {
 
 	assert(tokens.length == 13);
 }
+
+// Test escaping
+unittest {
+	string str = `
+{
+  "json":"{\n     \"lineData\":[\n                {\"time\":0.0, \"setCamPos\": true},\n                {\"time\":1.0    , \"triggerEvent\":  \"gendialog0.json\", \"setCamPos\": true},\n     ],\n    \n}",
+
+}
+`;
+	static struct TestStruct {
+		@("malloc") string json;
+	}
+
+	TestStruct test;
+	JSONLexer lex = JSONLexer(cast(string) str, true, true);
+	auto tokens = lex.tokenizeAll();
+
+	//load
+	__gshared static JSONSerializerToken serializer = new JSONSerializerToken();
+	auto ttt = tokens[];
+	assert(tokens.length == 7);
+}
+
 
 // test formating
 unittest {

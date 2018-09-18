@@ -89,7 +89,6 @@ unittest {
 
 	//save
 	LuaSerializer.instance.serialize!(Load.no)(test, container);
-	//writeln(container[]);
 
 	//reset var
 	test = TestStruct.init;
