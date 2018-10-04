@@ -24,6 +24,10 @@ struct EntityIdNR {
 	StringIntern triggerEventOnDestroy;
 	bool doSerialization = true;
 	int type = int.max;
+
+	StableId stableIdNoAutoAdd() {
+		return id;
+	}
 }
 
 bool hasComponent(Entity, Components...)() {
@@ -175,7 +179,7 @@ struct EntityManager(ENTS) {
 				break;
 			}
 
-			assert(0, "There is no entity represented by this EntityId enum.");//TODO log
+			assert(0, "There is no entity represented by this EntityId enum."); //TODO log
 			//return false;
 		}
 
