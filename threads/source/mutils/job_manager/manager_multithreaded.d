@@ -3,7 +3,9 @@ Module implements multithreaded job manager with fibers (coroutines).
 Thanks to fibers any task can be stopped in the middle of execution and started again by this manager.
 Fibers are bound to one thread due to TLS issues and performance reasons.
  */
+
 module mutils.job_manager.manager_multithreaded;
+//module mutils.job_manager.manager_multithreadeddd; version(none):
 
 import core.atomic;
 import core.stdc.stdio;
@@ -14,7 +16,7 @@ import mutils.container.vector;
 import mutils.container_shared.shared_queue;
 import mutils.job_manager.fiber_cache;
 import mutils.job_manager.manager_utils;
-import mutils.thread : Fiber, Thread;
+import mutils.thread : Fiber, Thread, Semaphore;
 
 enum threadsPerCPU = 4;
 
@@ -41,30 +43,32 @@ struct JobManager {
 		}
 
 		void jobsAddedAdd(int num = 1) {
-			atomicOp!"+="(jobsAdded, num);
+			//atomicOp!"+="(jobsAdded, num);
 		}
 
 		void jobsDoneAdd(int num = 1) {
-			atomicOp!"+="(jobsDone, num);
+			//atomicOp!"+="(jobsDone, num);
 		}
 
 		void fibersAddedAdd(int num = 1) {
-			atomicOp!"+="(fibersAdded, num);
+			//atomicOp!"+="(fibersAdded, num);
 		}
 
 		void fibersDoneAdd(int num = 1) {
-			atomicOp!"+="(fibersDone, num);
+			//atomicOp!"+="(fibersDone, num);
 		}
 
 	}
 
 	DebugHelper debugHelper;
 	//jobs managment
-	private JobVector waitingJobs;
+	private Vector!JobVector waitingJobs;
 	//fibers managment
 	private Vector!FiberVector waitingFibers;
 	//thread managment
 	private Vector!Thread threadPool;
+	Vector!int jobsDone;
+	Vector!Semaphore semaphores;
 	bool exit;
 
 	private void initialize(uint threadsCount = 0) {
@@ -75,22 +79,35 @@ struct JobManager {
 			threadsCount = 4;
 		waitingFibers.length = threadsCount;
 		threadPool.length = threadsCount;
+		jobsDone.length = threadsCount;
+		waitingJobs.length = threadsCount;
+		semaphores.length = threadsCount;
 		foreach (ref f; waitingFibers)
 			f.initialize();
+		foreach (ref s; semaphores)
+			s.initialize();
 		foreach (uint i; 0 .. threadsCount) {
 			threadPool[i].threadNum = i;
 			threadPool[i].setDg(&threadRunFunction);
+			waitingJobs[i].initialize();
 		}
 
-		waitingJobs.initialize();
+		//waitingJobs.initialize();
 		version (Android)
 			rt_init();
 	}
 
 	void clear() {
-		waitingJobs.clear();
+		foreach (ref wj; waitingJobs) {
+			wj.clear();
+		}
+		foreach (ref ss; semaphores) {
+			ss.destroy();
+		}
+		//waitingJobs.clear();
 		waitingFibers.clear();
 		threadPool.clear();
+		//semaphore.destroy();
 	}
 
 	void start() {
@@ -146,6 +163,10 @@ struct JobManager {
 
 	void end() {
 		exit = true;
+		foreach (i, ref thread; threadPool) {
+			semaphores[i].post();
+
+		}
 		foreach (ref thread; threadPool) {
 			thread.join;
 		}
@@ -163,6 +184,7 @@ struct JobManager {
 		assert(fiberData.fiber.state != Fiber.State.TERM); //  && fiberData.fiber.state!=Fiber.State.EXEC - cannot be added because addThisFiberAndYield violates this assertion
 		debugHelper.fibersAddedAdd();
 		waitingFibers[fiberData.threadNum].add(fiberData);
+		semaphores[fiberData.threadNum].post();
 	}
 
 	// Only for tests - fiber should not add itself to execution
@@ -171,14 +193,45 @@ struct JobManager {
 		Fiber.yield();
 	}
 
+	int addTo;
 	void addJob(JobDelegate* del) {
 		debugHelper.jobsAddedAdd();
-		waitingJobs.add(del);
+		//waitingJobs.add(del);
+
+		int queNum = addTo % cast(int) waitingJobs.length;
+		waitingJobs[queNum].add(del);
+		semaphores[queNum].post();
+		addTo++;
+		//		semaphore.post();
 	}
 
+	import std.stdio;
+
 	void addJobs(JobDelegate*[] dels) {
+		//writeln("addJobs START");
 		debugHelper.jobsAddedAdd(cast(int) dels.length);
-		waitingJobs.add(dels);
+
+		int part = cast(int)(dels.length / waitingJobs.length);
+		if (part > 0) {
+			foreach (i, ref wj; waitingJobs) {
+				wj.add(dels[i * part .. (i + 1) * part]);
+				//writeln(i, " add ", i * part ," | ", (i + 1) * part);
+
+				foreach (kkk; 0 .. part)
+					semaphores[i].post();
+				//semaphore.post();
+			}
+			dels = dels[part * waitingJobs.length .. $];
+		}
+		foreach (del; dels) {
+			int queNum = addTo % cast(int) waitingJobs.length;
+			//writeln(" add to ", queNum);
+			waitingJobs[queNum].add(del);
+			semaphores[queNum].post();
+			addTo++;
+			//semaphore.post();
+		}
+		//writeln("addJobs END");
 	}
 
 	void addJobAndYield(JobDelegate* del) {
@@ -210,33 +263,74 @@ struct JobManager {
 	}
 
 	void runNextJob() {
-		static int nothingToDoNum = 0;
+		__gshared static int nothingToDoNum = 0;
 		static int dummySink = 0;
 		Fiber fiber;
-		FiberData fd = waitingFibers[jobManagerThreadNum].pop;
+		int jobManagerThreadNumLLL = jobManagerThreadNum;
+
+		//while (fiber is null) {
+		FiberData fd = waitingFibers[jobManagerThreadNumLLL].pop;
 		FiberData varInit;
 		if (fd != varInit) {
 			fiber = fd.fiber;
+			//semaphore.post();
 			debugHelper.fibersDoneAdd();
-		} else if (!waitingJobs.empty) {
+			//jobsDone[jobManagerThreadNumLLL]++;
+
+		} else {
 			JobDelegate* job;
-			job = waitingJobs.pop();
+
+			job = waitingJobs[jobManagerThreadNumLLL].pop();
 			if (job !is null) {
 				debugHelper.jobsDoneAdd();
+				//jobsDone[jobManagerThreadNumLLL]++;
 				fiber = allocateFiber(*job);
+			} else {
+				//write("JJ_");
+
 			}
 		}
+		/*else if (!waitingJobs[jobManagerThreadNumLLL].empty) {
+				JobDelegate* job;
+				job = waitingJobs[jobManagerThreadNumLLL].tryPop();
+				if (job !is null) {
+					debugHelper.jobsDoneAdd();
+					jobsDone[jobManagerThreadNumLLL]++;
+					fiber = allocateFiber(*job);
+				}
+			} else {
+				foreach (i, ref wj; waitingJobs) {
+					if(i==jobManagerThreadNumLLL)continue;
+					if (!wj.empty) {
+						JobDelegate* job;
+						job = wj.tryPop();
+						if (job !is null) {
+							debugHelper.jobsDoneAdd();
+							jobsDone[jobManagerThreadNumLLL]++;
+							fiber = allocateFiber(*job);
+			writeln("WW");
+							break;
+						}
+					}
+				}
+			}*/
+		//}
 		//nothing to do
 		if (fiber is null) {
+			//writeln("NN");
+			//nothingToDoNum++;
+			//writeln(nothingToDoNum);
+			//semaphore.post();
+			/*int nnnn = nothingToDoNum;
 			nothingToDoNum++;
 			if (nothingToDoNum > 5) {
-				Thread.sleep(1);
+				//Thread.sleep(1);
 				//foreach(i;0..random()%2000)dummySink+=random()%2;//backoff
 				nothingToDoNum = 0;
 			} else {
 				foreach (i; 0 .. rand() % 20)
 					dummySink += rand() % 2; //backoff
-			}
+			}*/
 			return;
 		}
 		//do the job
@@ -252,9 +346,19 @@ struct JobManager {
 
 	void threadRunFunction() {
 		Fiber.initializeStatic();
+		int jobManagerThreadNumLLL = jobManagerThreadNum;
+		int mywaits = 0;
 		while (!exit) {
+			mywaits++;
+			semaphores[jobManagerThreadNumLLL].wait();
+		//if(semaphores[jobManagerThreadNumLLL].waits - semaphores[jobManagerThreadNumLLL].posts<0){
+		//	writeln(jobManagerThreadNumLLL, " | ", semaphores[jobManagerThreadNumLLL].waits ," ", semaphores[jobManagerThreadNumLLL].posts);
+		//}
+			//writeln(semaphores[jobManagerThreadNumLLL]);
 			runNextJob();
 		}
+		//writeln(mywaits, "  ", semaphores[jobManagerThreadNumLLL], " | ",
+		//		semaphores[jobManagerThreadNumLLL].waits - semaphores[jobManagerThreadNumLLL].posts);
 		fibersCache.clear();
 	}
 

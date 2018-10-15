@@ -249,7 +249,7 @@ void test(uint threadsNum = 16) {
 			callAndWait!(UnDel)((&testUnique).toDelegate);
 			callAndWait!(UnDel)((&testPerformance).toDelegate);
 			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
-			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
 			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 		}
