@@ -23,17 +23,17 @@ Fiber newFiber() {
 	return fiber;
 }
 
-Vector!Fiber array;
-uint used = 0;
-
 struct FiberTLSCache {
+
+	align(64) Vector!Fiber array;
+	align(64) uint used = 0;
 
 	void clear() {
 		array.clear();
 		used = 0;
 	}
 
-	Fiber getData(uint, uint) {
+	Fiber getData() {
 		Fiber fiber;
 		if (array.length <= used) {
 			fiber = newFiber();
@@ -46,7 +46,7 @@ struct FiberTLSCache {
 		return fiber;
 	}
 
-	void removeData(Fiber obj, uint, uint) {
+	void removeData(Fiber obj) {
 		foreach (i, fiber; array) {
 			if (cast(void*) obj == cast(void*) fiber) {
 				array[i] = array[used - 1];

@@ -12,11 +12,6 @@ import mutils.job_manager.shared_utils;
 import mutils.job_manager.utils;
 import mutils.thread : Fiber;
 
-//alias CacheVector=FiberNoCache;
-//alias CacheVector=FiberOneCache;
-//alias CacheVector=FiberVectorCache;
-alias CacheVector = FiberTLSCache;
-
 __gshared JobManager jobManager = new JobManager;
 
 class JobManager {
@@ -117,19 +112,17 @@ class JobManager {
 		debugHelper.fibersDoneAdd();
 	}
 
-	CacheVector fibersCache;
-	uint fibersMade;
+	FiberTLSCache fibersCache;
 	Fiber allocateFiber(JobDelegate del) {
 		Fiber fiber;
-		fiber = fibersCache.getData(0, 1);
+		fiber = fibersCache.getData();
 		assert(fiber.state == Fiber.State.TERM);
 		fiber.reset(del);
-		fibersMade++;
 		return fiber;
 	}
 
 	void deallocateFiber(Fiber fiber) {
-		fibersCache.removeData(fiber, 0, 1);
+		fibersCache.removeData(fiber);
 	}
 
 }

@@ -173,9 +173,9 @@ __gshared float base = 1;
 void testPerformanceMatrix() {
 	import std.parallelism;
 
-	uint partsNum = 16;
+	uint partsNum = 128;
 	uint iterations = 100;
-	uint matricesNum = 512;
+	uint matricesNum = 512*64;
 	assert(matricesNum % partsNum == 0);
 	mat4[] matricesA = Mallocator.instance.makeArray!mat4(matricesNum);
 	mat4[] matricesB = Mallocator.instance.makeArray!mat4(matricesNum);
@@ -219,7 +219,7 @@ void testForeach() {
 }
 
 void testGroupStart() {
-	if (jobManager.threadsNum == 1) {
+	if (jobManager.threadsCount == 1) {
 		return;
 	}
 	uint partsNum = 100;
@@ -258,7 +258,6 @@ void test(uint threadsNum = 16) {
 
 	jobManager.startMainLoop(&startTest, threadsNum);
 	jobManager.clear();
-	printf("Test end\n");
 }
 
 void testScalability() {

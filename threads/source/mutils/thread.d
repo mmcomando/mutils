@@ -12,6 +12,8 @@ import mutils.job_manager.manager_utils;
 version (Posix) {
 	import core.sys.posix.pthread;
 	import core.sys.posix.semaphore;
+
+	import core.sys.posix.sched : sched_yield;
 } else version (Windows) {
 	import mutils.bindings.pthreads_windows;
 } else {
@@ -36,23 +38,17 @@ import core.atomic;
 
 struct Semaphore {
 	sem_t mutex;
-	align(64) shared uint waits;
-	align(64) shared uint posts;
 
 	void initialize() {
 		sem_init(&mutex, 0, 0);
 	}
 
 	void wait() {
-		//waits += 1;
-		//atomicOp!"+="(waits, 1);
 		int ret = sem_wait(&mutex);
 		assert(ret == 0);
 	}
 
 	void post() {
-		//posts += 1;
-		//atomicOp!"+="(posts, 1);
 		int ret = sem_post(&mutex);
 		assert(ret == 0);
 	}
@@ -75,132 +71,62 @@ struct Mutex {
 
 	bool tryLock() {
 		int ret = pthread_mutex_trylock(&mutex);
-		return ret == 0; // The pthread_mutex_trylock() function shall return zero if a lock on the mutex object referenced by mutex is acquired. 
+		return ret == 0;
 	}
 
 	void unlock() {
 		pthread_mutex_unlock(&mutex);
 	}
 }
-       // immutable step = 1 << SpinLock.Contention.lengthy;
-//pragma(msg,         step);
-import core.internal.spinlock;
-
-	import core.sys.posix.sched;
-
 
 struct MutexSpinLock {
 	align(64) shared size_t lockVar;
-   //shared  SpinLock lockkk = SpinLock(SpinLock.Contention.medium);
 
 	void initialzie() {
 	}
 
 	void lock() {
-        //lockkk.lock();
-
-		if (cas(&lockVar, size_t(0), size_t(1)))
+		if (cas(&lockVar, size_t(0), size_t(1))) {
 			return;
-		// Try to reduce the chance of another cas failure
-		// TTAS lock (https://en.wikipedia.org/wiki/Test_and_test-and-set)
-		//immutable step = 1 << contention;
+		}
 		while (true) {
-			for (size_t n; atomicLoad!(MemoryOrder.raw)(lockVar); ) {
-				if(n<8){
+			for (size_t n; atomicLoad!(MemoryOrder.raw)(lockVar);) {
+				if (n < 8) {
 					pause();
-				}else{
+				} else {
 					sched_yield();
 				}
 			}
-
-			//while (atomicLoad!(MemoryOrder.raw)(lockVar))  {
-					pause();
-				
-			//}
-			if (cas(&lockVar, size_t(0), size_t(1)))
-			//if (cas(&lockVar, false, true))
+			if (cas(&lockVar, size_t(0), size_t(1))) {
 				return;
+			}
 		}
 
-		/*if (cas(&lockVar, size_t(0), size_t(1)))
-		//if (cas(&lockVar, false, true))
-			return;
-		// Try to reduce the chance of another cas failure
-		// TTAS lock (https://en.wikipedia.org/wiki/Test_and_test-and-set)
-		//immutable step = 1 << contention;
-		while (true) {
-			//for (size_t n; atomicLoad!(MemoryOrder.raw)(val); n += step) {
-			while (atomicLoad!(MemoryOrder.raw)(lockVar))  {
-				version (X86_64) {
-					version (LDC) {
-						import ldc.gccbuiltins_x86;
-
-						__builtin_ia32_pause();
-					} else version (DigitalMars) {
-						asm {
-							rep;
-							nop;
-						}
-
-					} else {
-						static assert(0);
-					}
-				}
-			}
-			if (cas(&lockVar, size_t(0), size_t(1)))
-			//if (cas(&lockVar, false, true))
-				return;
-		}*/
-
-		/*while (!cas(&lockVar, size_t(0), size_t(1))) {
-		//while (!cas(&lockVar, false, true)) {
-			version (X86_64) {
-				version (LDC) {
-					import ldc.gccbuiltins_x86;
-
-					__builtin_ia32_pause();
-				} else version (DigitalMars) {
-					asm {
-						rep;
-						nop;
-					}
-
-				} else {
-					static assert(0);
-				}
-			}
-		}*/
 	}
 
-	void pause(){
-	version (X86_64) {
-					version (LDC) {
-						import ldc.gccbuiltins_x86;
+	void pause() {
+		version (X86_64) {
+			version (LDC) {
+				import ldc.gccbuiltins_x86 : __builtin_ia32_pause;
 
-						__builtin_ia32_pause();
-					} else version (DigitalMars) {
-						asm {
-							rep;
-							nop;
-						}
-
-					} else {
-						static assert(0);
-					}
+				__builtin_ia32_pause();
+			} else version (DigitalMars) {
+				asm {
+					rep;
+					nop;
 				}
+
+			} else {
+				static assert(0);
+			}
+		}
 	}
 
 	bool tryLock() {
-        //lockkk.lock();
-		//return true;
 		return cas(&lockVar, size_t(0), size_t(1));
-		//return cas(&lockVar, false, true);
 	}
 
 	void unlock() {
-        //lockkk.unlock();
-		//atomicStore(lockVar, false);
-		//atomicStore!(MemoryOrder.rel)(lockVar, false);
 		atomicStore!(MemoryOrder.rel)(lockVar, size_t(0));
 	}
 }
@@ -338,20 +264,22 @@ final class Fiber {
 	//@disable this(this);
 	alias DG = void delegate();
 
-	enum State {
+	enum State : ubyte {
 		HOLD = 0,
 		TERM = 1,
 		EXEC = 2,
 	}
 
-	DG threadStart;
-	size_t pageSize = PAGESIZE * 32u;
-	State state;
+
 	align(128) coro_context context;
+	DG threadStart;
 	Fiber lastFiber;
-	bool created = false;
-	uint myThreadNum = int.max;
 	Thread* myThread;
+	uint myThreadNum = int.max;
+	size_t pageSize = PAGESIZE * 32u;
+
+	bool created = false;
+	State state;
 
 	this() {
 		myThreadNum = jobManagerThreadNum;

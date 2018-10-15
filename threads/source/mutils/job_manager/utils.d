@@ -3,9 +3,11 @@
  */
 module mutils.job_manager.utils;
 
+import std.stdio;
+
 void assertM(A, B, string file = __FILE__, uint line = __LINE__)(A a, B b) {
 	if (a != b) {
-		//writefln("File: %s:%s  A: %s, B: %s",file,line,a,b);
+		debug writefln("File: %s:%s  A: %s, B: %s",file,line,a,b);
 		assert(a == b);
 	}
 }
