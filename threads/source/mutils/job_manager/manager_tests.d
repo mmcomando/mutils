@@ -85,6 +85,7 @@ void testRandomRecursionJobs() {
 	assert(jobManager.debugHelper.fibersDone == jobsRun + 2);
 }
 
+//__gshared long best=0;
 void testPerformance() {
 	uint iterations = 1000;
 	uint packetSize = 1000;
@@ -108,6 +109,7 @@ void testPerformance() {
 	sw.stop();
 	long perMs = iterations * packetSize / sw.msecs;
 	printf("Performacnce performacnce: %dms, perMs: %d\n", cast(int)(sw.msecs), cast(int)(perMs));
+	//if(perMs>best)best=perMs;
 
 }
 
@@ -317,7 +319,7 @@ void testGroupsDependices() {
 	groupA.start();
 	groupB.start();
 
-	groupE.waitForDependices();
+	groupE.waitForCompletion();
 
 	foreach (el; elements) {
 		assertM(el, -1_000_111);
@@ -329,18 +331,19 @@ void test(uint threadsNum = 16) {
 
 	GC.disable();
 	static void startTest() {
-		foreach (i; 0 .. 1) {
+		foreach (i; 0 .. 30) {
 			alias UnDel = void delegate();
-			testForeach();
-			makeTestJobsFrom(&testFiberLockingToThread, 100);
-			callAndWait!(UnDel)((&testUnique).toDelegate);
-			callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
+			//testForeach();
+			//makeTestJobsFrom(&testFiberLockingToThread, 100);
+			//callAndWait!(UnDel)((&testUnique).toDelegate);
+			//callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
 			callAndWait!(UnDel)((&testPerformance).toDelegate);
-			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
-			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			//callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
-			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
+			//callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 		}
+		//writeln(best);
 
 	}
 

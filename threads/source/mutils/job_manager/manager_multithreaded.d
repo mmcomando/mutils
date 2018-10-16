@@ -11,6 +11,7 @@ import core.atomic;
 import core.stdc.stdio;
 import core.stdc.stdlib : rand;
 import std.functional : toDelegate;
+import std.stdio;
 
 import mutils.container.vector;
 import mutils.container_shared.shared_queue;
@@ -201,7 +202,6 @@ struct JobManager {
 		addJobToQueueNum++;
 	}
 
-	import std.stdio;
 
 	void addJobs(JobDelegate*[] dels) {
 		debugHelper.jobsAddedAdd(cast(int) dels.length);

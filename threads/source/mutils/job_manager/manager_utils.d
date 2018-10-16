@@ -173,7 +173,7 @@ struct UniversalJobGroupNew {
 		jobManager.addJobsAndYield(jobPointers[]);
 	}
 
-	void waitForDependices() {
+	void waitForCompletion() {
 		runOnJobsDone = true;
 		waitingFiber = getFiberData();
 		Fiber.yield();
