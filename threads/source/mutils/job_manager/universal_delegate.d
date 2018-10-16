@@ -30,8 +30,9 @@ struct UniversalDelegate(Delegate) {
 	enum hasReturn = !is(ReturnType!Delegate == void);
 	Delegate deleg;
 	getDelegateArgumentsSave!Delegate argumentsSave; //for ref variables pointer is saved
-	static if (hasReturn)
+	static if (hasReturn){
 		ReturnType!Delegate result;
+	}
 
 	this(Delegate del, Parameters!Delegate args) {
 		static assert(Parameters!(Delegate).length == args.length, "Parameters have to match");
@@ -79,8 +80,9 @@ struct UniversalDelegate(Delegate) {
 				*a = argumentsTmp[i];
 			}
 		}
-		static if (hasReturn)
+		static if (hasReturn){
 			return result;
+		}
 	}
 
 	void callAndSaveReturn() {

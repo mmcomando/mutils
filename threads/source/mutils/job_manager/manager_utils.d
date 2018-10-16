@@ -37,7 +37,7 @@ FiberData getFiberData() {
 }
 
 struct Counter {
-	enum uint invalidCoun = 10000;
+	enum uint invalidCount = 10000;
 
 	align(64) shared int count;
 	align(64) FiberData waitingFiber;
@@ -47,14 +47,14 @@ struct Counter {
 	}
 
 	bool countedToZero() {
-		return atomicLoad(count) == invalidCoun;
+		return atomicLoad(count) == invalidCount;
 	}
 
 	void decrement() {
-		assert(atomicLoad(count) < invalidCoun - 1000);
+		assert(atomicLoad(count) < invalidCount - 1000);
 
 		atomicOp!"-="(count, 1);
-		bool ok = cas(&count, 0, invalidCoun);
+		bool ok = cas(&count, 0, invalidCount);
 		if (ok && waitingFiber.fiber !is null) {
 			jobManager.addFiber(waitingFiber);
 			//waitingFiber.fiber=null;//makes deadlock maybe atomicStore would help or it shows some bug??
@@ -87,6 +87,111 @@ struct UniversalJob(Delegate) {
 		//runDel=&run;
 	}
 
+}
+//It is faster to add array of jobs
+struct UniversalJobGroup222 {
+	import mutils.container.vector;
+
+	enum uint invalidCount = 10000;
+	alias Delegate = void delegate();
+
+	bool runOnJobsDone;
+	bool spawnOnDependencyFulfilled;
+	align(64) shared int dependicesWaitCount;
+	Vector!(UniversalJobGroup222*) children;
+
+	Vector!Job jobs;
+	Vector!(JobDelegate*) jobPointers;
+
+	align(64) shared int countJobsToBeDone;
+	align(64) FiberData waitingFiber;
+
+	static struct Job {
+		UniversalJobGroup222* group;
+		Delegate delegateToCall;
+		Delegate delegateJob; // JobManager takes pointer to delegate, so there will be stored callJob delegate (&callJob)
+
+		void callJob() {
+			delegateToCall();
+
+			atomicOp!"-="(group.countJobsToBeDone, 1);
+			bool ok = cas(&group.countJobsToBeDone, 0, invalidCount);
+			if (ok) {
+				group.onJobsCounterZero();
+			}
+		}
+
+	}
+
+	void dependantOn(UniversalJobGroup222* parent) {
+		parent.children ~= &this;
+		atomicOp!"+="(dependicesWaitCount, 1);
+		//dependicesWaitCount += 1;
+	}
+
+	import std.stdio;
+
+	void onJobsCounterZero() {
+		//writeln("onJobsCounterZero");
+		decrementChildrenDependices();
+
+
+		if (runOnJobsDone) {
+			//writeln("runOnJobsDone");
+			jobManager.addFiber(waitingFiber);
+		}
+	}
+
+	void decrementChildrenDependices() {
+		//writeln("decrementChildrenDependices: ", children.length);
+		foreach (UniversalJobGroup222* group; children) {
+			assert(atomicLoad(group.dependicesWaitCount) < invalidCount - 1000);
+
+			atomicOp!"-="(group.dependicesWaitCount, 1);
+			bool ok = cas(&group.dependicesWaitCount, 0, invalidCount);
+			if (ok) {
+				group.onDependicesCounterZero();
+			}
+
+		}
+	}
+
+	void onDependicesCounterZero() {
+		//writeln("onDependicesCounterZero");
+		//assert(!(runOnJobsDone && spawnOnDependencyFulfilled),
+		//		"runOnJobsDone and spawnOnDependencyFulfilled can not be true at once");
+
+		if (spawnOnDependencyFulfilled) {
+			//writeln("spawnOnDependencyFulfilled");
+			start();
+		}
+	}
+
+	void start() {
+		setUpJobs();
+		//counter.waitingFiber = getFiberData();
+		jobManager.addJobs(jobPointers[]);
+		//decrementChildrenDependices();
+	}
+
+	void waitForDependices() {
+		runOnJobsDone = true;
+		waitingFiber = getFiberData();
+		Fiber.yield();
+	}
+
+	void add(Delegate del) {
+		jobs ~= Job(&this, del);
+	}
+
+	auto setUpJobs() {
+		countJobsToBeDone = cast(int) jobs.length;
+		jobPointers.length = jobs.length;
+		foreach (i, ref jj; jobs) {
+			jj.delegateJob = &jj.callJob;
+			jobPointers[i] = &jj.delegateJob;
+		}
+	}
 }
 
 //It is faster to add array of jobs
@@ -132,7 +237,7 @@ struct UniversalJobGroup(Delegate) {
 		//		"UniversalJobGroup delegate can not have return value when callAndRunEndFunction() is used");
 		setUpJobs();
 		counter.waitingFiber = getFiberData();
-		jobManager.addJobsAndYield(dels[0..jobsAdded]);
+		jobManager.addJobsAndYield(dels[0 .. jobsAdded]);
 		assert(delegateOnEnd !is null, "delegateOnEnd can not be null");
 		delegateOnEnd();
 	}
@@ -141,7 +246,7 @@ struct UniversalJobGroup(Delegate) {
 	auto callAndWait() {
 		setUpJobs();
 		counter.waitingFiber = getFiberData();
-		jobManager.addJobsAndYield(dels[0..jobsAdded]);
+		jobManager.addJobsAndYield(dels[0 .. jobsAdded]);
 		static if (UnJob.UnDelegate.hasReturn) {
 			return getReturnData();
 		}
@@ -161,13 +266,13 @@ struct UniversalJobGroup(Delegate) {
 
 	auto start() {
 		setUpJobs();
-		jobManager.addJobs(dels[0..jobsAdded]);
+		jobManager.addJobs(dels[0 .. jobsAdded]);
 	}
 
 private:
 	auto setUpJobs() {
 		counter.count = jobsAdded;
-		foreach (i, ref unJob; unJobs[0..jobsAdded]) {
+		foreach (i, ref unJob; unJobs[0 .. jobsAdded]) {
 			unJob.counter = &counter;
 			unJob.runDel = &unJob.runWithCounter;
 			dels[i] = &unJob.runDel;
