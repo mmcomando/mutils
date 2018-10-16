@@ -88,7 +88,7 @@ struct UniversalJob(Delegate) {
 	}
 
 }
-//It is faster to add array of jobs
+// It is faster to add array of jobs
 struct UniversalJobGroup222 {
 	import mutils.container.vector;
 
@@ -96,7 +96,7 @@ struct UniversalJobGroup222 {
 	alias Delegate = void delegate();
 
 	bool runOnJobsDone;
-	bool spawnOnDependencyFulfilled;
+	bool spawnOnDependenciesFulfilled;
 	align(64) shared int dependicesWaitCount;
 	Vector!(UniversalJobGroup222*) children;
 
@@ -108,11 +108,17 @@ struct UniversalJobGroup222 {
 
 	static struct Job {
 		UniversalJobGroup222* group;
-		Delegate delegateToCall;
+		void function(ubyte*) delegateUNB;
+		//Delegate delegateToCall;
 		Delegate delegateJob; // JobManager takes pointer to delegate, so there will be stored callJob delegate (&callJob)
+		ubyte[64] memoryForUserDelegate;
 
 		void callJob() {
-			delegateToCall();
+			if (delegateUNB is null) {
+				//delegateToCall();
+			} else {
+				delegateUNB(memoryForUserDelegate.ptr);
+			}
 
 			atomicOp!"-="(group.countJobsToBeDone, 1);
 			bool ok = cas(&group.countJobsToBeDone, 0, invalidCount);
@@ -126,7 +132,6 @@ struct UniversalJobGroup222 {
 	void dependantOn(UniversalJobGroup222* parent) {
 		parent.children ~= &this;
 		atomicOp!"+="(dependicesWaitCount, 1);
-		//dependicesWaitCount += 1;
 	}
 
 	import std.stdio;
@@ -134,7 +139,6 @@ struct UniversalJobGroup222 {
 	void onJobsCounterZero() {
 		//writeln("onJobsCounterZero");
 		decrementChildrenDependices();
-
 
 		if (runOnJobsDone) {
 			//writeln("runOnJobsDone");
@@ -158,11 +162,11 @@ struct UniversalJobGroup222 {
 
 	void onDependicesCounterZero() {
 		//writeln("onDependicesCounterZero");
-		//assert(!(runOnJobsDone && spawnOnDependencyFulfilled),
-		//		"runOnJobsDone and spawnOnDependencyFulfilled can not be true at once");
+		//assert(!(runOnJobsDone && spawnOnDependenciesFulfilled),
+		//		"runOnJobsDone and spawnOnDependenciesFulfilled can not be true at once");
 
-		if (spawnOnDependencyFulfilled) {
-			//writeln("spawnOnDependencyFulfilled");
+		if (spawnOnDependenciesFulfilled) {
+			//writeln("spawnOnDependenciesFulfilled");
 			start();
 		}
 	}
@@ -180,8 +184,23 @@ struct UniversalJobGroup222 {
 		Fiber.yield();
 	}
 
-	void add(Delegate del) {
-		jobs ~= Job(&this, del);
+	/*void add(Delegate del) {
+		//jobs ~= Job(&this, del);
+		addUND!(typeof(del))(del);
+	}*/
+
+	void add(DG)(DG del, Parameters!(DG) args) {
+		auto und=UniversalDelegate!(typeof(del))(del, args);
+		ubyte[] delBytes = und.toBytes();
+
+		Job job;
+		job.group=&this;
+		job.memoryForUserDelegate[0 .. delBytes.length] = delBytes[0 .. delBytes.length];
+		job.delegateUNB = &und.callFromBytes;
+
+		jobs ~= job;
+
+		static assert(und.sizeof<=Job.memoryForUserDelegate.length);
 	}
 
 	auto setUpJobs() {

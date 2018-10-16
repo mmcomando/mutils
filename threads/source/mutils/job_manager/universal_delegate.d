@@ -92,6 +92,17 @@ struct UniversalDelegate(Delegate) {
 			call();
 		}
 	}
+
+
+	ubyte[] toBytes(){
+		ubyte* me=cast(ubyte*)&this;
+		return me[0..typeof(this).sizeof];
+	}
+
+	static void callFromBytes(ubyte* ptr){
+		 auto me=cast(typeof(this)*)ptr;
+		 me.callAndSaveReturn();
+	}
 }
 
 template getPointer(T) {

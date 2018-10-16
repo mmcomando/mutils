@@ -330,51 +330,9 @@ void testGroupsDependices() {
 	}
 }
 
-struct HelperRR {
-	int[] arr;
-	int[] arrB;
-	void testGroupsDependicesFuncA() {
-		//writeln("AAAA");
-		foreach (ref el; arr) {
-			el = 1;
-		}
-	}
-
-	void testGroupsDependicesFuncB() {
-		//writeln("BBBB");
-		foreach (ref el; arr) {
-			el = 1_000_000;
-		}
-	}
-
-	void testGroupsDependicesFuncC() {
-		//writeln("CCC");
-		foreach (ref el; arr) {
-			el *= 201;
-		}
-	}
-
-	void testGroupsDependicesFuncD() {
-		//writeln("DDD");
-		foreach (ref el; arr) {
-			el -= 90;
-		}
-	}
-
-	void testGroupsDependicesFuncE() {
-		//writeln("EE");
-		assert(arr.length == arrB.length);
-		foreach (i; 0 .. arr.length) {
-			arr[i] += arrB[i];
-			arr[i] *= -1;
-		}
-	}
-}
-
 void testGroupsDependices222() {
 
 	enum uint partsNum = 512;
-	//enum uint iterations = 100;
 	enum uint elementsNum = 512 * 512;
 	enum uint step = elementsNum / partsNum;
 	int[] elements = Mallocator.instance.makeArray!int(elementsNum);
@@ -385,41 +343,33 @@ void testGroupsDependices222() {
 	}
 	alias ddd = void function(int[]);
 	alias dddSum = void function(int[], int[]);
-	alias dddParrallelGroups = void delegate();
 
 	auto groupA = UniversalJobGroup222();
 	auto groupB = UniversalJobGroup222();
 	auto groupC = UniversalJobGroup222();
 	auto groupD = UniversalJobGroup222();
 	auto groupE = UniversalJobGroup222();
-	HelperRR[5][partsNum] hhh;
 
 	foreach (int i; 0 .. partsNum) {
-		hhh[i][0] = HelperRR(elements[i * step .. (i + 1) * step]);
-		hhh[i][1] = HelperRR(elements2[i * step .. (i + 1) * step]);
-		hhh[i][2] = HelperRR(elements[i * step .. (i + 1) * step]);
-		hhh[i][3] = HelperRR(elements[i * step .. (i + 1) * step]);
-		hhh[i][4] = HelperRR(elements[i * step .. (i + 1) * step],
-				elements2[i * step .. (i + 1) * step]);
-		groupA.add(&hhh[i][0].testGroupsDependicesFuncA);
-		groupB.add(&hhh[i][1].testGroupsDependicesFuncB);
-		groupC.add(&hhh[i][2].testGroupsDependicesFuncC);
-		groupD.add(&hhh[i][3].testGroupsDependicesFuncD);
-		groupE.add(&hhh[i][4].testGroupsDependicesFuncE);
+		groupA.add!ddd(&testGroupsDependicesFuncA, elements[i * step .. (i + 1) * step]);
+		groupB.add!ddd(&testGroupsDependicesFuncB, elements2[i * step .. (i + 1) * step]);
+		groupC.add!ddd(&testGroupsDependicesFuncC, elements[i * step .. (i + 1) * step]);
+		groupD.add!ddd(&testGroupsDependicesFuncD, elements[i * step .. (i + 1) * step]);
+		groupE.add!dddSum(&testGroupsDependicesFuncE, elements[i * step .. (i + 1) * step], elements2[i * step .. (i + 1) * step]);
 	}
 
 	//---------- groupKK ------------
 	//groupA -> groupC -> groupD -> |
 	//groupB ->                     | groupE
 
-	groupE.spawnOnDependencyFulfilled = true;
-	groupE.runOnJobsDone = true;
+	groupE.spawnOnDependenciesFulfilled = true;
+	//groupE.runOnJobsDone = true;
 	groupE.dependantOn(&groupD);
 	groupE.dependantOn(&groupB);
 
-	groupC.spawnOnDependencyFulfilled = true;
+	groupC.spawnOnDependenciesFulfilled = true;
 	groupC.dependantOn(&groupA);
-	groupD.spawnOnDependencyFulfilled = true;
+	groupD.spawnOnDependenciesFulfilled = true;
 	groupD.dependantOn(&groupC);
 
 	groupA.start();
