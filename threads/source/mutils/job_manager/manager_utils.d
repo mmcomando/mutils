@@ -72,8 +72,9 @@ struct UniversalJob(Delegate) {
 	void runWithCounter() {
 		assert(counter !is null);
 		unDel.callAndSaveReturn();
-		static if (multithreadedManagerON)
+		static if (multithreadedManagerON) {
 			counter.decrement();
+		}
 	}
 	//had to be allcoated my Mallocator
 	void runAndDeleteMyself() {
@@ -90,19 +91,19 @@ struct UniversalJob(Delegate) {
 
 //It is faster to add array of jobs
 struct UniversalJobGroup(Delegate) {
+	alias DelegateOnEnd = void delegate();
 	alias UnJob = UniversalJob!(Delegate);
 	Counter counter;
-	uint jobsNum;
 	uint jobsAdded;
 	UnJob[] unJobs;
 	JobDelegate*[] dels;
+	DelegateOnEnd delegateOnEnd;
 
 	@disable this();
 	@disable this(this);
 
 	this(uint jobsNum) {
-		this.jobsNum = jobsNum;
-		mallocatorAllocate();
+		mallocatorAllocate(jobsNum);
 	}
 
 	~this() {
@@ -110,7 +111,6 @@ struct UniversalJobGroup(Delegate) {
 	}
 
 	void add(Delegate del, Parameters!(Delegate) args) {
-		assert(unJobs.length > 0 && jobsAdded < jobsNum);
 		unJobs[jobsAdded].initialize(del, args);
 		jobsAdded++;
 	}
@@ -123,11 +123,25 @@ struct UniversalJobGroup(Delegate) {
 		}
 	}
 
+	void setEndFunction(DelegateOnEnd del) {
+		delegateOnEnd = del;
+	}
+
+	void callAndRunEndFunction() {
+		//static assert(!UnJob.UnDelegate.hasReturn,
+		//		"UniversalJobGroup delegate can not have return value when callAndRunEndFunction() is used");
+		setUpJobs();
+		counter.waitingFiber = getFiberData();
+		jobManager.addJobsAndYield(dels[0..jobsAdded]);
+		assert(delegateOnEnd !is null, "delegateOnEnd can not be null");
+		delegateOnEnd();
+	}
+
 	//Returns data like getReturnData
 	auto callAndWait() {
 		setUpJobs();
 		counter.waitingFiber = getFiberData();
-		jobManager.addJobsAndYield(dels);
+		jobManager.addJobsAndYield(dels[0..jobsAdded]);
 		static if (UnJob.UnDelegate.hasReturn) {
 			return getReturnData();
 		}
@@ -147,28 +161,27 @@ struct UniversalJobGroup(Delegate) {
 
 	auto start() {
 		setUpJobs();
-		jobManager.addJobs(dels);
+		jobManager.addJobs(dels[0..jobsAdded]);
 	}
 
 private:
 	auto setUpJobs() {
-		assert(jobsAdded == jobsNum);
-		counter.count = jobsNum;
-		foreach (i, ref unJob; unJobs) {
+		counter.count = jobsAdded;
+		foreach (i, ref unJob; unJobs[0..jobsAdded]) {
 			unJob.counter = &counter;
 			unJob.runDel = &unJob.runWithCounter;
 			dels[i] = &unJob.runDel;
 		}
 	}
 
-	void mallocatorAllocate() {
+	void mallocatorAllocate(uint jobsNum) {
 		unJobs = Mallocator.instance.makeArray!(UnJob)(jobsNum);
 		dels = Mallocator.instance.makeArray!(JobDelegate*)(jobsNum);
 	}
 
 	void mallocatorDeallocate() {
-		memset(unJobs.ptr, 0, UnJob.sizeof * jobsNum);
-		memset(dels.ptr, 0, (JobDelegate*).sizeof * jobsNum);
+		memset(unJobs.ptr, 0, UnJob.sizeof * unJobs.length);
+		memset(dels.ptr, 0, (JobDelegate*).sizeof * unJobs.length);
 		Mallocator.instance.dispose(unJobs);
 		Mallocator.instance.dispose(dels);
 	}

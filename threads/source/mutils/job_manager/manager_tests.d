@@ -16,6 +16,8 @@ import mutils.job_manager.utils;
 import mutils.thread : Fiber, Thread;
 import mutils.time;
 
+import std.stdio;
+
 /// One Job and one Fiber.yield
 void simpleYield() {
 	auto fiberData = getFiberData();
@@ -28,6 +30,7 @@ void activeSleep(uint u_seconds) {
 	StopWatch sw;
 	sw.start();
 	while (sw.usecs < u_seconds) {
+		//writeln("kk");
 	} //for 10us will iterate ~120 tiems
 	sw.stop();
 
@@ -175,7 +178,7 @@ void testPerformanceMatrix() {
 
 	uint partsNum = 128;
 	uint iterations = 100;
-	uint matricesNum = 512*64;
+	uint matricesNum = 512 * 64;
 	assert(matricesNum % partsNum == 0);
 	mat4[] matricesA = Mallocator.instance.makeArray!mat4(matricesNum);
 	mat4[] matricesB = Mallocator.instance.makeArray!mat4(matricesNum);
@@ -232,9 +235,104 @@ void testGroupStart() {
 	group.start();
 	activeSleep(10);
 	assert(group.counter.count > 0 && !group.counter.countedToZero());
-	activeSleep(10000);
+	writeln("AAAAAAAAAA");
+	Thread.sleep(1000);
+	//activeSleep(1000_000);
+	writeln("BBBBbb");
 	assert(group.areJobsDone);
 
+}
+
+void testGroupsDependicesFuncA(int[] arr) {
+	//writeln("AAAA");
+	foreach (ref el; arr) {
+		el = 1;
+	}
+}
+
+void testGroupsDependicesFuncB(int[] arr) {
+	//writeln("BBBB");
+	foreach (ref el; arr) {
+		el = 1_000_000;
+	}
+}
+
+void testGroupsDependicesFuncC(int[] arr) {
+	//writeln("CCC");
+	foreach (ref el; arr) {
+		el *= 201;
+	}
+}
+
+void testGroupsDependicesFuncD(int[] arr) {
+	//writeln("DDD");
+	foreach (ref el; arr) {
+		el -= 90;
+	}
+}
+
+void testGroupsDependicesFuncE(int[] arrA, int[] arrB) {
+	//writeln("EE");
+	assert(arrA.length==arrB.length);
+	foreach (i; 0..arrA.length) {
+		arrA[i]+=arrB[i];
+		arrA[i]*=-1;
+	}
+}
+
+void testGroupsDependices() {
+
+	enum uint partsNum = 32;
+	//enum uint iterations = 100;
+	enum uint elementsNum = 512 * 64;
+	enum uint step = elementsNum / partsNum;
+	int[elementsNum] elements;
+	int[elementsNum] elements2;
+	alias ddd = void function(int[]);
+	alias dddSum = void function(int[], int[]);
+	alias dddParrallelGroups = void delegate();
+
+	auto groupA = UniversalJobGroup!ddd(partsNum);
+	auto groupB = UniversalJobGroup!ddd(partsNum);
+	auto groupC = UniversalJobGroup!ddd(partsNum);
+	auto groupD = UniversalJobGroup!ddd(partsNum);
+	auto groupE = UniversalJobGroup!dddSum(partsNum);
+	auto groupKK = UniversalJobGroup!dddParrallelGroups(2);
+
+	foreach (int i; 0 .. partsNum) {
+		groupA.add(&testGroupsDependicesFuncA, elements[i * step .. (i + 1) * step]);
+		groupB.add(&testGroupsDependicesFuncB, elements2[i * step .. (i + 1) * step]);
+		groupC.add(&testGroupsDependicesFuncC, elements[i * step .. (i + 1) * step]);
+		groupD.add(&testGroupsDependicesFuncD, elements[i * step .. (i + 1) * step]);
+		groupE.add(&testGroupsDependicesFuncE, elements[i * step .. (i + 1) * step], elements2[i * step .. (i + 1) * step]);
+	}
+	//--------- groupXX -----
+	//  groupA -> groupC    |
+	//--groupKK ---			|
+	//  groupA -> |			|
+	//  groupB -> | groupD  |
+	//-------------
+
+	//---------- groupKK ------------
+	//groupA -> groupC -> groupD -> |
+	//groupB ->                     | groupE
+
+	// Set up dependices
+	// Set up |groupA -> groupC -> groupD| chain
+	groupA.setEndFunction(&groupC.callAndRunEndFunction);
+	groupC.setEndFunction(&groupD.callAndWait);
+	// Set up |groupA -> groupC -> groupD| parallel with groupB 
+	groupKK.add(&groupA.callAndRunEndFunction);
+	groupKK.add(&groupB.callAndWait);
+	// Chain groupKK with groupE
+	// groupE is the end, so chain to its callAndWait
+	groupKK.setEndFunction(&groupE.callAndWait);
+	// Run from beginning (group groupKK starts groupA and groupB)
+	groupKK.callAndRunEndFunction();
+
+	foreach (el; elements) {
+		assertM(el, -1_000_111);
+	}
 }
 
 void test(uint threadsNum = 16) {
@@ -244,14 +342,16 @@ void test(uint threadsNum = 16) {
 	static void startTest() {
 		foreach (i; 0 .. 1) {
 			alias UnDel = void delegate();
-			testForeach();
-			makeTestJobsFrom(&testFiberLockingToThread, 100);
-			callAndWait!(UnDel)((&testUnique).toDelegate);
-			callAndWait!(UnDel)((&testPerformance).toDelegate);
-			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+			//testForeach();
+			//makeTestJobsFrom(&testFiberLockingToThread, 100);
+			//callAndWait!(UnDel)((&testUnique).toDelegate);
+			callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
+			//callAndWait!(UnDel)((&testPerformance).toDelegate);
+			//callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+
 			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
-			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
+			//callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 		}
 
 	}

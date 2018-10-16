@@ -18,7 +18,7 @@ import mutils.thread : Fiber, PAGESIZE, Thread;
 
 //only one warning about GC
 Fiber newFiber() {
-	Fiber fiber = Mallocator.instance.make!(Fiber)(PAGESIZE * 32u);
+	Fiber fiber = Mallocator.instance.make!(Fiber)(PAGESIZE * 64);
 	fiber.state = Fiber.State.TERM;
 	return fiber;
 }
