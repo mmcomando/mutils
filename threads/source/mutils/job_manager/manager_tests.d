@@ -146,9 +146,9 @@ void testPerformanceSleep() {
 	uint u_secs = 13;
 
 	alias ddd = typeof(&activeSleep);
-	UniversalJobGroup!ddd group = UniversalJobGroup!ddd(partsNum);
+	UniversalJobGroupNew group = UniversalJobGroupNew(partsNum);
 	foreach (int i; 0 .. partsNum) {
-		group.add(&activeSleep, u_secs);
+		group.add!ddd(&activeSleep, u_secs);
 	}
 	StopWatch sw;
 	sw.start();
@@ -194,9 +194,9 @@ void testPerformanceMatrix() {
 	uint step = matricesNum / partsNum;
 
 	alias ddd = typeof(&mulMat);
-	UniversalJobGroup!ddd group = UniversalJobGroup!ddd(partsNum);
+	UniversalJobGroupNew group = UniversalJobGroupNew(partsNum);
 	foreach (int i; 0 .. partsNum) {
-		group.add(&mulMat, matricesA[i * step .. (i + 1) * step],
+		group.add!ddd(&mulMat, matricesA[i * step .. (i + 1) * step],
 				matricesB[i * step .. (i + 1) * step], matricesC[i * step .. (i + 1) * step]);
 	}
 	foreach (i; 0 .. iterations) {
@@ -244,35 +244,30 @@ void testGroupStart() {
 }
 
 void testGroupsDependicesFuncA(int[] arr) {
-	//writeln("AAAA");
 	foreach (ref el; arr) {
 		el = 1;
 	}
 }
 
 void testGroupsDependicesFuncB(int[] arr) {
-	//writeln("BBBB");
 	foreach (ref el; arr) {
 		el = 1_000_000;
 	}
 }
 
 void testGroupsDependicesFuncC(int[] arr) {
-	//writeln("CCC");
 	foreach (ref el; arr) {
 		el *= 201;
 	}
 }
 
 void testGroupsDependicesFuncD(int[] arr) {
-	//writeln("DDD");
 	foreach (ref el; arr) {
 		el -= 90;
 	}
 }
 
 void testGroupsDependicesFuncE(int[] arrA, int[] arrB) {
-	//writeln("EE");
 	assert(arrA.length == arrB.length);
 	foreach (i; 0 .. arrA.length) {
 		arrA[i] += arrB[i];
@@ -281,56 +276,6 @@ void testGroupsDependicesFuncE(int[] arrA, int[] arrB) {
 }
 
 void testGroupsDependices() {
-
-	enum uint partsNum = 32;
-	//enum uint iterations = 100;
-	enum uint elementsNum = 512 * 64;
-	enum uint step = elementsNum / partsNum;
-	int[elementsNum] elements;
-	int[elementsNum] elements2;
-	alias ddd = void function(int[]);
-	alias dddSum = void function(int[], int[]);
-	alias dddParrallelGroups = void delegate();
-
-	auto groupA = UniversalJobGroup!ddd(partsNum);
-	auto groupB = UniversalJobGroup!ddd(partsNum);
-	auto groupC = UniversalJobGroup!ddd(partsNum);
-	auto groupD = UniversalJobGroup!ddd(partsNum);
-	auto groupE = UniversalJobGroup!dddSum(partsNum);
-	auto groupKK = UniversalJobGroup!dddParrallelGroups(2);
-
-	foreach (int i; 0 .. partsNum) {
-		groupA.add(&testGroupsDependicesFuncA, elements[i * step .. (i + 1) * step]);
-		groupB.add(&testGroupsDependicesFuncB, elements2[i * step .. (i + 1) * step]);
-		groupC.add(&testGroupsDependicesFuncC, elements[i * step .. (i + 1) * step]);
-		groupD.add(&testGroupsDependicesFuncD, elements[i * step .. (i + 1) * step]);
-		groupE.add(&testGroupsDependicesFuncE,
-				elements[i * step .. (i + 1) * step], elements2[i * step .. (i + 1) * step]);
-	}
-
-	//---------- groupKK ------------
-	//groupA -> groupC -> groupD -> |
-	//groupB ->                     | groupE
-
-	// Set up dependices
-	// Set up |groupA -> groupC -> groupD| chain
-	groupA.setEndFunction(&groupC.callAndRunEndFunction);
-	groupC.setEndFunction(&groupD.callAndWait);
-	// Set up |groupA -> groupC -> groupD| parallel with groupB 
-	groupKK.add(&groupA.callAndRunEndFunction);
-	groupKK.add(&groupB.callAndWait);
-	// Chain groupKK with groupE
-	// groupE is the end, so chain to its callAndWait
-	groupKK.setEndFunction(&groupE.callAndWait);
-	// Run from beginning (group groupKK starts groupA and groupB)
-	groupKK.callAndRunEndFunction();
-
-	foreach (el; elements) {
-		assertM(el, -1_000_111);
-	}
-}
-
-void testGroupsDependices222() {
 
 	enum uint partsNum = 512;
 	enum uint elementsNum = 512 * 512;
@@ -344,11 +289,11 @@ void testGroupsDependices222() {
 	alias ddd = void function(int[]);
 	alias dddSum = void function(int[], int[]);
 
-	auto groupA = UniversalJobGroup222();
-	auto groupB = UniversalJobGroup222();
-	auto groupC = UniversalJobGroup222();
-	auto groupD = UniversalJobGroup222();
-	auto groupE = UniversalJobGroup222();
+	auto groupA = UniversalJobGroupNew();
+	auto groupB = UniversalJobGroupNew();
+	auto groupC = UniversalJobGroupNew();
+	auto groupD = UniversalJobGroupNew();
+	auto groupE = UniversalJobGroupNew();
 
 	foreach (int i; 0 .. partsNum) {
 		groupA.add!ddd(&testGroupsDependicesFuncA, elements[i * step .. (i + 1) * step]);
@@ -362,14 +307,11 @@ void testGroupsDependices222() {
 	//groupA -> groupC -> groupD -> |
 	//groupB ->                     | groupE
 
-	groupE.spawnOnDependenciesFulfilled = true;
 	//groupE.runOnJobsDone = true;
 	groupE.dependantOn(&groupD);
 	groupE.dependantOn(&groupB);
 
-	groupC.spawnOnDependenciesFulfilled = true;
 	groupC.dependantOn(&groupA);
-	groupD.spawnOnDependenciesFulfilled = true;
 	groupD.dependantOn(&groupC);
 
 	groupA.start();
@@ -389,17 +331,15 @@ void test(uint threadsNum = 16) {
 	static void startTest() {
 		foreach (i; 0 .. 1) {
 			alias UnDel = void delegate();
-			//testForeach();
-			//makeTestJobsFrom(&testFiberLockingToThread, 100);
-			//callAndWait!(UnDel)((&testUnique).toDelegate);
-			//callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
-			callAndWait!(UnDel)((&testGroupsDependices222).toDelegate);
-			//callAndWait!(UnDel)((&testPerformance).toDelegate);
-			//callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
-
-			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			testForeach();
+			makeTestJobsFrom(&testFiberLockingToThread, 100);
+			callAndWait!(UnDel)((&testUnique).toDelegate);
+			callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
+			callAndWait!(UnDel)((&testPerformance).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
-			//callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
+			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 		}
 
 	}

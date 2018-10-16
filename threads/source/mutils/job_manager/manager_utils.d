@@ -15,6 +15,7 @@ import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.traits : Parameters;
 
+import mutils.container.vector;
 import mutils.job_manager.manager;
 import mutils.job_manager.utils;
 import mutils.thread;
@@ -89,16 +90,14 @@ struct UniversalJob(Delegate) {
 
 }
 // It is faster to add array of jobs
-struct UniversalJobGroup222 {
-	import mutils.container.vector;
-
+struct UniversalJobGroupNew {
 	enum uint invalidCount = 10000;
 	alias Delegate = void delegate();
 
 	bool runOnJobsDone;
-	bool spawnOnDependenciesFulfilled;
+	bool spawnOnDependenciesFulfilled = true;
 	align(64) shared int dependicesWaitCount;
-	Vector!(UniversalJobGroup222*) children;
+	Vector!(UniversalJobGroupNew*) children;
 
 	Vector!Job jobs;
 	Vector!(JobDelegate*) jobPointers;
@@ -107,18 +106,13 @@ struct UniversalJobGroup222 {
 	align(64) FiberData waitingFiber;
 
 	static struct Job {
-		UniversalJobGroup222* group;
+		UniversalJobGroupNew* group;
 		void function(ubyte*) delegateUNB;
-		//Delegate delegateToCall;
 		Delegate delegateJob; // JobManager takes pointer to delegate, so there will be stored callJob delegate (&callJob)
 		ubyte[64] memoryForUserDelegate;
 
 		void callJob() {
-			if (delegateUNB is null) {
-				//delegateToCall();
-			} else {
-				delegateUNB(memoryForUserDelegate.ptr);
-			}
+			delegateUNB(memoryForUserDelegate.ptr);			
 
 			atomicOp!"-="(group.countJobsToBeDone, 1);
 			bool ok = cas(&group.countJobsToBeDone, 0, invalidCount);
@@ -129,7 +123,11 @@ struct UniversalJobGroup222 {
 
 	}
 
-	void dependantOn(UniversalJobGroup222* parent) {
+	this(int jobsNum) {
+		jobs.reserve(jobsNum);
+	}
+
+	void dependantOn(UniversalJobGroupNew* parent) {
 		parent.children ~= &this;
 		atomicOp!"+="(dependicesWaitCount, 1);
 	}
@@ -137,18 +135,15 @@ struct UniversalJobGroup222 {
 	import std.stdio;
 
 	void onJobsCounterZero() {
-		//writeln("onJobsCounterZero");
 		decrementChildrenDependices();
 
 		if (runOnJobsDone) {
-			//writeln("runOnJobsDone");
 			jobManager.addFiber(waitingFiber);
 		}
 	}
 
 	void decrementChildrenDependices() {
-		//writeln("decrementChildrenDependices: ", children.length);
-		foreach (UniversalJobGroup222* group; children) {
+		foreach (UniversalJobGroupNew* group; children) {
 			assert(atomicLoad(group.dependicesWaitCount) < invalidCount - 1000);
 
 			atomicOp!"-="(group.dependicesWaitCount, 1);
@@ -161,21 +156,21 @@ struct UniversalJobGroup222 {
 	}
 
 	void onDependicesCounterZero() {
-		//writeln("onDependicesCounterZero");
-		//assert(!(runOnJobsDone && spawnOnDependenciesFulfilled),
-		//		"runOnJobsDone and spawnOnDependenciesFulfilled can not be true at once");
-
 		if (spawnOnDependenciesFulfilled) {
-			//writeln("spawnOnDependenciesFulfilled");
 			start();
 		}
 	}
 
 	void start() {
 		setUpJobs();
-		//counter.waitingFiber = getFiberData();
 		jobManager.addJobs(jobPointers[]);
-		//decrementChildrenDependices();
+	}
+
+	auto callAndWait() {
+		runOnJobsDone = true;
+		waitingFiber = getFiberData();
+		setUpJobs();
+		jobManager.addJobsAndYield(jobPointers[]);
 	}
 
 	void waitForDependices() {
@@ -184,23 +179,18 @@ struct UniversalJobGroup222 {
 		Fiber.yield();
 	}
 
-	/*void add(Delegate del) {
-		//jobs ~= Job(&this, del);
-		addUND!(typeof(del))(del);
-	}*/
-
 	void add(DG)(DG del, Parameters!(DG) args) {
-		auto und=UniversalDelegate!(typeof(del))(del, args);
+		auto und = UniversalDelegate!(typeof(del))(del, args);
 		ubyte[] delBytes = und.toBytes();
 
 		Job job;
-		job.group=&this;
+		job.group = &this;
 		job.memoryForUserDelegate[0 .. delBytes.length] = delBytes[0 .. delBytes.length];
 		job.delegateUNB = &und.callFromBytes;
 
 		jobs ~= job;
 
-		static assert(und.sizeof<=Job.memoryForUserDelegate.length);
+		static assert(und.sizeof <= Job.memoryForUserDelegate.length);
 	}
 
 	auto setUpJobs() {
@@ -221,7 +211,6 @@ struct UniversalJobGroup(Delegate) {
 	uint jobsAdded;
 	UnJob[] unJobs;
 	JobDelegate*[] dels;
-	DelegateOnEnd delegateOnEnd;
 
 	@disable this();
 	@disable this(this);
@@ -245,20 +234,6 @@ struct UniversalJobGroup(Delegate) {
 		} else {
 			callAndWait();
 		}
-	}
-
-	void setEndFunction(DelegateOnEnd del) {
-		delegateOnEnd = del;
-	}
-
-	void callAndRunEndFunction() {
-		//static assert(!UnJob.UnDelegate.hasReturn,
-		//		"UniversalJobGroup delegate can not have return value when callAndRunEndFunction() is used");
-		setUpJobs();
-		counter.waitingFiber = getFiberData();
-		jobManager.addJobsAndYield(dels[0 .. jobsAdded]);
-		assert(delegateOnEnd !is null, "delegateOnEnd can not be null");
-		delegateOnEnd();
 	}
 
 	//Returns data like getReturnData
