@@ -14,6 +14,7 @@ import std.algorithm : map;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
 import std.traits : Parameters;
+import std.stdio;
 
 import mutils.container.vector;
 import mutils.job_manager.manager;
@@ -132,7 +133,6 @@ struct UniversalJobGroupNew {
 		atomicOp!"+="(dependicesWaitCount, 1);
 	}
 
-	import std.stdio;
 
 	void onJobsCounterZero() {
 		decrementChildrenDependices();
@@ -167,10 +167,16 @@ struct UniversalJobGroupNew {
 	}
 
 	auto callAndWait() {
-		runOnJobsDone = true;
-		waitingFiber = getFiberData();
-		setUpJobs();
-		jobManager.addJobsAndYield(jobPointers[]);
+		if(jobPointers.length!=0){
+			// Add jobs and wait
+			runOnJobsDone = true;
+			waitingFiber = getFiberData();
+			setUpJobs();
+			jobManager.addJobsAndYield(jobPointers[]);
+		}else{
+			// Immediately call group end
+			onJobsCounterZero();
+		}
 	}
 
 	void waitForCompletion() {
