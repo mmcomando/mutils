@@ -83,3 +83,20 @@ int pthread_setcancelstate(int, int*);
 int pthread_setcanceltype(int, int*);
 int pthread_setspecific(pthread_key_t, in void*);
 void pthread_testcancel();
+
+
+
+
+
+// semaphore.h
+
+alias sem_t = void*;
+
+int sem_init(sem_t*, int, uint);
+int sem_wait(sem_t*);
+int sem_post(sem_t*);
+int sem_destroy(sem_t*);
+
+// sched.h
+
+int sched_yield();
