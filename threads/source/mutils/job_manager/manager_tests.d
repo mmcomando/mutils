@@ -26,6 +26,13 @@ void simpleYield() {
 	}
 }
 
+void simpleSleep(uint msecs) {
+	if (msecs == 0) {
+		return;
+	}
+	Thread.sleep(msecs);
+}
+
 void activeSleep(uint u_seconds) {
 	StopWatch sw;
 	sw.start();
@@ -302,7 +309,8 @@ void testGroupsDependices() {
 		groupB.add!ddd(&testGroupsDependicesFuncB, elements2[i * step .. (i + 1) * step]);
 		groupC.add!ddd(&testGroupsDependicesFuncC, elements[i * step .. (i + 1) * step]);
 		groupD.add!ddd(&testGroupsDependicesFuncD, elements[i * step .. (i + 1) * step]);
-		groupE.add!dddSum(&testGroupsDependicesFuncE, elements[i * step .. (i + 1) * step], elements2[i * step .. (i + 1) * step]);
+		groupE.add!dddSum(&testGroupsDependicesFuncE,
+				elements[i * step .. (i + 1) * step], elements2[i * step .. (i + 1) * step]);
 	}
 
 	//---------- groupKK ------------
@@ -326,12 +334,41 @@ void testGroupsDependices() {
 	}
 }
 
+void testUnbalancedGroups() {
+
+	enum uint groupsNum = 32;
+	alias ddd = void function(uint);
+
+	auto groupEnd = UniversalJobGroupNew();
+	UniversalJobGroupNew[groupsNum] groups;
+	groupEnd.add!ddd(&simpleSleep, 0);
+
+	foreach (ref group; groups) {
+		group.add!ddd(&simpleSleep, 100);
+		foreach (i; 0 .. 32) {
+			group.add!ddd(&simpleSleep, 0);
+		}
+		groupEnd.dependantOn(&group);
+	}
+
+	StopWatch sw;
+	sw.start();
+	foreach (ref group; groups) {
+		group.start();
+	}
+
+	groupEnd.waitForCompletion();
+
+	sw.stop();
+	printf("Performacnce unbalanced: %dms\n", cast(int)(sw.msecs));
+}
+
 void test(uint threadsNum = 16) {
 	import core.memory;
 
 	GC.disable();
 	static void startTest() {
-		foreach (i; 0 .. 30) {
+		foreach (i; 0 .. 1) {
 			alias UnDel = void delegate();
 			//testForeach();
 			//makeTestJobsFrom(&testFiberLockingToThread, 100);
@@ -340,6 +377,7 @@ void test(uint threadsNum = 16) {
 			callAndWait!(UnDel)((&testPerformance).toDelegate);
 			//callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
 			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			callAndWait!(UnDel)((&testUnbalancedGroups).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
 			//callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 		}
