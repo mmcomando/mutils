@@ -60,18 +60,18 @@ struct JobManager {
 
 	}
 
-	 int threadsCount;
-	 DebugHelper debugHelper;
+	int threadsCount;
+	DebugHelper debugHelper;
 	// Jobs managment
-	 private int addJobToQueueNum;
-	 private Vector!JobVector waitingJobs;
+	private int addJobToQueueNum;
+	private Vector!JobVector waitingJobs;
 	// Fibers managment
-	 private Vector!FiberTLSCache fibersCache;
-	 private Vector!FiberVector waitingFibers;
+	private Vector!FiberTLSCache fibersCache;
+	private Vector!FiberVector waitingFibers;
 	// Thread managment
-	 private Vector!Thread threadPool;
-	 private Vector!Semaphore semaphores;
-	 private bool exit;
+	private Vector!Thread threadPool;
+	private Vector!Semaphore semaphores;
+	private bool exit;
 
 	private void initialize(uint threadsCount = 0) {
 		exit = false;
@@ -202,7 +202,6 @@ struct JobManager {
 		addJobToQueueNum++;
 	}
 
-
 	void addJobs(JobDelegate*[] dels) {
 		debugHelper.jobsAddedAdd(cast(int) dels.length);
 
@@ -236,8 +235,7 @@ struct JobManager {
 	}
 
 	Fiber allocateFiber(JobDelegate del, int threadNum) {
-		Fiber fiber;
-		fiber = fibersCache[threadNum].getData();
+		Fiber fiber = fibersCache[threadNum].getData();
 		assert(fiber.state == Fiber.State.TERM);
 		assert(fiber.myThreadNum == jobManagerThreadNum);
 		fiber.reset(del);
@@ -249,43 +247,72 @@ struct JobManager {
 		fibersCache[threadNum].removeData(fiber);
 	}
 
-	void runNextJob() {
-		int threadNum = jobManagerThreadNum;
+	Fiber getFiberOwnerThread(int threadNum) {
 		Fiber fiber;
-
 		FiberData fd = waitingFibers[threadNum].pop;
-		FiberData varInit;
-		if (fd != varInit) {
+		if (fd != FiberData.init) {
 			fiber = fd.fiber;
 			debugHelper.fibersDoneAdd();
 		} else {
-			JobDelegate* job;
-			job = waitingJobs[threadNum].pop();
+			JobDelegate* job = waitingJobs[threadNum].pop();
 			if (job !is null) {
 				debugHelper.jobsDoneAdd();
 				fiber = allocateFiber(*job, threadNum);
 			}
 		}
-		//nothing to do
-		if (fiber is null) {
-			return;
-		}
-		//do the job
-		assert(fiber.state == Fiber.State.HOLD);
-		fiber.call();
+		return fiber;
+	}
 
-		//reuse fiber
-		if (fiber.state == Fiber.State.TERM) {
-			deallocateFiber(fiber, threadNum);
+	Fiber getFiberThiefThread(int threadNum) {
+		Fiber fiber;
+		foreach (thSteal; 0 .. threadsCount) {
+			if (thSteal == threadNum) {
+				continue; // Do not steal from yourself
+			}
+			if (semaphores[thSteal].tryWait()) {
+				JobDelegate* job = waitingJobs[thSteal].pop();
+				if (job !is null) {
+					debugHelper.jobsDoneAdd();
+					fiber = allocateFiber(*job, threadNum);
+					break;
+				} else {
+					semaphores[thSteal].post(); // Can not steal, give owner a chance to take it
+				}
+
+			}
 		}
+		return fiber;
 	}
 
 	void threadRunFunction() {
 		Fiber.initializeStatic();
 		int threadNum = jobManagerThreadNum;
 		while (!exit) {
-			semaphores[threadNum].wait();
-			runNextJob();
+			Fiber fiber;
+			if (semaphores[threadNum].tryWait()) {
+				fiber = getFiberOwnerThread(threadNum);
+			} else {
+				fiber = getFiberThiefThread(threadNum);
+				if (fiber is null) {
+					// Thread does not have own job and can not steal, so wait for a job 
+					semaphores[threadNum].wait();
+					fiber = getFiberOwnerThread(threadNum);
+				}
+			}
+
+			// Nothing to do
+			if (fiber is null) {
+				//return;
+				continue;
+			}
+			// Do the job
+			assert(fiber.state == Fiber.State.HOLD);
+			fiber.call();
+
+			// Reuse fiber
+			if (fiber.state == Fiber.State.TERM) {
+				deallocateFiber(fiber, threadNum);
+			}
 		}
 	}
 

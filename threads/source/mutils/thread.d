@@ -48,6 +48,11 @@ struct Semaphore {
 		assert(ret == 0);
 	}
 
+	bool tryWait() {
+		int ret = sem_trywait(&mutex);
+		return (ret == 0);
+	}
+
 	void post() {
 		int ret = sem_post(&mutex);
 		assert(ret == 0);
@@ -269,7 +274,6 @@ final class Fiber {
 		TERM = 1,
 		EXEC = 2,
 	}
-
 
 	align(128) coro_context context;
 	DG threadStart;

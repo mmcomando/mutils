@@ -94,6 +94,7 @@ alias sem_t = void*;
 
 int sem_init(sem_t*, int, uint);
 int sem_wait(sem_t*);
+int sem_trywait(sem_t*);
 int sem_post(sem_t*);
 int sem_destroy(sem_t*);
 
