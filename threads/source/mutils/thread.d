@@ -49,6 +49,7 @@ struct Semaphore {
 	}
 
 	bool tryWait() {
+		//return true;
 		int ret = sem_trywait(&mutex);
 		return (ret == 0);
 	}
@@ -95,7 +96,7 @@ struct MutexSpinLock {
 			return;
 		}
 		while (true) {
-			for (size_t n; atomicLoad!(MemoryOrder.raw)(lockVar);) {
+			for (size_t n; atomicLoad!(MemoryOrder.raw)(lockVar); n++) {
 				if (n < 8) {
 					pause();
 				} else {

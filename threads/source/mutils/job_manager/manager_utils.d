@@ -39,8 +39,6 @@ FiberData getFiberData() {
 }
 
 struct Counter {
-	enum uint invalidCount = 10000;
-
 	align(64) shared int count;
 	align(64) FiberData waitingFiber;
 
@@ -49,15 +47,14 @@ struct Counter {
 	}
 
 	bool countedToZero() {
-		return atomicLoad(count) == invalidCount;
+		return atomicLoad(count) == 0;
 	}
 
 	void decrement() {
-		assert(atomicLoad(count) < invalidCount - 1000);
+		assert(atomicLoad(count) >= 0);
 
-		atomicOp!"-="(count, 1);
-		bool ok = cas(&count, 0, invalidCount);
-		if (ok && waitingFiber.fiber !is null) {
+		auto num = atomicOp!"-="(count, 1);
+		if (num == 0 && waitingFiber.fiber !is null) {
 			jobManager.addFiber(waitingFiber);
 			//waitingFiber.fiber=null;//makes deadlock maybe atomicStore would help or it shows some bug??
 			//atomicStore(waitingFiber.fiber,null);//has to be shared ignore for now
@@ -92,7 +89,6 @@ struct UniversalJob(Delegate) {
 }
 // It is faster to add array of jobs
 struct UniversalJobGroupNew {
-	enum uint invalidCount = 10000;
 	alias Delegate = void delegate();
 	bool runOnJobsDone;
 	bool spawnOnDependenciesFulfilled = true;
@@ -114,9 +110,8 @@ struct UniversalJobGroupNew {
 		void callJob() {
 			delegateUNB(memoryForUserDelegate.ptr);
 
-			atomicOp!"-="(group.countJobsToBeDone, 1);
-			bool ok = cas(&group.countJobsToBeDone, 0, invalidCount);
-			if (ok) {
+			auto num = atomicOp!"-="(group.countJobsToBeDone, 1);
+			if (num == 0) {
 				group.onJobsCounterZero();
 			}
 		}
@@ -142,11 +137,10 @@ struct UniversalJobGroupNew {
 
 	void decrementChildrenDependices() {
 		foreach (UniversalJobGroupNew* group; children) {
-			assert(atomicLoad(group.dependicesWaitCount) < invalidCount - 1000);
+			assert(atomicLoad(group.dependicesWaitCount) >= 0);
 
-			atomicOp!"-="(group.dependicesWaitCount, 1);
-			bool ok = cas(&group.dependicesWaitCount, 0, invalidCount);
-			if (ok) {
+			auto num = atomicOp!"-="(group.dependicesWaitCount, 1);
+			if (num == 0) {
 				group.onDependicesCounterZero();
 			}
 

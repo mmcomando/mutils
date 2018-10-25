@@ -196,7 +196,7 @@ struct JobManager {
 	void addJob(JobDelegate* del) {
 		debugHelper.jobsAddedAdd();
 
-		int queueNum = addJobToQueueNum % cast(int) waitingJobs.length;
+		int queueNum = addJobToQueueNum % threadsCount;
 		waitingJobs[queueNum].add(del);
 		semaphores[queueNum].post();
 		addJobToQueueNum++;
@@ -205,7 +205,7 @@ struct JobManager {
 	void addJobs(JobDelegate*[] dels) {
 		debugHelper.jobsAddedAdd(cast(int) dels.length);
 
-		int part = cast(int)(dels.length / waitingJobs.length);
+		int part = cast(int)dels.length / threadsCount;
 		if (part > 0) {
 			foreach (i, ref wj; waitingJobs) {
 				wj.add(dels[i * part .. (i + 1) * part]);
@@ -217,7 +217,7 @@ struct JobManager {
 			dels = dels[part * waitingJobs.length .. $];
 		}
 		foreach (del; dels) {
-			int queueNum = addJobToQueueNum % cast(int) waitingJobs.length;
+			int queueNum = addJobToQueueNum % threadsCount;
 			waitingJobs[queueNum].add(del);
 			semaphores[queueNum].post();
 			addJobToQueueNum++;

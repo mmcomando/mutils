@@ -100,9 +100,9 @@ void testPerformance() {
 	sw.start();
 	jobManager.debugHelper.resetCounters();
 	alias ddd = typeof(&simpleYield);
-	UniversalJobGroup!ddd group = UniversalJobGroup!ddd(packetSize);
+	UniversalJobGroupNew group = UniversalJobGroupNew(packetSize);
 	foreach (int i; 0 .. packetSize) {
-		group.add(&simpleYield);
+		group.add!ddd(&simpleYield);
 	}
 	//int[] pp=	new int[100];
 	foreach (uint i; 0 .. iterations) {
