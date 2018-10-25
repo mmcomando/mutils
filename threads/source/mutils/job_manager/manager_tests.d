@@ -341,7 +341,6 @@ void testUnbalancedGroups() {
 
 	auto groupEnd = UniversalJobGroupNew();
 	UniversalJobGroupNew[groupsNum] groups;
-	groupEnd.add!ddd(&simpleSleep, 0);
 
 	foreach (ref group; groups) {
 		group.add!ddd(&simpleSleep, 100);

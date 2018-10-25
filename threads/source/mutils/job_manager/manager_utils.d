@@ -94,7 +94,6 @@ struct UniversalJob(Delegate) {
 struct UniversalJobGroupNew {
 	enum uint invalidCount = 10000;
 	alias Delegate = void delegate();
-
 	bool runOnJobsDone;
 	bool spawnOnDependenciesFulfilled = true;
 	align(64) shared int dependicesWaitCount;
@@ -113,7 +112,7 @@ struct UniversalJobGroupNew {
 		ubyte[64] memoryForUserDelegate;
 
 		void callJob() {
-			delegateUNB(memoryForUserDelegate.ptr);			
+			delegateUNB(memoryForUserDelegate.ptr);
 
 			atomicOp!"-="(group.countJobsToBeDone, 1);
 			bool ok = cas(&group.countJobsToBeDone, 0, invalidCount);
@@ -132,7 +131,6 @@ struct UniversalJobGroupNew {
 		parent.children ~= &this;
 		atomicOp!"+="(dependicesWaitCount, 1);
 	}
-
 
 	void onJobsCounterZero() {
 		decrementChildrenDependices();
@@ -162,18 +160,23 @@ struct UniversalJobGroupNew {
 	}
 
 	void start() {
-		setUpJobs();
-		jobManager.addJobs(jobPointers[]);
+		if (jobs.length != 0) {
+			setUpJobs();
+			jobManager.addJobs(jobPointers[]);
+		} else {
+			// Immediately call group end
+			onJobsCounterZero();
+		}
 	}
 
 	auto callAndWait() {
-		if(jobPointers.length!=0){
+		if (jobs.length != 0) {
 			// Add jobs and wait
 			runOnJobsDone = true;
 			waitingFiber = getFiberData();
 			setUpJobs();
 			jobManager.addJobsAndYield(jobPointers[]);
-		}else{
+		} else {
 			// Immediately call group end
 			onJobsCounterZero();
 		}
