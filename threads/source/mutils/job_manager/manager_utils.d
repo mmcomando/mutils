@@ -89,7 +89,9 @@ struct UniversalJob(Delegate) {
 }
 // It is faster to add array of jobs
 struct UniversalJobGroupNew {
+	enum int fiberWillYieldNum = 100000;
 	alias Delegate = void delegate();
+	//string name;
 	bool runOnJobsDone;
 	bool spawnOnDependenciesFulfilled = true;
 	align(64) shared int dependicesWaitCount;
@@ -114,6 +116,11 @@ struct UniversalJobGroupNew {
 			if (num == 0) {
 				group.onJobsCounterZero();
 			}
+
+			// waitForCompletion() adding fiberWillYieldNum says: I will wait to be resumed.  So make sure it will be resumed by true
+			if (num == fiberWillYieldNum) {
+				group.onJobsCounterZero(true);
+			}
 		}
 
 	}
@@ -127,10 +134,11 @@ struct UniversalJobGroupNew {
 		atomicOp!"+="(dependicesWaitCount, 1);
 	}
 
-	void onJobsCounterZero() {
+	// runOnJobsDoneOverride is used when runOnJobsDone is to be set, but due to multithreading it might not be visible immediately
+	void onJobsCounterZero(bool runOnJobsDoneOverride = false) {
 		decrementChildrenDependices();
 
-		if (runOnJobsDone) {
+		if (runOnJobsDone || runOnJobsDoneOverride) {
 			jobManager.addFiber(waitingFiber);
 		}
 	}
@@ -176,9 +184,18 @@ struct UniversalJobGroupNew {
 		}
 	}
 
+
 	void waitForCompletion() {
-		runOnJobsDone = true;
+		if(dependicesWaitCount==0 && countJobsToBeDone==0){
+			return;
+		}
 		waitingFiber = getFiberData();
+		auto num = atomicOp!"+="(countJobsToBeDone, fiberWillYieldNum);
+		if (dependicesWaitCount==0 && num == fiberWillYieldNum) {
+			// Decrementer saw 0 jobs done, it might not resume us if we would yield now
+			return;
+		}
+		runOnJobsDone = true;
 		Fiber.yield();
 	}
 
@@ -197,7 +214,7 @@ struct UniversalJobGroupNew {
 	}
 
 	auto setUpJobs() {
-		countJobsToBeDone = cast(int) jobs.length;
+		atomicOp!"+="(countJobsToBeDone, cast(int) jobs.length);
 		jobPointers.length = jobs.length;
 		foreach (i, ref jj; jobs) {
 			jj.delegateJob = &jj.callJob;
