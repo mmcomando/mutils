@@ -308,7 +308,7 @@ struct JobManager {
 					bool ok=semaphores[threadNum].timedWait(1_000_000);
 					
 					if(ok==false){
-						writeln("Semaphore 1s timed out...");
+						//writeln("Semaphore 1s timed out...");
 					}
 					fiber = getFiberOwnerThread(threadNum);
 				}
