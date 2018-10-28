@@ -34,7 +34,7 @@ struct FiberData {
 FiberData getFiberData() {
 	Fiber fiber = Fiber.getThis();
 	//printf("getFiberData fiber: %p\n", fiber);
-	assert(fiber !is null);
+	assertKM(fiber !is null);
 	return FiberData(fiber, jobManagerThreadNum);
 }
 
@@ -51,13 +51,11 @@ struct Counter {
 	}
 
 	void decrement() {
-		assert(atomicLoad(count) >= 0);
+		assertKM(atomicLoad(count) >= 0);
 
 		auto num = atomicOp!"-="(count, 1);
 		if (num == 0 && waitingFiber.fiber !is null) {
 			jobManager.addFiber(waitingFiber);
-			//waitingFiber.fiber=null;//makes deadlock maybe atomicStore would help or it shows some bug??
-			//atomicStore(waitingFiber.fiber,null);//has to be shared ignore for now
 		}
 
 	}
@@ -69,7 +67,7 @@ struct UniversalJob(Delegate) {
 	JobDelegate runDel; //wraper to decrement counter on end
 	Counter* counter;
 	void runWithCounter() {
-		assert(counter !is null);
+		assertKM(counter !is null);
 		unDel.callAndSaveReturn();
 		static if (multithreadedManagerON) {
 			counter.decrement();
@@ -145,7 +143,7 @@ struct UniversalJobGroupNew {
 
 	void decrementChildrenDependices() {
 		foreach (UniversalJobGroupNew* group; children) {
-			assert(atomicLoad(group.dependicesWaitCount) >= 0);
+			assertKM(atomicLoad(group.dependicesWaitCount) >= 0);
 
 			auto num = atomicOp!"-="(group.dependicesWaitCount, 1);
 			if (num == 0) {
@@ -248,14 +246,6 @@ struct UniversalJobGroup(Delegate) {
 		jobsAdded++;
 	}
 
-	deprecated("Use callAndWait") auto wait() {
-		static if (UnJob.UnDelegate.hasReturn) {
-			return callAndWait();
-		} else {
-			callAndWait();
-		}
-	}
-
 	//Returns data like getReturnData
 	auto callAndWait() {
 		setUpJobs();
@@ -274,7 +264,7 @@ struct UniversalJobGroup(Delegate) {
 	///But remember: returned data lives as long as this object
 	auto getReturnData()() {
 		static assert(UnJob.UnDelegate.hasReturn);
-		assert(areJobsDone);
+		assertKM(areJobsDone);
 		return unJobs.map!(a => a.unDel.result);
 	}
 
@@ -304,11 +294,6 @@ private:
 		Mallocator.instance.dispose(unJobs);
 		Mallocator.instance.dispose(dels);
 	}
-}
-
-deprecated("Now UniversalJobGroup allcoates memory by itself. Delete call to this function.") string getStackMemory(
-		string varName) {
-	return "";
 }
 
 auto callAndWait(Delegate)(Delegate del, Parameters!(Delegate) args) {
@@ -358,7 +343,7 @@ auto multithreaded(T)(T[] slice) {
 						} else {
 							int result = del(element);
 						}
-						assert(result == 0,
+						assertKM(result == 0,
 								"Cant use break, continue, itp in multithreaded foreach");
 					}
 				}
@@ -372,7 +357,7 @@ auto multithreaded(T)(T[] slice) {
 					} else {
 						int result = dg(element);
 					}
-					assert(result == 0, "Cant use break, continue, itp in multithreaded foreach");
+					assertKM(result == 0, "Cant use break, continue, itp in multithreaded foreach");
 
 				}
 			} else {

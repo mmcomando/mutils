@@ -17,7 +17,8 @@ import mutils.container.vector;
 import mutils.container_shared.shared_queue;
 import mutils.job_manager.fiber_cache;
 import mutils.job_manager.manager_utils;
-import mutils.thread : Fiber, Thread, Semaphore;
+import mutils.job_manager.utils;
+import mutils.thread : Fiber, Thread, Semaphore, instructionPause;
 
 enum threadsPerCPU = 4;
 
@@ -180,16 +181,22 @@ struct JobManager {
 	}
 
 	void addFiber(FiberData fiberData) {
-		assert(waitingFibers.length == threadPool.length);
-		assert(fiberData.fiber.state != Fiber.State.TERM); //  && fiberData.fiber.state!=Fiber.State.EXEC - cannot be added because addThisFiberAndYield violates this assertion
+		while(fiberData.fiber.state==Fiber.State.EXEC){
+			instructionPause();
+		}
+		assertKM(waitingFibers.length == threadPool.length);
+		assertKM(fiberData.fiber.state != Fiber.State.TERM && fiberData.fiber.state!=Fiber.State.EXEC); //   - cannot be added because addThisFiberAndYield violates this assertion
 		debugHelper.fibersAddedAdd();
 		waitingFibers[fiberData.threadNum].add(fiberData);
 		semaphores[fiberData.threadNum].post();
 	}
 
-	// Only for tests - fiber should not add itself to execution
+	// Only for tests - it is pointless to add itself to be immediately resumed
 	void addThisFiberAndYield(FiberData thisFiber) {
-		addFiber(thisFiber);
+		//writeln("addThisFiberAndYield");
+		debugHelper.fibersAddedAdd();
+		waitingFibers[thisFiber.threadNum].add(thisFiber);
+		semaphores[thisFiber.threadNum].post();
 		Fiber.yield();
 	}
 
@@ -236,8 +243,8 @@ struct JobManager {
 
 	Fiber allocateFiber(JobDelegate del, int threadNum) {
 		Fiber fiber = fibersCache[threadNum].getData();
-		assert(fiber.state == Fiber.State.TERM);
-		assert(fiber.myThreadNum == jobManagerThreadNum);
+		assertKM(fiber.state == Fiber.State.TERM);
+		assertKM(fiber.myThreadNum == jobManagerThreadNum);
 		fiber.reset(del);
 		return fiber;
 	}
@@ -269,17 +276,19 @@ struct JobManager {
 			if (thSteal == threadNum) {
 				continue; // Do not steal from yourself
 			}
-			if (semaphores[thSteal].tryWait()) {
-				JobDelegate* job = waitingJobs[thSteal].pop();
-				if (job !is null) {
-					debugHelper.jobsDoneAdd();
-					fiber = allocateFiber(*job, threadNum);
-					break;
-				} else {
-					semaphores[thSteal].post(); // Can not steal, give owner a chance to take it
-				}
-
+			if (!semaphores[thSteal].tryWait()) {
+				continue;
 			}
+			JobDelegate* job = waitingJobs[thSteal].pop();
+			if (job !is null) {
+				debugHelper.jobsDoneAdd();
+				fiber = allocateFiber(*job, threadNum);
+				break;
+			} else {
+				semaphores[thSteal].post(); // Can not steal, give owner a chance to take it
+			}
+
+			
 		}
 		return fiber;
 	}
@@ -294,19 +303,23 @@ struct JobManager {
 			} else {
 				fiber = getFiberThiefThread(threadNum);
 				if (fiber is null) {
-					// Thread does not have own job and can not steal, so wait for a job 
-					semaphores[threadNum].wait();
+					// Thread does not have own job and can not steal it, so wait for a job 
+					// semaphores[threadNum].wait(); There is deadlock in some cases. For now use timedWait instaed of wait
+					bool ok=semaphores[threadNum].timedWait(1_000_000);
+					
+					if(ok==false){
+						writeln("Semaphore 1s timed out...");
+					}
 					fiber = getFiberOwnerThread(threadNum);
 				}
 			}
 
 			// Nothing to do
 			if (fiber is null) {
-				//return;
 				continue;
 			}
 			// Do the job
-			assert(fiber.state == Fiber.State.HOLD);
+			assertKM(fiber.state == Fiber.State.HOLD);
 			fiber.call();
 
 			// Reuse fiber

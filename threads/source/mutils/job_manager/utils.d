@@ -5,6 +5,13 @@ module mutils.job_manager.utils;
 
 import std.stdio;
 
+void assertKM(A, string file = __FILE__, uint line = __LINE__)(A a, string message="") {
+	if (!a) {
+		debug writefln("File: %s:%s %s",file,line,message);
+		assert(a);
+	}
+}
+
 void assertM(A, B, string file = __FILE__, uint line = __LINE__)(A a, B b) {
 	if (a != b) {
 		debug writefln("File: %s:%s  A: %s, B: %s",file,line,a,b);

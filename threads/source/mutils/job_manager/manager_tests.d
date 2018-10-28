@@ -60,7 +60,7 @@ void testFiberLockingToThread() {
 	auto fiberData = getFiberData();
 	foreach (i; 0 .. 1000) {
 		jobManager.addThisFiberAndYield(fiberData);
-		assert(id == Thread.getThisThreadNum());
+		assertKM(id == Thread.getThisThreadNum());
 	}
 }
 
@@ -79,17 +79,18 @@ int randomRecursionJobs(int deepLevel) {
 		group.add(&randomRecursionJobs, deepLevel - 1);
 	}
 	auto jobsRun = group.callAndWait();
-	return sum(jobsRun) + randNum;
+	auto sumNum=sum(jobsRun) + randNum;
+	return sumNum;
 }
 
 //returns how many jobs it have spawned
 void testRandomRecursionJobs() {
 	jobManager.debugHelper.resetCounters();
 	int jobsRun = callAndWait!(typeof(&randomRecursionJobs))(&randomRecursionJobs, 5);
-	assert(jobManager.debugHelper.jobsAdded == jobsRun + 1);
-	assert(jobManager.debugHelper.jobsDone == jobsRun + 1);
-	assert(jobManager.debugHelper.fibersAdded == jobsRun + 2);
-	assert(jobManager.debugHelper.fibersDone == jobsRun + 2);
+	assertM(jobManager.debugHelper.jobsAdded, jobsRun + 1);
+	assertM(jobManager.debugHelper.jobsDone,jobsRun + 1);
+	assertM(jobManager.debugHelper.fibersAdded, jobsRun + 2);
+	assertM(jobManager.debugHelper.fibersDone, jobsRun + 2);
 }
 
 //__gshared long best=0;
@@ -172,7 +173,7 @@ void testPerformanceSleep() {
 
 alias mat4 = float[16];
 void mulMat(mat4[] mA, mat4[] mB, mat4[] mC) {
-	assert(mA.length == mB.length && mB.length == mC.length);
+	assertKM(mA.length == mB.length && mB.length == mC.length);
 	foreach (i; 0 .. mA.length) {
 		foreach (k; 0 .. 1) {
 			mC[i] = mB[i][] * mB[i][];
@@ -188,7 +189,7 @@ void testPerformanceMatrix() {
 	uint partsNum = 128;
 	uint iterations = 100;
 	uint matricesNum = 512 * 64;
-	assert(matricesNum % partsNum == 0);
+	assertKM(matricesNum % partsNum == 0);
 	mat4[] matricesA = Mallocator.instance.makeArray!mat4(matricesNum);
 	mat4[] matricesB = Mallocator.instance.makeArray!mat4(matricesNum);
 	mat4[] matricesC = Mallocator.instance.makeArray!mat4(matricesNum);
@@ -227,7 +228,7 @@ void testForeach() {
 	foreach (ref int el; ints.multithreaded) {
 		activeSleep(100);
 	}
-	assert(sum == 200);
+	assertKM(sum == 200);
 }
 
 void testGroupStart() {
@@ -243,12 +244,10 @@ void testGroupStart() {
 	}
 	group.start();
 	activeSleep(10);
-	assert(group.counter.count > 0 && !group.counter.countedToZero());
-	writeln("AAAAAAAAAA");
+	assertKM(group.counter.count > 0 && !group.counter.countedToZero());
 	Thread.sleep(1000);
 	//activeSleep(1000_000);
-	writeln("BBBBbb");
-	assert(group.areJobsDone);
+	assertKM(group.areJobsDone);
 
 }
 
@@ -277,7 +276,7 @@ void testGroupsDependicesFuncD(int[] arr) {
 }
 
 void testGroupsDependicesFuncE(int[] arrA, int[] arrB) {
-	assert(arrA.length == arrB.length);
+	assertKM(arrA.length == arrB.length);
 	foreach (i; 0 .. arrA.length) {
 		arrA[i] += arrB[i];
 		arrA[i] *= -1;
@@ -303,6 +302,11 @@ void testGroupsDependices() {
 	auto groupC = UniversalJobGroupNew();
 	auto groupD = UniversalJobGroupNew();
 	auto groupE = UniversalJobGroupNew();
+	/*groupA.name="groupA";
+	groupB.name="groupB";
+	groupC.name="groupC";
+	groupD.name="groupD";
+	groupE.name="groupE";*/
 
 	foreach (int i; 0 .. partsNum) {
 		groupA.add!ddd(&testGroupsDependicesFuncA, elements[i * step .. (i + 1) * step]);
@@ -362,6 +366,23 @@ void testUnbalancedGroups() {
 	printf("Performacnce unbalanced: %dms\n", cast(int)(sw.msecs));
 }
 
+void testWaitForGroup() {
+	alias ddd = void function(uint);
+
+	UniversalJobGroupNew groupA;
+	UniversalJobGroupNew groupEnd;
+	/*groupA.name="groupA";
+	groupEnd.name="groupEnd";*/
+	groupEnd.dependantOn(&groupA);
+	groupA.add!ddd(&simpleSleep, 0);
+	groupA.start();
+	//Thread.sleep(100);
+	groupA.waitForCompletion();
+	//Thread.sleep(100);
+	//groupEnd.waitForCompletion();
+}
+
+
 void test(uint threadsNum = 16) {
 	import core.memory;
 
@@ -369,16 +390,17 @@ void test(uint threadsNum = 16) {
 	static void startTest() {
 		foreach (i; 0 .. 1) {
 			alias UnDel = void delegate();
-			//testForeach();
-			//makeTestJobsFrom(&testFiberLockingToThread, 100);
-			//callAndWait!(UnDel)((&testUnique).toDelegate);
-			//callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
-			callAndWait!(UnDel)((&testPerformance).toDelegate);
-			//callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
-			//callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
+			testForeach();
+			makeTestJobsFrom(&testFiberLockingToThread, 100);
+			callAndWait!(UnDel)((&testUnique).toDelegate);
+			callAndWait!(UnDel)((&testGroupsDependices).toDelegate);
+			callAndWait!(UnDel)((&testWaitForGroup).toDelegate);
+			callAndWait!(UnDel)((&testPerformance).toDelegate);	
+			callAndWait!(UnDel)((&testPerformanceMatrix).toDelegate);
+			callAndWait!(UnDel)((&testPerformanceSleep).toDelegate);
 			callAndWait!(UnDel)((&testUnbalancedGroups).toDelegate);
 			//callAndWait!(UnDel)((&testGroupStart).toDelegate);// Has to have long sleep
-			//callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
+			callAndWait!(UnDel)((&testRandomRecursionJobs).toDelegate);
 		}
 		//writeln(best);
 
@@ -389,7 +411,7 @@ void test(uint threadsNum = 16) {
 }
 
 void testScalability() {
-	foreach (int i; 1 .. 32) {
+	foreach (int i; 1 .. 44) {
 		printf(" %d ", i);
 		test(i);
 	}

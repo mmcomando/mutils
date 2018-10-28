@@ -54,6 +54,16 @@ struct Semaphore {
 		return (ret == 0);
 	}
 
+	bool timedWait(int usecs) {
+		timespec tv;
+		clock_gettime(CLOCK_REALTIME, &tv);
+		tv.tv_sec+=usecs/1_000_000;
+		tv.tv_nsec += (usecs%1_000_000)*1_000;
+
+		int ret = sem_timedwait(&mutex, &tv);
+		return (ret == 0);
+	}
+
 	void post() {
 		int ret = sem_post(&mutex);
 		assert(ret == 0);
@@ -85,6 +95,24 @@ struct Mutex {
 	}
 }
 
+void instructionPause() {
+	version (X86_64) {
+		version (LDC) {
+			import ldc.gccbuiltins_x86 : __builtin_ia32_pause;
+
+			__builtin_ia32_pause();
+		} else version (DigitalMars) {
+			asm {
+				rep;
+				nop;
+			}
+
+		} else {
+			static assert(0);
+		}
+	}
+}
+
 struct MutexSpinLock {
 	align(64) shared size_t lockVar;
 
@@ -98,7 +126,7 @@ struct MutexSpinLock {
 		while (true) {
 			for (size_t n; atomicLoad!(MemoryOrder.raw)(lockVar); n++) {
 				if (n < 8) {
-					pause();
+					instructionPause();
 				} else {
 					sched_yield();
 				}
@@ -108,24 +136,6 @@ struct MutexSpinLock {
 			}
 		}
 
-	}
-
-	void pause() {
-		version (X86_64) {
-			version (LDC) {
-				import ldc.gccbuiltins_x86 : __builtin_ia32_pause;
-
-				__builtin_ia32_pause();
-			} else version (DigitalMars) {
-				asm {
-					rep;
-					nop;
-				}
-
-			} else {
-				static assert(0);
-			}
-		}
 	}
 
 	bool tryLock() {
